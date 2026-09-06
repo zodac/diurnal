@@ -20,7 +20,7 @@
              nothing to do. Nothing on this page creates a note, so the state only has to be decided at
              render time. `value` re-seeds the box from ?q= so a bookmarked or reloaded search still reads
              correctly. !}
-        {#include partials/search-input id="note-search-input" url="/internal/notes/list?page=1" target="#note-list"
+        {#include partials/search-input id="note-search-input" url=inject:paths.internalNotesListFirstPage target="#note-list"
                   placeholder=msg:searchNotesPlaceholder value=searchTerm disabled=searchDisabled /}
 
         <div class="card overflow-hidden">

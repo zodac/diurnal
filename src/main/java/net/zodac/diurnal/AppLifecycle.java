@@ -114,12 +114,12 @@ public class AppLifecycle {
 
         LOGGER.info("=================================================");
         LOGGER.info("  Diurnal started");
-        LOGGER.info("  Password auth : {}", passwordAuthConfig.enabled() ? "enabled" : "disabled");
+        LOGGER.debug("  Password auth : {}", passwordAuthConfig.enabled() ? "enabled" : "disabled");
         if (quarkusOidcConfig.tenantEnabled()) {
-            LOGGER.info("  OIDC          : enabled  (issuer: {}, provider: {}, auto-redirect: {})",
+            LOGGER.debug("  OIDC          : enabled  (issuer: {}, provider: {}, auto-redirect: {})",
                 quarkusOidcConfig.authServerUrl(), oidcConfig.providerName(), oidcConfig.autoRedirect());
         } else {
-            LOGGER.info("  OIDC          : disabled");
+            LOGGER.debug("  OIDC          : disabled");
             if (oidcConfig.autoRedirect()) {
                 LOGGER.warn("  OIDC_AUTO_REDIRECT=true has no effect because OIDC_ENABLED=false");
             }
@@ -144,7 +144,7 @@ public class AppLifecycle {
         LOGGER.info("=================================================");
         LOGGER.info("  Diurnal stopped");
         // The same RuntimeMXBean measurement as the cold-start figure, so the two are read from the same instant (JVM launch).
-        LOGGER.info("  Uptime        : {}", ElapsedTime.format(uptime()));
+        LOGGER.debug("  Uptime        : {}", ElapsedTime.format(uptime()));
         LOGGER.info("=================================================");
     }
 

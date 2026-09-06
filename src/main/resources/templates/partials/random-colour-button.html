@@ -16,12 +16,12 @@
     align      — optional, default 'left': the tooltip's horizontal anchor
     tipPos     — optional, default 'bottom': which side the tooltip opens on. Pass 'top' inside a
                  `.dt-table` row - see the note in partials/action-row.html.
-    url        — optional, default '/internal/actions/random-colour': the suggestion endpoint. The
+    url        — optional, defaults to paths.internalActionsRandomColour: the suggestion endpoint. The
                  default suits every caller today - the suggestion avoids every colour the user has
                  in use (their actions' AND their note colour), so both pages want the same answer.
 !}
 {#let wrapperCls=wrapperCls.or('') iconCls=iconCls.or('') dtEdit=dtEdit.or(false) align=align.or('left') tipPos=tipPos.or('bottom')
-    url=url.or('/internal/actions/random-colour')}
+    url=url.or(inject:paths.internalActionsRandomColour)}
 <span {#if dtEdit}data-dt-edit {/if}class="group relative inline-flex{#if wrapperCls} {wrapperCls}{/if}">
     <button type="button"
             data-random-colour

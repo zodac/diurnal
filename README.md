@@ -234,13 +234,15 @@ The Compose files also tune PostgreSQL itself; those knobs live in [Performance 
 
 ### Application
 
-| Variable           | Default | Description                                                                                                 |
-|--------------------|---------|-------------------------------------------------------------------------------------------------------------|
-| `DB_LOG_LEVEL`     | `WARN`  | Set to `TRACE` to log every SQL statement + bound parameters (verbose; may expose parameter values)         |
-| `EXPORT_CSV_BOM`   | `true`  | Lead each exported CSV with a UTF-8 byte-order mark (Excel-friendly); `false` for plain UTF-8 (LibreOffice) |
-| `LOG_LEVEL`        | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                            |
-| `MAX_UPLOAD_SIZE`  | `100M`  | Largest request body accepted, in binary units (`100M`, `512K`, `1G`), also for import/export               |
-| `TZ`               | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                                                |
+| Variable                   | Default | Description                                                                                                 |
+|----------------------------|---------|-------------------------------------------------------------------------------------------------------------|
+| `APP_UPDATE_CHECK_ENABLED` | `true`  | Check GitHub once at startup for a newer release                                                            |
+| `APP_UPDATE_CHECK_TIMEOUT` | `PT3S`  | How long that one lookup may take before it is abandoned                                                    |
+| `DB_LOG_LEVEL`             | `WARN`  | Set to `TRACE` to log every SQL statement + bound parameters (verbose; may expose parameter values)         |
+| `EXPORT_CSV_BOM`           | `true`  | Lead each exported CSV with a UTF-8 byte-order mark (Excel-friendly); `false` for plain UTF-8 (LibreOffice) |
+| `LOG_LEVEL`                | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                            |
+| `MAX_UPLOAD_SIZE`          | `100M`  | Largest request body accepted, in binary units (`100M`, `512K`, `1G`), also for import/export               |
+| `TZ`                       | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                                                |
 
 ### Note Configuration
 
@@ -302,21 +304,23 @@ container's memory budget in [Performance Tuning](#performance-tuning).
 #### OIDC
 
 OIDC is disabled by default. When enabled, users can sign in through your identity provider alongside (or instead of) password login. Register
-`{your-base-url}/oauth2/callback/oidc` as the redirect URI with your IdP.
+`{your-base-url}/oauth2/callback/oidc` as the redirect URI with your IdP (including any `BASE_PATH` prefix, e.g.
+`https://example.com/diurnal/oauth2/callback/oidc`).
 
-| Variable             | Default                  | Description                                                           |
-|----------------------|--------------------------|-----------------------------------------------------------------------|
-| `OIDC_ADMIN_GROUP`   |                          | IdP group whose members are granted the `Administrator` role          |
-| `OIDC_AUTO_REDIRECT` | `false`                  | If `true`, `/login` redirects straight to the provider                |
-| `OIDC_CLIENT_ID`     | `diurnal`                | Client ID registered with the provider                                |
-| `OIDC_CLIENT_SECRET` |                          | Client secret for the registered client                               |
-| `OIDC_ENABLED`       | `false`                  | Set to `true` to activate OIDC                                        |
-| `OIDC_ISSUER_URL`    |                          | Base URL of the OIDC provider (e.g. `https://auth.example.com`)       |
-| `OIDC_LOGOUT_URL`    |                          | OIDC users are redirected here after logging out                      |
-| `OIDC_PKCE_ENABLED`  | `true`                   | PKCE on the code flow; disable only if the provider rejects it        |
-| `OIDC_PROVIDER_NAME` | `your identity provider` | Name shown on the login button ("Log in with your identity provider") |
-| `OIDC_SCOPES`        | `email,groups,profile`   | Extra scopes requested with `openid` (use `email,profile` for Google) |
-| `OIDC_USER_GROUP`    |                          | IdP group whose members are granted the `User` role                   |
+| Variable                 | Default                  | Description                                                           |
+|--------------------------|--------------------------|-----------------------------------------------------------------------|
+| `OIDC_ADMIN_GROUP`       |                          | IdP group whose members are granted the `Administrator` role          |
+| `OIDC_AUTO_REDIRECT`     | `false`                  | If `true`, `/login` redirects straight to the provider                |
+| `OIDC_CLIENT_ID`         | `diurnal`                | Client ID registered with the provider                                |
+| `OIDC_CLIENT_SECRET`     |                          | Client secret for the registered client                               |
+| `OIDC_ENABLED`           | `false`                  | Set to `true` to activate OIDC                                        |
+| `OIDC_ISSUER_URL`        |                          | Base URL of the OIDC provider (e.g. `https://auth.example.com`)       |
+| `OIDC_LOGOUT_URL`        |                          | OIDC users are redirected here after logging out                      |
+| `OIDC_PKCE_ENABLED`      | `true`                   | PKCE on the code flow; disable only if the provider rejects it        |
+| `OIDC_PROVIDER_NAME`     | `your identity provider` | Name shown on the login button ("Log in with your identity provider") |
+| `OIDC_SCOPES`            | `email,groups,profile`   | Extra scopes requested with `openid` (use `email,profile` for Google) |
+| `OIDC_USER_GROUP`        |                          | IdP group whose members are granted the `User` role                   |
+| `OIDC_VERIFY_ON_STARTUP` | `true`                   | Probe the IdP at startup and refuse to boot if it is unreachable      |
 
 <!-- markdownlint-disable MD033 -- collapsible example: intentional <strong> inside <summary> -->
 <details>
@@ -409,6 +413,7 @@ certificate, any HTTP→HTTPS redirect, and the `Strict-Transport-Security` (HST
 
 | Variable                    | Default | Description                                                                           |
 |-----------------------------|---------|---------------------------------------------------------------------------------------|
+| `BASE_PATH`                 |         | URL prefix the app is served under (if unset the application is served at `/`)        |
 | `CORS_ALLOWED_ORIGINS`      |         | Comma-separated list of origins allowed to call the API from a browser (unset = none) |
 | `TRUST_X_FORWARDED_HEADERS` | `false` | Trust `X-Forwarded-*` headers from the reverse proxy                                  |
 
@@ -420,15 +425,11 @@ possible for the password hashing, seen below.
 
 ### Application Memory
 
-| Variable             | Default | Description                                          |
-|----------------------|---------|------------------------------------------------------|
-| `APP_MEM_LIMIT`      | `2g`    | Total container memory (the JVM heap is 65% of this) |
-| `WORKER_MAX_THREADS` | `32`    | Concurrent blocking requests                         |
-
-`APP_MEM_LIMIT` is the knob to use: the heap follows it, so nothing has to be kept in sync by hand. To size the heap directly instead, set
-`JDK_JAVA_OPTIONS` (for example `-Xms256m -Xmx1g`) and the entrypoint will leave that flag alone — per flag, so supplying only an initial size still
-leaves the maximum capped. A container with no memory limit at all is capped to the same heap the default `APP_MEM_LIMIT` produces, because a JVM
-that sizes itself against total host RAM will grow a heap far larger than this application needs and never give it back.
+| Variable             | Default | Description                                                                                                     |
+|----------------------|---------|-----------------------------------------------------------------------------------------------------------------|
+| `APP_MEM_LIMIT`      | `2g`    | Total container memory (the JVM heap is 65% of this)                                                            |
+| `JDK_JAVA_OPTIONS`   |         | Standard JDK variable; a heap flag (for example `-Xms256m -Xmx1g`) replaces the docker ENTRYPOINT configuration |
+| `WORKER_MAX_THREADS` | `32`    | Concurrent blocking requests                                                                                    |
 
 ### Password Hashing Cost
 

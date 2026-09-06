@@ -50,10 +50,10 @@ function load(period, at, compare) {
     ;(compare || []).forEach(function (id) {params.append('compare', id)})
     const query = params.toString()
 
-    fetch(`/internal/stats/chart/${subjectId}${query ? `?${query}` : ''}`, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+    fetch(window.Diurnal.url(`/internal/stats/chart/${subjectId}${query ? `?${query}` : ''}`), {headers: {'X-Requested-With': 'XMLHttpRequest'}})
         .then(function (response) {
             if (response.status === 401 || response.redirected) {
-                window.location.href = '/login'
+                window.location.href = window.Diurnal.url('/login')
                 return null
             }
             return response.ok ? response.text() : null

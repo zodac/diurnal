@@ -1368,7 +1368,7 @@ if (oidcConnectArm) {
         }
         file.arrayBuffer().then(function (bytes) {
             pending = bytes
-            return post('/internal/data/import/preview')
+            return post(window.Diurnal.url('/internal/data/import/preview'))
         }).catch(function () {failed(window.Diurnal.i18n.fileCouldNotBeRead)})
     })
 
@@ -1377,7 +1377,7 @@ if (oidcConnectArm) {
         if (e.target.id === 'data-import-confirm') {
             if (!pending) {return}
             e.target.disabled = true
-            post('/internal/data/import').then(function () {
+            post(window.Diurnal.url('/internal/data/import')).then(function () {
                 pending = null
                 fileInput.value = ''
                 resetFilenameLabel()

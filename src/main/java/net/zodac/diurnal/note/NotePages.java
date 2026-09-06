@@ -21,6 +21,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
+import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.time.DayLabels;
 import org.jspecify.annotations.Nullable;
 
@@ -50,34 +51,38 @@ public final class NotePages {
      * @param hits   the page's notes and its place in the whole result, most recent first
      * @param query  the search term, used to highlight each row's snippet
      * @param locale the viewing user's locale, for each row's spelled-out day
+     * @param appPaths the single builder of every application URL, for the "did you mean" link
      * @return the requested page
      */
-    public static PaginatedNotes of(final PaginatedHits hits, final String query, final Locale locale) {
+    public static PaginatedNotes of(final PaginatedHits hits, final String query, final Locale locale, final AppPaths appPaths) {
         final List<NoteRow> items = hits.items()
             .stream()
             .map(hit -> new NoteRow(hit.date().toString(), DayLabels.spelledOut(hit.date(), locale), NoteSearch.snippet(hit.content(), query)))
             .toList();
 
-        return new PaginatedNotes(items, Math.toIntExact(hits.totalCount()), hits.totalPages(), hits.currentPage(), suggestion(hits.suggestion()));
+        return new PaginatedNotes(items, Math.toIntExact(hits.totalCount()), hits.totalPages(), hits.currentPage(),
+            suggestion(hits.suggestion(), appPaths));
     }
 
     /**
      * Builds the "did you mean" link for a word the search suggested, or {@code null} when it suggested none.
      *
      * <p>
-     * The word is encoded rather than interpolated raw: a suggestion is a word out of the user's own journal, in whatever script they write in, so
-     * it reaches the link as {@code %D9%85} rather than as itself. The link carries no page number - a new term starts at page one.
+     * The word is encoded rather than interpolated raw (by {@link AppPaths#notesForSearch(String)}): a suggestion is a word out of the user's own
+     * journal, in whatever script they write in, so it reaches the link as {@code %D9%85} rather than as itself. The link carries no page number - a
+     * new term starts at page one.
      *
      * @param suggestion the suggested word and its match count, or {@code null} when there is none
+     * @param appPaths the single builder of every application URL, for the link the suggestion points at
      * @return the suggestion, its link and its count, or {@code null} when there is nothing to suggest
      */
     @Nullable
-    public static NoteSuggestion suggestion(final @Nullable SuggestedTerm suggestion) {
+    public static NoteSuggestion suggestion(final @Nullable SuggestedTerm suggestion, final AppPaths appPaths) {
         if (suggestion == null) {
             return null;
         }
         final String word = suggestion.word();
-        return new NoteSuggestion(word, "/notes?q=" + URLEncoder.encode(word, StandardCharsets.UTF_8), suggestion.noteCount());
+        return new NoteSuggestion(word, appPaths.notesForSearch(word), suggestion.noteCount());
     }
 
     /**

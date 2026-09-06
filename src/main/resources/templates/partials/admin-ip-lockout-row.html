@@ -23,7 +23,7 @@
     <td class="dt-cell dt-cell-actions">
         {#if row.status.active}
         <div data-dt-view class="dt-actions">
-            <button hx-get="/internal/admin/ip-lockouts/{row.id}/confirm-unlock"
+            <button hx-get="{inject:paths.internalIpLockoutConfirmUnlock(row.id)}"
                     hx-target="#ip-lockout-row-{row.id}"
                     hx-swap="outerHTML"
                     class="dt-btn dt-btn-delete">{msg:unlock}</button>

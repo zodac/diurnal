@@ -14,7 +14,7 @@
         </span>
         <span data-dt-edit class="hidden flex items-center gap-2">
             <form id="user-form-{u.id}"
-                  hx-post="/internal/admin/users/{u.id}/role"
+                  hx-post="{inject:paths.internalAdminUserRole(u.id)}"
                   hx-target="#user-row-{u.id}"
                   hx-swap="outerHTML">
                 <select name="role" class="dt-select">
@@ -56,5 +56,5 @@
         </span>
         {/if}
     </td>
-    {#include partials/dt-row-actions id=u.id rowPrefix="user-row" formPrefix="user-form" confirmBase="/internal/admin/users" /}
+    {#include partials/dt-row-actions id=u.id rowPrefix="user-row" formPrefix="user-form" confirmBase=inject:paths.internalAdminUsers /}
 </tr>

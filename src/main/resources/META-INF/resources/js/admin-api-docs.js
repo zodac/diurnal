@@ -25,9 +25,9 @@ window.alignApiFont = function (frame) {
         : 'ui-sans-serif, system-ui, -apple-system, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif'
     const css =
         '@font-face{ font-family:\'Nova Flat\';font-weight:400;font-style:normal;font-display:swap;' +
-            'src:url(\'/fonts/NovaFlat-Book.woff2\') format(\'woff2\')}' +
+            `src:url('${  window.Diurnal.url('/fonts/NovaFlat-Book.woff2')  }') format('woff2')}` +
         '@font-face{ font-family:\'Nova Flat\';font-weight:700;font-style:normal;font-display:swap;' +
-            'src:url(\'/fonts/NovaFlat-Bold.woff2\') format(\'woff2\')}' +
+            `src:url('${  window.Diurnal.url('/fonts/NovaFlat-Bold.woff2')  }') format('woff2')}` +
         `.swagger-ui, .swagger-ui *{ font-family:${  bodyFont  } !important}` +
         // Keep actual code/JSON monospace: syntax-highlighted samples, the schema model, type
         // labels, the "Try it out" editor and any <code>/<pre>.

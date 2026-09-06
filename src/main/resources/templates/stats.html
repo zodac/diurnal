@@ -15,7 +15,7 @@
             <p class="text-ink-muted">{msg:noLogsYet}</p>
             {#else}
             <p class="text-ink-muted mb-3">{msg:noActionsDefinedYet}</p>
-            <a href="/actions" class="btn-primary">
+            <a href="{inject:paths.actions}" class="btn-primary">
                 {msg:addActions}
             </a>
             {/if}
@@ -52,7 +52,7 @@
 {! Page-specific behaviour (opening/closing the graph dialog and fetching its fragment), wired via the
      data-* hooks above — never inline, so the CSP stays hash-only. Served as stats.<hash>.js in prod
      (baked into AppInfo.jsStatsFile), stats.js in dev; runs after the shared /js/app.js. !}
-<script src="/js/{inject:appInfo.jsStatsFile}"></script>
+<script src="{inject:appInfo.jsStatsUrl}"></script>
 
 {/body}
 

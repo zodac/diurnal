@@ -30,6 +30,7 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
 import java.util.Collections;
 import java.util.Set;
+import net.zodac.diurnal.http.AppPaths;
 
 /**
  * The single authentication mechanism for the app: it resolves the server-side session behind the opaque token carried either in the
@@ -42,7 +43,7 @@ import java.util.Set;
  * so the database work runs off the IO thread.
  *
  * <p>
- * The challenge is chosen by path (see {@link #challengeFor(String)}): a {@code 302} redirect to {@code /login} for browser paths, a plain
+ * The challenge is chosen by path (see {@link #challengeFor(String, String)}): a {@code 302} redirect to {@code /login} for browser paths, a plain
  * {@code 401} for the REST API where a redirect would be wrong for a programmatic client. It declares a priority above the built-in mechanisms so
  * this choice wins the tie on unpinned paths.
  */
@@ -51,19 +52,21 @@ public class SessionAuthMechanism implements HttpAuthenticationMechanism {
 
     private static final String API_PATH_PREFIX = "/api/";
     private static final int PRIORITY_ABOVE_BUILTINS = DEFAULT_PRIORITY + 1000;
-    private static final ChallengeData REDIRECT_TO_LOGIN = new ChallengeData(Response.Status.FOUND.getStatusCode(), "location", "/login");
     private static final ChallengeData API_UNAUTHORIZED = new ChallengeData(Response.Status.UNAUTHORIZED.getStatusCode());
 
     private final SessionConfig sessionConfig;
+    private final AppPaths appPaths;
 
     /**
      * Injects the session settings.
      *
      * @param sessionConfig the session settings (cookie name)
+     * @param appPaths the single builder of every application URL, for the sign-in page an anonymous browser request is challenged with
      */
     @Inject
-    public SessionAuthMechanism(final SessionConfig sessionConfig) {
+    public SessionAuthMechanism(final SessionConfig sessionConfig, final AppPaths appPaths) {
         this.sessionConfig = sessionConfig;
+        this.appPaths = appPaths;
     }
 
     @Override
@@ -78,7 +81,7 @@ public class SessionAuthMechanism implements HttpAuthenticationMechanism {
 
     @Override
     public Uni<ChallengeData> getChallenge(final RoutingContext context) {
-        return Uni.createFrom().item(challengeFor(context.normalizedPath()));
+        return Uni.createFrom().item(challengeFor(context.normalizedPath(), appPaths.getLogin()));
     }
 
     /**
@@ -86,10 +89,13 @@ public class SessionAuthMechanism implements HttpAuthenticationMechanism {
      * would be wrong for a programmatic client) and a {@code 302} redirect to {@code /login} for every other (browser) path.
      *
      * @param path the request's normalised path
+     * @param loginUrl the sign-in page URL to redirect a browser to, carrying the deployment's base path
      * @return the {@link ChallengeData} to send
      */
-    static ChallengeData challengeFor(final String path) {
-        return path.startsWith(API_PATH_PREFIX) ? API_UNAUTHORIZED : REDIRECT_TO_LOGIN;
+    static ChallengeData challengeFor(final String path, final String loginUrl) {
+        return path.startsWith(API_PATH_PREFIX)
+            ? API_UNAUTHORIZED
+            : new ChallengeData(Response.Status.FOUND.getStatusCode(), "location", loginUrl);
     }
 
     @Override

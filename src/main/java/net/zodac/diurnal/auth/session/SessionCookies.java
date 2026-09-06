@@ -21,6 +21,7 @@ import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.NewCookie;
+import net.zodac.diurnal.http.AppPaths;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -41,15 +42,18 @@ public class SessionCookies {
     public static final String OIDC_COOKIE = "q_session";
 
     private final SessionConfig sessionConfig;
+    private final AppPaths appPaths;
 
     /**
      * Injects the session settings the cookie's name and lifetime come from.
      *
      * @param sessionConfig the session settings
+     * @param appPaths the single builder of every application URL, read for the path a cookie is scoped to
      */
     @Inject
-    public SessionCookies(final SessionConfig sessionConfig) {
+    public SessionCookies(final SessionConfig sessionConfig, final AppPaths appPaths) {
         this.sessionConfig = sessionConfig;
+        this.appPaths = appPaths;
     }
 
     /**
@@ -63,7 +67,7 @@ public class SessionCookies {
     public NewCookie issued(final String token, final @Nullable RoutingContext routingContext) {
         return new NewCookie.Builder(sessionConfig.cookieName())
                 .value(token)
-                .path("/")
+                .path(appPaths.getCookiePath())
                 .httpOnly(true)
                 .sameSite(NewCookie.SameSite.STRICT)
                 .secure(isSecureRequest(routingContext))
@@ -77,11 +81,16 @@ public class SessionCookies {
      * @return the expiring cookie to set on the response
      */
     public NewCookie cleared() {
-        return new NewCookie.Builder(sessionConfig.cookieName()).value("").path("/").maxAge(0).httpOnly(true).build();
+        return new NewCookie.Builder(sessionConfig.cookieName()).value("").path(appPaths.getCookiePath()).maxAge(0).httpOnly(true).build();
     }
 
     /**
      * Builds the cookie that clears Quarkus OIDC's own session cookie.
+     *
+     * <p>
+     * Pinned to {@code "/"} rather than to the deployment's base path, unlike every cookie above, because this one is not ours to scope: Quarkus set
+     * it under {@code quarkus.oidc.authentication.cookie-path} (which defaults to {@code "/"} and knows nothing of the sub-path prefix), and a clear
+     * only lands if its path matches the path the cookie was set with.
      *
      * @return the expiring cookie to set on the response
      */

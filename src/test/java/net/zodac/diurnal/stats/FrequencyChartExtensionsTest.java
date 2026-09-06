@@ -69,16 +69,23 @@ class FrequencyChartExtensionsTest {
     }
 
     @Test
-    void candidatesUrl_carriesThePrimaryAndEveryComparison() {
-        assertThat(FrequencyChartExtensions.candidatesUrl(chartOf(FIRST, SECOND)))
-            .as("the picker must know everything already charted, or it would offer it again")
-            .isEqualTo("/internal/stats/chart/" + FIRST + "/candidates?compare=" + SECOND);
+    void primarySubjectId_isTheSubjectTheChartWasOpenedFor() {
+        assertThat(FrequencyChartExtensions.primarySubjectId(chartOf(FIRST, SECOND)))
+            .as("the compare picker hangs off the first series, which is always the charted subject")
+            .isEqualTo(FIRST);
     }
 
     @Test
-    void candidatesUrl_singleAction_carriesNoQueryStringAtAll() {
-        assertThat(FrequencyChartExtensions.candidatesUrl(chartOf(FIRST)))
+    void candidatesQuery_carriesEveryComparison() {
+        assertThat(FrequencyChartExtensions.candidatesQuery(chartOf(FIRST, SECOND)))
+            .as("the picker must know everything already charted, or it would offer it again")
+            .isEqualTo("?compare=" + SECOND);
+    }
+
+    @Test
+    void candidatesQuery_singleAction_isEmpty() {
+        assertThat(FrequencyChartExtensions.candidatesQuery(chartOf(FIRST)))
             .as("with nothing compared yet the URL should not trail an empty query string")
-            .isEqualTo("/internal/stats/chart/" + FIRST + "/candidates");
+            .isEmpty();
     }
 }

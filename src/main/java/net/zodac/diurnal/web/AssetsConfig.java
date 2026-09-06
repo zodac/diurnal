@@ -142,8 +142,8 @@ public interface AssetsConfig {
      * Base-name → content-hashed filename map for the settings preview thumbnails served under {@code /img/settings/} (e.g.
      * {@code page-nova-full-dark} → {@code page-nova-full-dark.9f3a1c2b4d5e.webp}). Populated at image-build time — one entry per WebP, baked into
      * the build config by the Dockerfile — so each thumbnail gets a fresh URL only when its bytes change, and is served {@code immutable}. Empty for
-     * a non-Docker {@code mvn package} / dev run, where {@link net.zodac.diurnal.web.AppInfo#settingsImage(String)} falls back to the un-hashed base
-     * name.
+     * a non-Docker {@code mvn package} / dev run, where {@link net.zodac.diurnal.web.AppInfo#settingsImageUrl(String)} falls back to the
+     * un-hashed base name.
      *
      * @return the settings preview base-name to hashed-filename map, empty when un-hashed
      */
@@ -156,7 +156,7 @@ public interface AssetsConfig {
      * while the lightbox panel is capped at 1024 CSS px, so serving one full-size image for both cost every Settings page view several times the
      * bytes it needed; this map's images are fetched only when a reader actually opens a preview. Populated at image-build time exactly as
      * {@link #settingsImages()} is, and empty for a non-Docker {@code mvn package} / dev run, where
-     * {@link net.zodac.diurnal.web.AppInfo#settingsFullImage(String)} falls back to the un-hashed base name.
+     * {@link net.zodac.diurnal.web.AppInfo#settingsFullImageUrl(String)} falls back to the un-hashed base name.
      *
      * @return the settings preview base-name to hashed full-size filename map, empty when un-hashed
      */
@@ -167,7 +167,7 @@ public interface AssetsConfig {
      * Base-name → content-hashed filename map for the top-level {@code /img/} vector marks — the wordmarks and scalable favicon (e.g.
      * {@code wordmark} → {@code wordmark.9f3a1c2b4d5e.svg}). Populated at image-build time (one entry per SVG, baked in by the Dockerfile's hashing
      * script), so each mark gets a fresh URL only when its bytes change and is served {@code immutable}. Empty for a non-Docker {@code mvn package} /
-     * dev run, where {@link net.zodac.diurnal.web.AppInfo#image(String)} falls back to the un-hashed filename. Separate from
+     * dev run, where {@link net.zodac.diurnal.web.AppInfo#imageUrl(String)} falls back to the un-hashed filename. Separate from
      * {@link #settingsImages()} (a different path and fallback extension); the raster app-icons, fonts, {@code favicon.ico} and {@code manifest.json}
      * are deliberately NOT hashed.
      *

@@ -25,14 +25,16 @@ import io.quarkus.vertx.http.runtime.security.ChallengeData;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link SessionAuthMechanism#challengeFor(String)}: the REST API gets a plain {@code 401} while every browser path gets a {@code 302}
- * redirect to {@code /login}.
+ * Unit tests for {@link SessionAuthMechanism#challengeFor(String, String)}: the REST API gets a plain {@code 401} while every browser path gets a
+ * {@code 302} redirect to the sign-in page, which carries the deployment's base path.
  */
 class SessionAuthMechanismTest {
 
+    private static final String LOGIN_URL = "/login";
+
     @Test
     void challengeFor_apiPath_isPlainUnauthorized() {
-        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/api/v1/users/me");
+        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/api/v1/users/me", LOGIN_URL);
         assertThat(challenge.status)
                 .as("A REST API path must get a plain 401, not a browser redirect")
                 .isEqualTo(UNAUTHORIZED);
@@ -40,7 +42,7 @@ class SessionAuthMechanismTest {
 
     @Test
     void challengeFor_apiRoot_isPlainUnauthorized() {
-        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/api/v1/auth/logout");
+        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/api/v1/auth/logout", LOGIN_URL);
         assertThat(challenge.status)
                 .as("Every /api/ path must get a 401")
                 .isEqualTo(UNAUTHORIZED);
@@ -48,7 +50,7 @@ class SessionAuthMechanismTest {
 
     @Test
     void challengeFor_browserRoot_redirectsToLogin() {
-        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/");
+        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/", LOGIN_URL);
         assertThat(challenge.status)
                 .as("A browser path must get a 302 redirect")
                 .isEqualTo(FOUND);
@@ -56,9 +58,25 @@ class SessionAuthMechanismTest {
 
     @Test
     void challengeFor_nonApiPath_redirectsToLogin() {
-        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/settings");
+        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/settings", LOGIN_URL);
         assertThat(challenge.status)
                 .as("A non-API browser path must redirect to login")
                 .isEqualTo(FOUND);
+    }
+
+    @Test
+    void challengeFor_browserPath_redirectsToTheSuppliedLoginUrl() {
+        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/settings", "/diurnal/login");
+        assertThat(challenge.getHeaders())
+                .as("The redirect must send the browser to the sign-in URL it was given, carrying the deployment's base path")
+                .containsEntry("location", "/diurnal/login");
+    }
+
+    @Test
+    void challengeFor_apiPath_carriesNoRedirectTarget() {
+        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/api/v1/users/me", "/diurnal/login");
+        assertThat(challenge.getHeaders())
+                .as("A 401 for the REST API must carry no redirect target, whatever sign-in URL was offered")
+                .isEmpty();
     }
 }

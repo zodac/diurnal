@@ -26,7 +26,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.core.Response;
-import java.net.URI;
+import net.zodac.diurnal.http.AppPaths;
 import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 
 /**
@@ -37,17 +37,21 @@ public class NotFoundExceptionMapper {
 
     private final Template errorTemplate;
     private final CurrentIdentityAssociation identityAssociation;
+    private final AppPaths appPaths;
 
     /**
      * Injects the 404 page template and the deferred-identity association.
      *
      * @param errorTemplate the styled 404 page template
      * @param identityAssociation the deferred security-identity association
+     * @param appPaths the single builder of every application URL, for the anonymous redirect to the sign-in page
      */
     @Inject
-    public NotFoundExceptionMapper(@Location("error-404") final Template errorTemplate, final CurrentIdentityAssociation identityAssociation) {
+    public NotFoundExceptionMapper(@Location("error-404") final Template errorTemplate, final CurrentIdentityAssociation identityAssociation,
+        final AppPaths appPaths) {
         this.errorTemplate = errorTemplate;
         this.identityAssociation = identityAssociation;
+        this.appPaths = appPaths;
     }
 
     /**
@@ -60,7 +64,7 @@ public class NotFoundExceptionMapper {
     public Uni<Response> toResponse(final NotFoundException exception, final RoutingContext routingContext) {
         return identityAssociation.getDeferredIdentity().map(identity -> {
             if (identity.isAnonymous() && isWebNavigation(routingContext)) {
-                return Response.seeOther(URI.create("/login")).build();
+                return Response.seeOther(appPaths.loginUri()).build();
             }
             return ErrorPages.render(errorTemplate, Response.Status.NOT_FOUND, identity,
                 routingContext.request().getHeader("Accept-Language"));

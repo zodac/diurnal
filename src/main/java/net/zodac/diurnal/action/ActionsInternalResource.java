@@ -38,6 +38,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
@@ -70,6 +71,7 @@ public class ActionsInternalResource {
     private final Template textFailureMessageTemplate;
     private final CurrentUser currentUser;
     private final ActionService actionService;
+    private final AppPaths appPaths;
 
     /**
      * Injects the HTMX partial templates, the current-user accessor and the shared action service.
@@ -81,6 +83,7 @@ public class ActionsInternalResource {
      * @param textFailureMessageTemplate the shared text-validation-pipeline rejection message partial template
      * @param currentUser the current-user accessor
      * @param actionService the shared action-mutation service
+     * @param appPaths the single builder of every application URL, for the row's delete/restore endpoints
      */
     @Inject
     ActionsInternalResource(@Location("partials/actions-list") final Template actionsListTemplate,
@@ -88,7 +91,7 @@ public class ActionsInternalResource {
         @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
         @Location("partials/action-messages") final Template actionMessagesTemplate,
         @Location("partials/text-failure-message") final Template textFailureMessageTemplate,
-        final CurrentUser currentUser, final ActionService actionService) {
+        final CurrentUser currentUser, final ActionService actionService, final AppPaths appPaths) {
         this.actionsListTemplate = actionsListTemplate;
         this.actionRowTemplate = actionRowTemplate;
         this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
@@ -96,6 +99,7 @@ public class ActionsInternalResource {
         this.textFailureMessageTemplate = textFailureMessageTemplate;
         this.currentUser = currentUser;
         this.actionService = actionService;
+        this.appPaths = appPaths;
     }
 
     // ── Partials for HTMX ─────────────────────────────────────────────────
@@ -182,10 +186,10 @@ public class ActionsInternalResource {
                 .data("swatchColour", action.colour)
                 .data("label", action.name)
                 .data("prompt", prompt)
-                .data("deleteUrl", "/internal/actions/" + id + "/delete")
+                .data("deleteUrl", appPaths.internalActionDelete(id))
                 .data("deleteTarget", "#action-" + id)
                 .data("deleteSwap", "outerHTML")
-                .data("restoreUrl", "/internal/actions/" + id)
+                .data("restoreUrl", appPaths.internalAction(id))
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }
 

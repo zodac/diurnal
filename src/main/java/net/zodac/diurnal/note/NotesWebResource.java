@@ -30,6 +30,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import java.util.Locale;
+import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
@@ -69,6 +70,7 @@ public class NotesWebResource {
     private final Template notesTemplate;
     private final CurrentUser currentUser;
     private final NoteService noteService;
+    private final AppPaths appPaths;
 
     /**
      * Injects the page template, current-user accessor and the shared note service.
@@ -76,12 +78,15 @@ public class NotesWebResource {
      * @param notesTemplate the full notes-page template
      * @param currentUser   the current-user accessor
      * @param noteService   the shared note service, which owns the search
+     * @param appPaths the single builder of every application URL, for the "did you mean" link a search suggestion carries
      */
     @Inject
-    public NotesWebResource(@Location("notes") final Template notesTemplate, final CurrentUser currentUser, final NoteService noteService) {
+    public NotesWebResource(@Location("notes") final Template notesTemplate, final CurrentUser currentUser, final NoteService noteService,
+        final AppPaths appPaths) {
         this.notesTemplate = notesTemplate;
         this.currentUser = currentUser;
         this.noteService = noteService;
+        this.appPaths = appPaths;
     }
 
     /**
@@ -99,7 +104,7 @@ public class NotesWebResource {
 
         final User user = currentUser.get();
         final PaginatedHits hits = noteService.journalPage(user, searchTerm, pageNum, PageSizes.forSection(user, PageSection.NOTES));
-        final PaginatedNotes page = NotePages.of(hits, TextValidation.searchTerm(searchTerm), Locale.forLanguageTag(user.language));
+        final PaginatedNotes page = NotePages.of(hits, TextValidation.searchTerm(searchTerm), Locale.forLanguageTag(user.language), appPaths);
 
         // Whether the account holds ANY note, which is not the same question as whether this page has rows: a search that matched nothing still
         // leaves the box enabled so the term can be cleared. That is exactly what selectionCount answers - the search has already selected every

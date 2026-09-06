@@ -17,6 +17,19 @@
 // (settings.js, dashboard.js).
 window.Diurnal = window.Diurnal || {}
 
+// The deployment's base path, and the scripts' counterpart to AppPaths on the server: every URL a
+// script builds goes through Diurnal.url() so it carries the prefix a sub-path deployment is mounted
+// under (BASE_PATH, e.g. '/diurnal'). Empty for a deployment at the origin root, which is the default,
+// so url('/login') is then just '/login'. The value is written onto <body data-base-path> by
+// layout.html.
+//
+// The app itself always ROUTES at the root (the proxy strips the prefix before forwarding), so this
+// applies ONLY to a URL the browser resolves: a fetch target, a location assignment, and a comparison
+// against window.location.pathname, which carries the prefix the browser sees.
+window.Diurnal.url = function (path) {
+    return (document.body.dataset.basePath || '') + path
+}
+
 // The resolved app language (not the browser's own locale - see the comment on
 // formatNumber below for why that distinction matters), read off <html lang> - every page
 // already renders it there (layout.html), from the same User.language/Accept-Language
@@ -71,8 +84,8 @@ window.Diurnal.requiredFilled = function (form) {
 // the page sitting there, silently never loading), and an HTML caller swaps the entire login page into
 // whatever element it was filling. Run every response through this before touching its body.
 window.Diurnal.requireSession = function (resp) {
-    if (resp.status === 401 || (resp.redirected && new URL(resp.url).pathname === '/login')) {
-        window.location.assign('/login')
+    if (resp.status === 401 || (resp.redirected && new URL(resp.url).pathname === window.Diurnal.url('/login'))) {
+        window.location.assign(window.Diurnal.url('/login'))
         throw new Error('session expired')
     }
     return resp
@@ -483,7 +496,7 @@ document.addEventListener('click', function (e) {
 
         window.Diurnal.postForm(form).then(function (resp) {
             const dest = new URL(resp.url, window.location.origin)
-            if (dest.pathname === '/login') {
+            if (dest.pathname === window.Diurnal.url('/login')) {
                 // A lockout carries the seconds left in X-Lockout-Retry-After; otherwise it's a bad login.
                 const retryAfter = retryAfterOf(resp)
                 if (retryAfter > 0) {
@@ -1307,7 +1320,7 @@ document.addEventListener('click', function (e) {
 // leaking across logins — which for a journal entry is a privacy matter, not just tidiness.
 // Guarded to the login page only (path check, not a data-page marker — avoids threading a new param
 // through every full-page template).
-if (window.location.pathname === '/login') {
+if (window.location.pathname === window.Diurnal.url('/login')) {
     try {
         sessionStorage.removeItem('diurnal.selectedDate')
         sessionStorage.removeItem('diurnal.noteDraft')

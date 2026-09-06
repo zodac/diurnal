@@ -38,7 +38,6 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
-import java.net.URI;
 import java.util.List;
 import java.util.Locale;
 import net.zodac.diurnal.auth.PasswordChangeResult;
@@ -49,6 +48,7 @@ import net.zodac.diurnal.auth.oidc.OidcWebResource;
 import net.zodac.diurnal.auth.oidc.QuarkusOidcConfig;
 import net.zodac.diurnal.auth.session.SessionCookies;
 import net.zodac.diurnal.auth.session.SessionStore;
+import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.http.ClientAddress;
 import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.http.QuarkusHttpLimitsConfig;
@@ -92,6 +92,7 @@ public class SettingsWebResource {
     private final QuarkusHttpLimitsConfig httpLimitsConfig;
     private final QuarkusOidcConfig quarkusOidcConfig;
     private final OidcConfig oidcConfig;
+    private final AppPaths appPaths;
 
     /**
      * Injects the settings template, the translated OIDC connect/denial banner partial, the current-user accessor, the shared profile and
@@ -111,6 +112,7 @@ public class SettingsWebResource {
      * @param httpLimitsConfig the framework-owned {@code quarkus.http.limits.*} keys the page reads (the data card's upload bound)
      * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys the page reads (tenant-enabled, the IdP base URL)
      * @param oidcConfig the application OIDC policy settings
+     * @param appPaths the single builder of every application URL, for the sign-out redirect
      */
     @SuppressWarnings("OverlyCoupledMethod")
     @Inject
@@ -122,7 +124,7 @@ public class SettingsWebResource {
         final CurrentUser currentUser, final AppClock clock,
         final ProfileService profileService, final PasswordChangeService passwordChangeService, final SessionStore sessionStore,
         final SessionCookies sessionCookies, final QuarkusHttpLimitsConfig httpLimitsConfig, final QuarkusOidcConfig quarkusOidcConfig,
-        final OidcConfig oidcConfig) {
+        final OidcConfig oidcConfig, final AppPaths appPaths) {
         this.settingsTemplate = settingsTemplate;
         this.oidcMessagesTemplate = oidcMessagesTemplate;
         this.passwordRejectionTemplate = passwordRejectionTemplate;
@@ -137,6 +139,7 @@ public class SettingsWebResource {
         this.httpLimitsConfig = httpLimitsConfig;
         this.quarkusOidcConfig = quarkusOidcConfig;
         this.oidcConfig = oidcConfig;
+        this.appPaths = appPaths;
     }
 
     // ── Settings ───────────────────────────────────────────────────────────
@@ -433,7 +436,7 @@ public class SettingsWebResource {
         LOGGER.info("All sessions revoked for user: {} (log out from everywhere)", user.email);
         final NewCookie clearForm = sessionCookies.cleared();
         final NewCookie clearOidc = SessionCookies.clearedOidc();
-        return Response.seeOther(URI.create("/login")).cookie(clearForm, clearOidc).build();
+        return Response.seeOther(appPaths.loginUri()).cookie(clearForm, clearOidc).build();
     }
 
     private TemplateInstance settingsView(final User user, @Nullable final String msg) {

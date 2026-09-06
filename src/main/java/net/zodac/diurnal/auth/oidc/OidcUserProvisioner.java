@@ -44,6 +44,7 @@ import net.zodac.diurnal.auth.RoleAssigner;
 import net.zodac.diurnal.auth.session.SessionConfig;
 import net.zodac.diurnal.auth.session.SessionStore;
 import net.zodac.diurnal.auth.session.SessionTokenExtractor;
+import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.note.NoteKeys;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
@@ -92,9 +93,9 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
     private static final Logger LOGGER = LogManager.getLogger(OidcUserProvisioner.class);
     private static final int MIN_JWT_SEGMENTS = 2;
     private static final long ERROR_COOKIE_MAX_AGE_SECONDS = 60L;
-    private static final String LOGIN_ERROR_REDIRECT = "/login?error=oidc";
 
     private final Instance<OidcUserProvisioner> self;
+    private final AppPaths appPaths;
     private final RoleAssigner roleAssigner;
     private final NoteKeys noteKeys;
     private final PasswordAuthConfig passwordAuthConfig;
@@ -119,11 +120,13 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
      * @param sessionConfig the session settings
      * @param clock the application clock for date-boundary logic
      * @param noteKeys the notes key service, which mints a provisioned account's data key
+     * @param appPaths the single builder of every application URL, for the redirects and cookie paths a refused sign-in emits
      */
     @Inject
     public OidcUserProvisioner(final Instance<OidcUserProvisioner> self, final RoleAssigner roleAssigner, final PasswordAuthConfig passwordAuthConfig,
         final OidcConfig oidcConfig, final QuarkusOidcConfig quarkusOidcConfig, final AccountLinkService accountLinkService,
-        final SessionStore sessionStore, final SessionConfig sessionConfig, final AppClock clock, final NoteKeys noteKeys) {
+        final SessionStore sessionStore, final SessionConfig sessionConfig, final AppClock clock, final NoteKeys noteKeys,
+        final AppPaths appPaths) {
         this.self = self;
         this.roleAssigner = roleAssigner;
         this.noteKeys = noteKeys;
@@ -134,6 +137,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         this.sessionStore = sessionStore;
         this.sessionConfig = sessionConfig;
         this.clock = clock;
+        this.appPaths = appPaths;
     }
 
     @Override
@@ -219,7 +223,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
             // AuthenticationRedirectException is the one failure type the OIDC layer passes through as a clean redirect (anything else becomes
             // an AuthenticationCompletionException and a bare 401).
             routingContext.response().addCookie(Cookie.cookie("q_session", "").setPath("/").setMaxAge(0L));
-            throw new AuthenticationRedirectException(Response.Status.FOUND.getStatusCode(), "/oidc-login");
+            throw new AuthenticationRedirectException(Response.Status.FOUND.getStatusCode(), appPaths.getOidcLogin());
         }
         return identityFor(user, idTokenCred);
     }
@@ -352,17 +356,17 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
                 // A refused Settings connect: the user's Diurnal session is still perfectly valid, so land them BACK ON SETTINGS with the
                 // reason banner (?msg=<code>) rather than the login page — being bounced there read as a logout. Clear the one-shot intent
                 // marker plus the wrong identity's q_session so the next attempt starts a completely fresh code flow.
-                routingContext.response().addCookie(Cookie.cookie(LINK_COOKIE, "").setPath("/").setMaxAge(0L));
+                routingContext.response().addCookie(Cookie.cookie(LINK_COOKIE, "").setPath(appPaths.getCookiePath()).setMaxAge(0L));
                 routingContext.response().addCookie(Cookie.cookie("q_session", "").setPath("/").setMaxAge(0L));
-                return new AuthenticationRedirectException(Response.Status.FOUND.getStatusCode(), "/settings?msg=" + reason.code());
+                return new AuthenticationRedirectException(Response.Status.FOUND.getStatusCode(), appPaths.settingsWithMessage(reason.code()));
             }
             // An ordinary login denial: to the login page, which renders the reason banner from this cookie and clears the stale q_session
             // so a retry starts a fresh flow.
             routingContext.response().addCookie(Cookie.cookie(ERROR_COOKIE, reason.code())
-                .setPath("/")
+                .setPath(appPaths.getCookiePath())
                 .setMaxAge(ERROR_COOKIE_MAX_AGE_SECONDS)
                 .setHttpOnly(true));
-            return new AuthenticationRedirectException(Response.Status.FOUND.getStatusCode(), LOGIN_ERROR_REDIRECT);
+            return new AuthenticationRedirectException(Response.Status.FOUND.getStatusCode(), appPaths.getLoginWithOidcError());
         }
         // No request context (direct service-level calls in tests): fail conventionally with the reason as the message.
         return new AuthenticationFailedException(reason.message(oidcConfig.providerName()));

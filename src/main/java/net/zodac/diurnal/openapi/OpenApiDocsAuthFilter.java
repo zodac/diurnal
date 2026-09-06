@@ -29,6 +29,7 @@ import net.zodac.diurnal.auth.session.SessionAuthMechanism;
 import net.zodac.diurnal.auth.session.SessionConfig;
 import net.zodac.diurnal.auth.session.SessionStore;
 import net.zodac.diurnal.auth.session.SessionTokenExtractor;
+import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 import org.jspecify.annotations.Nullable;
@@ -59,6 +60,7 @@ public class OpenApiDocsAuthFilter {
     private final Router router;
     private final SessionStore sessionStore;
     private final SessionConfig sessionConfig;
+    private final AppPaths appPaths;
     private final AppClock clock;
 
     /**
@@ -68,13 +70,16 @@ public class OpenApiDocsAuthFilter {
      * @param sessionStore the session store used to authenticate docs access
      * @param sessionConfig the session settings
      * @param clock the application clock for date-boundary logic
+     * @param appPaths the single builder of every application URL, for the sign-in redirect an anonymous request is sent to
      */
     @Inject
-    public OpenApiDocsAuthFilter(final Router router, final SessionStore sessionStore, final SessionConfig sessionConfig, final AppClock clock) {
+    public OpenApiDocsAuthFilter(final Router router, final SessionStore sessionStore, final SessionConfig sessionConfig, final AppClock clock,
+        final AppPaths appPaths) {
         this.router = router;
         this.sessionStore = sessionStore;
         this.sessionConfig = sessionConfig;
         this.clock = clock;
+        this.appPaths = appPaths;
     }
 
     /**
@@ -96,7 +101,7 @@ public class OpenApiDocsAuthFilter {
             case FORBIDDEN -> context.response().setStatusCode(Response.Status.FORBIDDEN.getStatusCode()).end();
             default -> context.response()
                 .setStatusCode(Response.Status.FOUND.getStatusCode())
-                .putHeader("location", "/login")
+                .putHeader("location", appPaths.getLogin())
                 .end();
         }
     }

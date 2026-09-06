@@ -132,6 +132,11 @@ decorative (`aria-hidden`) — the host control carries the accessible name. The
   max-w-sm p-8` inside a centring `<main>` — reuse the shared shell rather than re-rolling it.
 - Page-specific JS is a separate committed `/js/{page}.js` file wired via `data-*` attributes —
   never inline `<script>` logic or `on*=`/`hx-on=` attributes (CSP; see CLAUDE.md).
+- **Never write a URL out in a template.** Every `href`, `action`, `hx-*` target, `src` and URL-valued
+  `#include` parameter comes from `{inject:paths...}` (`http/AppPaths`) or, for a served asset, from
+  `{inject:appInfo.*Url}`; a script builds one with `Diurnal.url(path)`. A hardcoded `/settings` works
+  perfectly at the origin root and breaks only under `BASE_PATH`, which no test tier runs at — so
+  `AppPathsAreCentralisedTest` fails it in the source instead.
 
 ### The Settings page's card layout
 

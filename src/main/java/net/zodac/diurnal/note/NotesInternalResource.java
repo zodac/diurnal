@@ -41,6 +41,7 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
@@ -86,6 +87,7 @@ public class NotesInternalResource {
     private final Template textFailureMessageTemplate;
     private final CurrentUser currentUser;
     private final NoteService noteService;
+    private final AppPaths appPaths;
 
     /**
      * Injects the notes-list partial template, the shared text-validation-pipeline rejection message partial, the current-user accessor and the
@@ -95,15 +97,17 @@ public class NotesInternalResource {
      * @param textFailureMessageTemplate the shared text-validation-pipeline rejection message partial template
      * @param currentUser       the current-user accessor
      * @param noteService       the shared note-mutation service
+     * @param appPaths the single builder of every application URL, for the "did you mean" link a search suggestion carries
      */
     @Inject
     public NotesInternalResource(@Location("partials/notes-list") final Template notesListTemplate,
         @Location("partials/text-failure-message") final Template textFailureMessageTemplate, final CurrentUser currentUser,
-        final NoteService noteService) {
+        final NoteService noteService, final AppPaths appPaths) {
         this.notesListTemplate = notesListTemplate;
         this.textFailureMessageTemplate = textFailureMessageTemplate;
         this.currentUser = currentUser;
         this.noteService = noteService;
+        this.appPaths = appPaths;
     }
 
     /**
@@ -165,7 +169,7 @@ public class NotesInternalResource {
         final User user = currentUser.get();
         final PaginatedHits hits = noteService.journalPage(user, searchTerm, pageNum, PageSizes.forSection(user, PageSection.NOTES));
         final Locale locale = locale(user);
-        final PaginatedNotes page = NotePages.of(hits, TextValidation.searchTerm(searchTerm), locale);
+        final PaginatedNotes page = NotePages.of(hits, TextValidation.searchTerm(searchTerm), locale, appPaths);
         return Response.ok(notesListTemplate.data("page", page, "extraQuery", NotePages.extraQuery(searchTerm))
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }
