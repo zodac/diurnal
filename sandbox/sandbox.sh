@@ -49,13 +49,54 @@ if command -v cygpath &>/dev/null; then
   PROJECT_DIR="$(cygpath -w "${PROJECT_DIR}")"
 fi
 
+# The Claude Code version to bake into the image, read from the npm registry.
+#
+# Needed because the sandbox container is `--rm`: Claude's runtime self-update writes into the
+# container's writable layer, which teardown deletes, so without this every launch comes back on the
+# image's version, re-downloads the same update, and shows an "Update installed. Restart to apply"
+# banner that restarting can never clear. Leaving the Dockerfile's install unpinned does NOT fix that
+# either - an unchanged instruction is a cache hit, so the layer keeps serving whatever version it
+# resolved months ago. Passing the resolved version as a build arg is what makes the layer rebuild
+# when (and only when) a new release exists.
+#
+# Reports the version in CLAUDE_VERSION, left EMPTY when the registry cannot be reached or curl is
+# absent (a global rather than an exit status, for the same reason REMOVED_EXISTING below is one: a
+# function called as an `if` condition runs with `set -e` disabled). The caller then omits the build
+# arg entirely, so the Dockerfile default applies, the layer stays cached and an offline build still
+# works. Parsed with grep rather than jq because this half runs on the HOST, where jq is not a given
+# (Git Bash on Windows especially) - the /latest document opens with `{"name":...,"version":"x.y.z"`,
+# so the first match is the one wanted.
+CLAUDE_PACKAGE_URL='https://registry.npmjs.org/@anthropic-ai/claude-code/latest'
+CLAUDE_VERSION=""
+resolve_claude_version() {
+  local document
+  CLAUDE_VERSION=""
+  command -v curl >/dev/null 2>&1 || return 0
+  document="$(curl -fsSL --max-time 10 "${CLAUDE_PACKAGE_URL}" 2>/dev/null)" || return 0
+  CLAUDE_VERSION="$(printf '%s' "${document}" \
+    | grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' \
+    | head -n 1 \
+    | cut -d'"' -f4)"
+}
+
 build() {
   local uid gid
   uid="$(id -u)"
   gid="$(id -g)"
+
+  local claude_arg=()
+  resolve_claude_version
+  if [[ -n "${CLAUDE_VERSION}" ]]; then
+    echo "[sandbox] baking Claude Code ${CLAUDE_VERSION} into the image" >&2
+    claude_arg=(--build-arg CLAUDE_CODE_VERSION="${CLAUDE_VERSION}")
+  else
+    echo "[sandbox] WARN: could not reach the npm registry - keeping the cached Claude Code install" >&2
+  fi
+
   docker build -t "${IMAGE}" \
     --build-arg UID="${uid}" \
     --build-arg GID="${gid}" \
+    ${claude_arg[@]+"${claude_arg[@]}"} \
     "${HERE}"
 }
 

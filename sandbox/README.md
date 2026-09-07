@@ -43,6 +43,20 @@ from the project root unless noted.
 ./sandbox/sandbox.sh build
 ```
 
+A launch rebuilds first, so this is rarely needed on its own.
+
+> **Claude Code is pinned at build time, to whatever the npm registry says is latest.** It has to be,
+> because the sandbox container is `--rm`: Claude's runtime self-update writes into the *container's*
+> writable layer, which teardown deletes. Left to itself the sandbox therefore came back on the image's
+> version every launch, re-downloaded the same update, and showed an `Update installed. Restart to
+> apply` banner that restarting could never clear. Leaving the Dockerfile's `npm install` *unpinned*
+> does not fix that either — an unchanged instruction is a cache **hit**, so the layer keeps serving the
+> version it resolved months ago. So `sandbox.sh build` reads the current version from the registry and
+> passes it as the `CLAUDE_CODE_VERSION` build arg: the layer rebuilds when, and only when, a new
+> release exists, and it sits at the *bottom* of the Dockerfile so that rebuild costs nothing else.
+> With no network (or no `curl`) the arg is omitted, the cached install is kept and the build still
+> works — it just does not move forward.
+
 ## Use
 
 ```bash
