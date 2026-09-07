@@ -22,7 +22,8 @@
 # else invalidates the layer. The dominant source of churn (see `git log -p
 # -- sandbox/Dockerfile`) is version-pin bumps from update_dependency_versions.sh:
 # the apt pins and the node tag move on almost every update run, while the JDK
-# and Maven tags, the user setup and the Claude Code install are near-static.
+# and Maven tags and the user setup are near-static. The Claude Code pin moves
+# most often of all - it tracks whatever the registry published today.
 #
 # Layers are therefore ordered STABLE -> VOLATILE, and each step sits as late as
 # its real dependencies allow:
@@ -33,8 +34,9 @@
 #   4. COPY jdk / maven            large but near-static tags
 #   5. COPY node                   large, volatile tag -> below the static COPYs
 #   6. user creation               UID/GID build args -> below every large COPY
-#   7. Claude Code install         needs node + the dev user
-#   8. tooling apt (the big one)   MOST volatile; nothing below depends on it
+#   7. tooling apt (the big one)   volatile pins; nothing below depends on it
+#   8. Claude Code install         MOST volatile (a release most days); needs only
+#                                  node + the dev user, so it sits below the apt block
 #   9. COPY scripts                most-edited files, but the cheapest layer
 #
 # The rule when adding a step: put it as far DOWN as its dependencies permit, and
@@ -213,31 +215,12 @@ RUN set -eux; \
     echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev; \
     chmod 0440 /etc/sudoers.d/dev
 
-# ── Claude Code CLI into a dev-owned npm prefix (so auto-update works) ────────
-# Installing `-g` into npm's default /usr prefix makes the package and the
-# /usr/bin/claude launcher root-owned, so the unprivileged `dev` user can't
-# self-update — /doctor reports "npm global folder isn't writable". Instead,
-# point npm's global prefix at a dev-owned dir (persisted in the image layer,
-# baked via .npmrc so it needs no runtime env) and install AS dev, so updates
-# write without sudo. The prefix's bin dir is already on PATH (see the ENV block).
-# runuser (util-linux) drops to `dev` for the install without invoking sudo (hadolint DL3004); like
-# `sudo -H` it resets HOME to /home/dev, so npm writes its config to the dev-owned ~/.npmrc.
-#
-# Deliberately UNPINNED: Claude Code self-updates at runtime, so a pin would go
-# stale immediately and add churn to a layer that should stay cached for months.
-# The npm cache is a BuildKit cache mount owned by the dev UID, so re-running this
-# after an unrelated invalidation resolves from disk rather than the registry.
-RUN --mount=type=cache,target=/home/dev/.npm,uid=${UID},gid=${GID},sharing=locked \
-    install -d -o dev -g dev /home/dev/.npm-global \
-    && runuser -u dev -- npm config set prefix /home/dev/.npm-global \
-    && runuser -u dev -- npm install -g @anthropic-ai/claude-code
-
 # ── Project + brand tooling (the most churn-prone block: kept last) ──────────
 # Everything the sandbox needs at RUNTIME but nothing above needs at BUILD time.
 # These pins are bumped by update_dependency_versions.sh more often than anything
 # else in this file, so the block sits at the bottom where its invalidation costs
-# only itself and the script COPY below — NOT the ~550MB of toolchain COPYs, the
-# Docker engine install or the Claude Code download.
+# only itself and the two cheap layers below — NOT the ~550MB of toolchain COPYs
+# or the Docker engine install.
 #
 # The brand pipeline (`npm run brand`) needs these:
 #   - python3 + python3-fonttools  → scripts/generate-brand.py (reads NovaFlat-Book.ttf and renders
@@ -308,6 +291,38 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
 # setup.sh) to avoid baking ~150MB of Chromium into every layer.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \
     npx --yes playwright@1.62.0 install-deps chromium
+
+# ── Claude Code CLI into a dev-owned npm prefix ──────────────────────────────
+# Installing `-g` into npm's default /usr prefix makes the package and the
+# /usr/bin/claude launcher root-owned, so the unprivileged `dev` user can't
+# write to them — /doctor reports "npm global folder isn't writable". Instead,
+# point npm's global prefix at a dev-owned dir (persisted in the image layer,
+# baked via .npmrc so it needs no runtime env) and install AS dev. The prefix's
+# bin dir is already on PATH (see the ENV block).
+# runuser (util-linux) drops to `dev` for the install without invoking sudo (hadolint DL3004); like
+# `sudo -H` it resets HOME to /home/dev, so npm writes its config to the dev-owned ~/.npmrc.
+#
+# PINNED, to the version sandbox.sh resolved from the npm registry at build time.
+# The runtime self-update CANNOT be relied on to keep the sandbox current: it
+# writes into the CONTAINER's writable layer, which `docker run --rm` deletes on
+# teardown — so every launch came back on the image's version, downloaded the same
+# update again, and showed the same "Update installed. Restart to apply" banner
+# that a restart could never clear. Leaving the install unpinned did not help,
+# because an unchanged instruction is a cache HIT: the layer was resolved once and
+# then reused for months. The build arg is what changes when a release lands, and
+# it is therefore the ONLY thing that rebuilds this layer.
+#
+# `latest` is the default only so a direct `docker build` still works; sandbox.sh
+# always passes an explicit version (and falls back to leaving the arg unset, i.e.
+# keeping the cached install, when it cannot reach the registry).
+#
+# The npm cache is a BuildKit cache mount owned by the dev UID, so re-running this
+# after an unrelated invalidation resolves from disk rather than the registry.
+ARG CLAUDE_CODE_VERSION=latest
+RUN --mount=type=cache,target=/home/dev/.npm,uid=${UID},gid=${GID},sharing=locked \
+    install -d -o dev -g dev /home/dev/.npm-global \
+    && runuser -u dev -- npm config set prefix /home/dev/.npm-global \
+    && runuser -u dev -- npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
 
 # ── Entrypoint + helper scripts (most-edited files, cheapest layer) ──────────
 # Last on purpose: these three are edited far more often than any pin, and landing
