@@ -11,6 +11,7 @@
 #                   AND the workflows' setup-node node-version
 #                 - PostgreSQL image (within the current major) as ONE atomic group: the compose files
 #                   (postgres:X-alpine) and the Dockerfile screenshots stage (postgres:X, Debian variant)
+#                 - busybox:X.Y.Z-musl in the Dockerfile (previews-false + shell stages, one atomic pin)
 #                 - A final verify step HARD-FAILS if either group (node / postgres) has drifted apart
 #                 - npm packages in frontend/package.json + tests/package.json (exact pins, no ^/~ ranges),
 #                   regenerating each package-lock.json so `npm ci` stays in sync
@@ -27,6 +28,8 @@
 #                 - Ubuntu packages (# BEGIN/END UBUNTU PACKAGES blocks)
 #                 - Debian packages (# BEGIN/END DEBIAN PACKAGES blocks)
 #                 - Alpine packages (# BEGIN/END ALPINE PACKAGES blocks)
+#                 - sandbox/Dockerfile's own Debian runtime base (FROM debian:X.Y, within the
+#                   current major; best-effort)
 #                 - Git submodules (latest tag, best-effort)
 #                 - GitHub Actions (latest release tag, best-effort)
 #
@@ -241,7 +244,10 @@ update_java() {
 
     # All workflow files
     for workflow in "${WORKFLOWS_DIR}"/*.yml; do
-        sed -i "s|java-version: '[0-9]*'|java-version: '${latest_major}'|g" "${workflow}"
+        # Quote style varies per workflow (monthly_version_update.yml uses "26", the rest use
+        # '26') — the captured quote char is replayed on both sides so a single-quote-only
+        # pattern never silently skips a double-quoted file.
+        sed -i -E "s/(java-version: )(['\"])[0-9]*\\2/\\1\\2${latest_major}\\2/g" "${workflow}"
     done
 
     ok "Java updated → major ${latest_major} (jdk: ${jdk_tag})"
@@ -289,7 +295,9 @@ update_maven() {
 
     # All workflow files
     for workflow in "${WORKFLOWS_DIR}"/*.yml; do
-        sed -i "s|maven-version: '[0-9.]*'|maven-version: '${latest_version}'|g" "${workflow}"
+        # Quote style varies per workflow (monthly_version_update.yml uses "3.9.16", the rest
+        # use '3.9.16') — see the java-version sed above for why the quote char is captured.
+        sed -i -E "s/(maven-version: )(['\"])[0-9.]*\\2/\\1\\2${latest_version}\\2/g" "${workflow}"
     done
 
     ok "Maven updated → ${latest_version}"
@@ -428,6 +436,103 @@ update_postgres() {
     sed -i -E "s|postgres:[0-9]+\.[0-9]+( +AS )|postgres:${latest}\1|g" "${DOCKERFILE}"
 
     ok "PostgreSQL updated → ${latest}"
+}
+
+# ── 2c. busybox (Dockerfile only) ─────────────────────────────────────────────
+# Both `FROM busybox:X.Y.Z-musl` lines in the Dockerfile (the previews-false stage and the shell
+# stage) are one atomic pin — a single sed bumps both. Full X.Y.Z tags only: busybox also publishes
+# floating `1-musl`/`1.37-musl`/`musl`/`stable-musl`/`unstable-musl` tags on Docker Hub, none of
+# which this anchored regex can match.
+update_busybox() {
+    echo
+    echo "🔍 Fetching latest busybox version (musl)..."
+
+    local current
+    current=$(grep -oP 'busybox:\K[0-9]+\.[0-9]+\.[0-9]+(?=-musl)' "${DOCKERFILE}" 2>/dev/null | head -1)
+    if [[ -z "${current}" ]]; then
+        warn "No busybox:*-musl pin found in ${DOCKERFILE}, skipping"
+        return 0
+    fi
+    echo "  Current: ${current}"
+
+    local latest
+    latest=$(curl_get "https://hub.docker.com/v2/repositories/library/busybox/tags?name=musl&page_size=100" \
+        | jq -r '.results[].name' \
+        | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-musl$' \
+        | sed 's/-musl$//' \
+        | filter_stable_versions \
+        | sort -V | tail -1)
+    if [[ -z "${latest}" ]]; then
+        warn "Could not resolve latest busybox musl version from Docker Hub, skipping"
+        return 0
+    fi
+
+    if ! hub_tag_exists "library/busybox" "${latest}-musl"; then
+        warn "busybox:${latest}-musl not on Docker Hub, skipping"
+        return 0
+    fi
+
+    if [[ "${current}" == "${latest}" ]]; then
+        echo "  busybox=${latest} (already up-to-date)"
+    else
+        echo "  busybox: ${current} → ${latest}"
+    fi
+
+    sed -i -E "s|busybox:[0-9]+\.[0-9]+\.[0-9]+-musl|busybox:${latest}-musl|g" "${DOCKERFILE}"
+
+    ok "busybox updated → ${latest}"
+}
+
+# ── 2d. sandbox/Dockerfile runtime base image ─────────────────────────────────
+# The sandbox runtime base (`FROM debian:X.Y`) sits outside every `# BEGIN/END ... PACKAGES`
+# block, so none of section 4/5's apt/alpine updaters ever touch it. MUST run before
+# update_apt_packages("${SANDBOX_DOCKERFILE}", "DEBIAN") — that updater resolves each package's
+# latest candidate version by querying the base image named in the file's CURRENT `FROM` line, so
+# bumping the base afterward would leave those candidates resolved against the stale base. Same
+# reasoning as update_java/update_postgres running ahead of section 4 for the main Dockerfile.
+#
+# Stays within the current major (like update_postgres) rather than ever jumping to the next
+# Debian release on its own — a major bump changes the codename (trixie -> forky) and is exactly
+# the kind of thing this file's own "LAYER ORDER" comment says should be reviewed, not silently
+# carried by a monthly cron run.
+update_sandbox_base() {
+    echo
+    echo "🔍 Fetching latest Debian version (within the current major)..."
+
+    local current major
+    current=$(grep -oP '^FROM debian:\K[0-9]+\.[0-9]+' "${SANDBOX_DOCKERFILE}" 2>/dev/null | head -1)
+    if [[ -z "${current}" ]]; then
+        warn "No FROM debian:X.Y pin found in ${SANDBOX_DOCKERFILE}, skipping"
+        return 0
+    fi
+    major="${current%%.*}"
+    echo "  Current: ${current} (major ${major})"
+
+    local latest
+    latest=$(curl_get "https://hub.docker.com/v2/repositories/library/debian/tags?name=${major}.&page_size=100" \
+        | jq -r '.results[].name' \
+        | grep -E "^${major}\.[0-9]+$" \
+        | filter_stable_versions \
+        | sort -V | tail -1)
+    if [[ -z "${latest}" ]]; then
+        warn "Could not resolve latest debian ${major}.x from Docker Hub, skipping"
+        return 0
+    fi
+
+    if ! hub_tag_exists "library/debian" "${latest}"; then
+        warn "debian:${latest} not on Docker Hub, skipping"
+        return 0
+    fi
+
+    if [[ "${current}" == "${latest}" ]]; then
+        echo "  debian=${latest} (already up-to-date)"
+    else
+        echo "  debian: ${current} → ${latest}"
+    fi
+
+    sed -i -E "s|^FROM debian:[0-9]+\.[0-9]+|FROM debian:${latest}|" "${SANDBOX_DOCKERFILE}"
+
+    ok "sandbox Debian base updated → ${latest}"
 }
 
 # ── 3b. lint_and_tests.sh Docker image pins ───────────────────────────────────
@@ -1322,6 +1427,10 @@ update_java       || warn "Java update failed, continuing..."
 update_maven      || warn "Maven update failed, continuing..."
 update_node       || warn "Node update failed, continuing..."
 update_postgres   || warn "PostgreSQL update failed, continuing..."
+update_busybox    || warn "busybox update failed, continuing..."
+# Before the apt/alpine section below: it resolves package candidates against each Dockerfile's
+# CURRENT base image, so the base itself must already be at its target version by that point.
+update_sandbox_base || warn "sandbox Debian base update failed, continuing..."
 
 # After java/maven/node: propagate the resolved (and confirmed) versions into the lint script.
 update_lint_script || warn "Lint script image update failed, continuing..."

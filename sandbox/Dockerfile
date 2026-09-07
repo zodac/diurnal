@@ -59,7 +59,7 @@ FROM maven:3.9.16-eclipse-temurin-26 AS maven
 FROM node:26.8.1-trixie AS node
 
 # ── Runtime base ─────────────────────────────────────────────────────────────
-FROM debian:13.5
+FROM debian:13.6
 
 ARG UID=1000
 ARG GID=1000
