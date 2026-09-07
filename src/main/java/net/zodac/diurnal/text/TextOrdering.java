@@ -133,8 +133,9 @@ public final class TextOrdering {
 
     private static int runEnd(final String value, final int from) {
         final boolean digits = isDigit(value, from);
+        final int valueLength = value.length();
         int at = from;
-        while (at < value.length() && isDigit(value, at) == digits) {
+        while (at < valueLength && isDigit(value, at) == digits) {
             at += Character.charCount(value.codePointAt(at));
         }
         return at;

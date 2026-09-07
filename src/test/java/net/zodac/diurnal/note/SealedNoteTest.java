@@ -81,7 +81,7 @@ class SealedNoteTest {
     void equals_anotherType_isNotEqual() {
         assertThat(new SealedNote(NOTE_DATE, sealedBytes()))
             .as("a projection must not equal an unrelated object")
-            .isNotEqualTo("sealed-note-bytes");
+            .isNotEqualTo(new SealedNote(NOTE_DATE, "other-notes".getBytes(StandardCharsets.UTF_8)));
     }
 
     @Test
@@ -102,25 +102,25 @@ class SealedNoteTest {
 
     @Test
     void hashCode_equalProjectionsAgree() {
-        assertThat(new SealedNote(NOTE_DATE, sealedBytes()).hashCode())
+        assertThat(new SealedNote(NOTE_DATE, sealedBytes()))
             .as("equal projections must hash alike, or a set of them would hold the same note twice")
-            .isEqualTo(new SealedNote(NOTE_DATE, sealedBytes()).hashCode());
+            .hasSameHashCodeAs(new SealedNote(NOTE_DATE, sealedBytes()));
     }
 
     @Test
     void hashCode_differentContent_differs() {
-        assertThat(new SealedNote(NOTE_DATE, sealedBytes()).hashCode())
+        assertThat(new SealedNote(NOTE_DATE, sealedBytes()))
             .as("the ciphertext must take part in the hash")
-            .isNotEqualTo(new SealedNote(NOTE_DATE, "other-sealed-bytes".getBytes(StandardCharsets.UTF_8)).hashCode());
+            .doesNotHaveSameHashCodeAs(new SealedNote(NOTE_DATE, "other-sealed-bytes".getBytes(StandardCharsets.UTF_8)));
     }
 
     @Test
     void debugForm_describesTheCiphertextByLengthAndNeverPrintsIt() {
         final SealedNote note = new SealedNote(NOTE_DATE, sealedBytes());
 
-        assertThat(note.toString())
+        assertThat(note)
             .as("the debug form names the day and the ciphertext's length")
-            .isEqualTo("SealedNote{noteDate=2026-08-01, contentEncrypted.length=17}");
+            .hasToString("SealedNote{noteDate=2026-08-01, contentEncrypted.length=17}");
         assertThat(note.toString())
             .as("no part of the sealed content may appear in the debug form")
             .doesNotContain("sealed-note-bytes");

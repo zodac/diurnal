@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import net.zodac.diurnal.DummyValues;
 import net.zodac.diurnal.stats.StatSubject;
 import org.junit.jupiter.api.Test;
 
@@ -83,7 +84,7 @@ class SubjectStatsCacheIdTest {
     void equals_anotherType_isNotEqual() {
         assertThat(idOf(USER_ID, SUBJECT_ID))
             .as("an identity must not equal an unrelated object")
-            .isNotEqualTo("2f1c4d0a-6f0e-4a2b-9c3d-0f1a2b3c4d5e");
+            .isNotEqualTo(idOf(DummyValues.DUMMY_UUID, SUBJECT_ID));
     }
 
     @Test
@@ -106,15 +107,15 @@ class SubjectStatsCacheIdTest {
 
     @Test
     void hashCode_equalIdentities_agree() {
-        assertThat(idOf(USER_ID, SUBJECT_ID).hashCode())
+        assertThat(idOf(USER_ID, SUBJECT_ID))
             .as("equal identities must hash alike, or the provider's map lookup misses a row it holds")
-            .isEqualTo(idOf(USER_ID, SUBJECT_ID).hashCode());
+            .hasSameHashCodeAs(idOf(USER_ID, SUBJECT_ID));
     }
 
     @Test
     void hashCode_swappedUserAndSubject_differ() {
-        assertThat(idOf(USER_ID, SUBJECT_ID).hashCode())
+        assertThat(idOf(USER_ID, SUBJECT_ID))
             .as("the two components must not be interchangeable, or every id would collide with its own mirror image")
-            .isNotEqualTo(idOf(SUBJECT_ID, USER_ID).hashCode());
+            .doesNotHaveSameHashCodeAs(idOf(SUBJECT_ID, USER_ID));
     }
 }

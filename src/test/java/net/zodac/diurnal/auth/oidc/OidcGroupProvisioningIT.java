@@ -87,6 +87,7 @@ class OidcGroupProvisioningIT extends IntegrationTestBase {
 
         assertThat(identity.getRoles())
             .as("a member of the configured user group signs in without the administrator role")
+            .isNotEmpty()
             .doesNotContain(Role.ADMIN.storageValue());
         runInTx(() -> assertThat(User.findByEmail("user-member@example.com").orElseThrow().role)
             .as("and the provisioned account is stored as an ordinary user")
