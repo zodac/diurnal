@@ -71,7 +71,7 @@ public class Action extends PanacheEntityBase {
     }
 
     /**
-     * Returns the user's actions whose id is in the given collection.
+     * Returns the user's actions whose ID is in the given collection.
      *
      * @param userId the owning user
      * @param actionIds the action ids to fetch (must be non-empty)
@@ -82,7 +82,7 @@ public class Action extends PanacheEntityBase {
     }
 
     /**
-     * Returns the user's actions keyed by id, for a caller that resolves each of a range of logs back to the action it was logged against (the
+     * Returns the user's actions keyed by ID, for a caller that resolves each of a range of logs back to the action it was logged against (the
      * calendar feeds, which embed the action's name and colour in every event).
      *
      * @param userId the owning user

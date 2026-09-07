@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import net.zodac.diurnal.DummyValues;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -103,7 +104,7 @@ class ActionLogIdTest {
     void equals_anotherType_isNotEqual() {
         assertThat(ActionLogId.of(USER_ID, ACTION_ID, LOG_DATE))
             .as("an identity must not equal an unrelated object")
-            .isNotEqualTo("2f1c4d0a-6f0e-4a2b-9c3d-0f1a2b3c4d5e");
+            .isNotEqualTo(ActionLogId.of(DummyValues.DUMMY_UUID, ACTION_ID, LOG_DATE));
     }
 
     @Test
@@ -126,22 +127,22 @@ class ActionLogIdTest {
 
     @Test
     void hashCode_equalIdentities_agree() {
-        assertThat(ActionLogId.of(USER_ID, ACTION_ID, LOG_DATE).hashCode())
+        assertThat(ActionLogId.of(USER_ID, ACTION_ID, LOG_DATE))
             .as("equal identities must hash alike, or the provider's map lookup misses a row it holds")
-            .isEqualTo(ActionLogId.of(USER_ID, ACTION_ID, LOG_DATE).hashCode());
+            .hasSameHashCodeAs(ActionLogId.of(USER_ID, ACTION_ID, LOG_DATE));
     }
 
     @Test
     void hashCode_swappedUserAndAction_differ() {
-        assertThat(ActionLogId.of(USER_ID, ACTION_ID, LOG_DATE).hashCode())
-            .as("the two UUID components must not be interchangeable, or every id would collide with its own mirror image")
-            .isNotEqualTo(ActionLogId.of(ACTION_ID, USER_ID, LOG_DATE).hashCode());
+        assertThat(ActionLogId.of(USER_ID, ACTION_ID, LOG_DATE))
+            .as("the two UUID components must not be interchangeable, or every ID would collide with its own mirror image")
+            .doesNotHaveSameHashCodeAs(ActionLogId.of(ACTION_ID, USER_ID, LOG_DATE));
     }
 
     @Test
     void debugForm_namesEveryComponent() {
-        assertThat(ActionLogId.of(USER_ID, ACTION_ID, LOG_DATE).toString())
+        assertThat(ActionLogId.of(USER_ID, ACTION_ID, LOG_DATE))
             .as("the debug form must name all three components")
-            .isEqualTo("ActionLogId[userId=" + USER_ID + ", actionId=" + ACTION_ID + ", logDate=" + LOG_DATE + ']');
+            .hasToString("ActionLogId[userId=" + USER_ID + ", actionId=" + ACTION_ID + ", logDate=" + LOG_DATE + ']');
     }
 }
