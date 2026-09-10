@@ -34,6 +34,7 @@ import java.time.Instant;
 import java.util.List;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.openapi.ApiPages;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
@@ -147,11 +148,11 @@ public class AdminIpLockoutsApiResource {
         }
         final Instant now = clock.now();
         final IpLockoutService.HistoryPage page = ipLockoutService.history(pageNum, currentUser.get().pageSize, now);
-        // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range) so a page number is never silently changed.
-        if (pageNum < 1 || pageNum > Math.max(1, page.totalPages())) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ApiErrorResponse("Page " + pageNum + " is out of range"))
-                .build();
+        // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range), so a page number is never
+        // silently answered with some other page.
+        final Response outOfRange = ApiPages.outOfRange(pageNum, page.totalPages());
+        if (outOfRange != null) {
+            return outOfRange;
         }
         return Response.ok(IpLockoutHistoryPageDto.from(page, now)).build();
     }

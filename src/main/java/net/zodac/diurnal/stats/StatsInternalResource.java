@@ -182,7 +182,7 @@ public class StatsInternalResource {
                 .data("decimalPlaces", user.decimalPlaces)
                 .data("language", user.language)
                 .data("candidates", statsService.compareCandidates(user.id, chartedIds(chart), null))
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, java.util.Locale.forLanguageTag(user.language))).build();
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, user.locale())).build();
             case final FrequencyResult.UnknownPeriod _, final FrequencyResult.UnknownWindow _, final FrequencyResult.TooManySubjects _,
                  final FrequencyResult.DuplicateSubject _, final FrequencyResult.NotLogged _ ->
                 Response.status(Response.Status.BAD_REQUEST).build();
@@ -214,7 +214,7 @@ public class StatsInternalResource {
         charted.add(subjectId);
         charted.addAll(compareIds);
         return statsChartCandidatesTemplate.data("candidates", statsService.compareCandidates(user.id, charted, query))
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, java.util.Locale.forLanguageTag(user.language));
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, user.locale());
     }
 
     private static List<UUID> chartedIds(final FrequencyChart chart) {
@@ -239,7 +239,7 @@ public class StatsInternalResource {
                 .data("language", user.language)
                 .data("statsFields", StatField.displayFields(user.statsFields))
                 .data("page", paginate(statsService.forAllSubjects(user.id), pageNum, PageSizes.forSection(user, PageSection.STATS)))
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, java.util.Locale.forLanguageTag(user.language));
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, user.locale());
     }
 
     /**

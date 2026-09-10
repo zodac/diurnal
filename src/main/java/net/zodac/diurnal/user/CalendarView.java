@@ -17,7 +17,6 @@
 
 package net.zodac.diurnal.user;
 
-import java.util.Arrays;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -34,65 +33,39 @@ import org.jspecify.annotations.Nullable;
  * {@code cal-nova-<value>-dark.webp} preview), and it automatically appears in the settings picker — the template loops these values, so no template
  * change is needed.
  */
-public enum CalendarView implements PreviewOption { // NOPMD: DataClass - thin settings-picker metadata catalogue; accessor-heavy by design
+public enum CalendarView implements PreviewOption {
 
     /**
      * Bordered cells with a per-day, uncapped list of event labels; the default.
      */
-    FULL("full", "Full", "Full calendar", "Dashboard calendar showing events as text", "cal-nova-full-dark"),
+    FULL(new OptionPreview("full", "Full", "Full calendar", "Dashboard calendar showing events as text", "cal-nova-full-dark")),
 
     /**
      * A compact date circle with up to four coloured dots per day.
      */
-    MINIMAL("minimal", "Minimal", "Minimal calendar", "Dashboard calendar showing a coloured dot per action", "cal-nova-minimal-dark"),
+    MINIMAL(new OptionPreview("minimal", "Minimal", "Minimal calendar", "Dashboard calendar showing a coloured dot per action",
+        "cal-nova-minimal-dark")),
 
     /**
      * A compact date circle with up to four stacked colour bars per day.
      */
-    STACKED("stacked", "Stacked", "Stacked calendar", "Dashboard calendar showing horizontal bars per action", "cal-nova-stacked-dark");
+    STACKED(new OptionPreview("stacked", "Stacked", "Stacked calendar", "Dashboard calendar showing horizontal bars per action",
+        "cal-nova-stacked-dark"));
 
     /**
      * The calendar style applied when the stored/submitted value is absent or unrecognised.
      */
     public static final CalendarView DEFAULT = FULL;
 
-    private final String value;
-    private final String label;
-    private final String title;
-    private final String alt;
-    private final String previewImage;
+    private final OptionPreview preview;
 
-    CalendarView(final String value, final String label, final String title, final String alt, final String previewImage) {
-        this.value = value;
-        this.label = label;
-        this.title = title;
-        this.alt = alt;
-        this.previewImage = previewImage;
+    CalendarView(final OptionPreview preview) {
+        this.preview = preview;
     }
 
     @Override
-    public String value() {
-        return value;
-    }
-
-    @Override
-    public String label() {
-        return label;
-    }
-
-    @Override
-    public String title() {
-        return title;
-    }
-
-    @Override
-    public String alt() {
-        return alt;
-    }
-
-    @Override
-    public String previewImage() {
-        return previewImage;
+    public OptionPreview preview() {
+        return preview;
     }
 
     /**
@@ -103,6 +76,6 @@ public enum CalendarView implements PreviewOption { // NOPMD: DataClass - thin s
      * @return {@code true} when the value is one of the offered options
      */
     public static boolean isValid(final @Nullable String value) {
-        return Arrays.stream(values()).anyMatch(option -> option.value.equals(value));
+        return PreviewOption.isValid(values(), value);
     }
 }

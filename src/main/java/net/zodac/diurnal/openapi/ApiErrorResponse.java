@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.openapi;
 
+import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
@@ -28,4 +29,17 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(description = "Error payload returned when an API request is rejected.")
 public record ApiErrorResponse(
     @Schema(examples = "An action named 'Running' already exists", description = "Human-readable description of the error.") String message) {
+
+    /**
+     * The {@code 400} every rejected {@code /api/v1} request answers with, wrapping {@code message} in this payload — so the status and the body
+     * shape are decided here rather than restated at each resource that rejects something.
+     *
+     * @param message the human-readable rejection wording (English by design; see {@code NotUiFacing})
+     * @return the {@code 400} response
+     */
+    public static Response badRequest(final String message) {
+        return Response.status(Response.Status.BAD_REQUEST)
+            .entity(new ApiErrorResponse(message))
+            .build();
+    }
 }

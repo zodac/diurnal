@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
 import { pastDateStr } from "../helpers/dates"
+import { searchAndWait, NOTES_LIST_PATH } from "../helpers/search"
 
 // The /notes page: the browse-and-search view over everything the user has written. The matching rule
 // and the paging are covered by the unit tests and ITs; these pin what only a browser can show — the
@@ -63,9 +64,8 @@ test.describe("Notes page – search", () => {
 
     test("typing filters the list and highlights the match", async ({ authenticatedPage: page }) => {
         await page.goto("/notes")
-        await page.locator("#note-search-input").fill(`5k ${token}`)
+        await searchAndWait(page, "#note-search-input", `5k ${token}`, NOTES_LIST_PATH)
 
-        // The list is swapped in by HTMX after the 300ms debounce.
         await expect(page.locator(`#notes-tbody a[href="/?date=${matchDay}"]`)).toBeVisible()
         await expect(page.locator(`#notes-tbody a[href="/?date=${otherDay}"]`)).toHaveCount(0)
         await expect(page.locator("#notes-tbody mark").first()).toHaveText(`5k ${token}`)
@@ -73,14 +73,14 @@ test.describe("Notes page – search", () => {
 
     test("matching is case-insensitive", async ({ authenticatedPage: page }) => {
         await page.goto("/notes")
-        await page.locator("#note-search-input").fill("RAN A 5K")
+        await searchAndWait(page, "#note-search-input", "RAN A 5K", NOTES_LIST_PATH)
 
         await expect(page.locator(`#notes-tbody a[href="/?date=${matchDay}"]`)).toBeVisible()
     })
 
     test("a search matching nothing shows the search empty state", async ({ authenticatedPage: page }) => {
         await page.goto("/notes")
-        await page.locator("#note-search-input").fill(`no-such-text-${token}`)
+        await searchAndWait(page, "#note-search-input", `no-such-text-${token}`, NOTES_LIST_PATH)
 
         await expect(page.locator("#notes-empty-row")).toHaveText("No notes match your search.")
     })

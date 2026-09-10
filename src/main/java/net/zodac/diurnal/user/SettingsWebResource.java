@@ -55,8 +55,10 @@ import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.http.QuarkusHttpLimitsConfig;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.stats.StatField;
+import net.zodac.diurnal.text.TextFailureBanner;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.web.PageShell;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -82,7 +84,7 @@ public class SettingsWebResource {
     private final Template oidcMessagesTemplate;
     private final Template passwordRejectionTemplate;
     private final Template profileRejectionTemplate;
-    private final Template textFailureMessageTemplate;
+    private final TextFailureBanner textFailureBanner;
     private final CurrentUser currentUser;
     private final AppClock clock;
     private final ProfileService profileService;
@@ -102,7 +104,7 @@ public class SettingsWebResource {
      * @param oidcMessagesTemplate the translated OIDC connect/denial banner partial template
      * @param passwordRejectionTemplate the translated password-mismatch/unchanged banner partial template
      * @param profileRejectionTemplate the translated preference-rejection banner partial template
-     * @param textFailureMessageTemplate the shared text-validation-pipeline rejection message partial template
+     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
      * @param currentUser the current-user accessor
      * @param clock the application clock for date-boundary logic
      * @param profileService the shared profile-mutation service
@@ -120,7 +122,7 @@ public class SettingsWebResource {
         @Location("partials/oidc-messages") final Template oidcMessagesTemplate,
         @Location("partials/password-rejection") final Template passwordRejectionTemplate,
         @Location("partials/profile-rejection") final Template profileRejectionTemplate,
-        @Location("partials/text-failure-message") final Template textFailureMessageTemplate,
+        final TextFailureBanner textFailureBanner,
         final CurrentUser currentUser, final AppClock clock,
         final ProfileService profileService, final PasswordChangeService passwordChangeService, final SessionStore sessionStore,
         final SessionCookies sessionCookies, final QuarkusHttpLimitsConfig httpLimitsConfig, final QuarkusOidcConfig quarkusOidcConfig,
@@ -129,7 +131,7 @@ public class SettingsWebResource {
         this.oidcMessagesTemplate = oidcMessagesTemplate;
         this.passwordRejectionTemplate = passwordRejectionTemplate;
         this.profileRejectionTemplate = profileRejectionTemplate;
-        this.textFailureMessageTemplate = textFailureMessageTemplate;
+        this.textFailureBanner = textFailureBanner;
         this.currentUser = currentUser;
         this.clock = clock;
         this.profileService = profileService;
@@ -213,34 +215,42 @@ public class SettingsWebResource {
         @FormParam("statsEnabled") @Nullable final List<String> statsEnabled,
         @FormParam("statsLabel") @Nullable final List<String> statsLabel) {
         final User user = currentUser.get();
-        final Locale locale = locale(user);
 
-        // Grouped into helpers purely for length; every group threads the running result through, so the ordering and the
-        // stop-at-the-first-rejection behaviour are exactly as if the branches were still written out here in one run.
-        ProfileResult result = new ProfileResult.Updated();
-        if (displayName != null) {
-            result = profileService.updateDisplayName(user, displayName);
-        }
-        result = applyAppearance(user, result, theme, font, language, calendarView, noteColour, timezone, weekStart);
-        result = applyPaging(user, result, pageSize, pageSizeSection, pageSizeValue, decimalPlaces);
-        result = applyToggles(user, result, showStatsSummary, showNoteCounter);
-        result = applyStatsFields(user, result, statsOrder, statsEnabled, statsLabel);
+        // Surface input policy, all of it in this one block: the form posts the whole page-size / stats panel whenever either is included, so an
+        // EMPTY list here means "that panel was not part of this PATCH" rather than "clear it" (the API's empty array does mean clear). Both toggles
+        // post a hidden "false" plus, when ticked, "true", so presence = any value and the setting is on iff the values contain "true"; each row
+        // hx-includes only itself, so an absent parameter means "unchanged", never "off". Past this, the shared walk owns every rule and the order.
+        final PreferenceUpdates updates = new PreferenceUpdates(
+            displayName, theme, font, language, calendarView, noteColour, timezone, weekStart, pageSize,
+            pageSizeSection == null || pageSizeSection.isEmpty() ? null : new PreferenceUpdates.PageSizeSubmission(pageSizeSection, pageSizeValue),
+            decimalPlaces,
+            showStatsSummary == null || showStatsSummary.isEmpty() ? null : showStatsSummary.contains("true"),
+            showNoteCounter == null || showNoteCounter.isEmpty() ? null : showNoteCounter.contains("true"),
+            statsSubmission(statsOrder, statsEnabled, statsLabel));
 
-        return switch (result) {
+        return switch (profileService.applyAll(user, updates)) {
             case final ProfileResult.Updated _ -> Response.noContent().build();
             // A rejected field leaves any field applied before it mutated on the managed entity; the class-level @RollbackOnErrorStatus rolls the
             // whole transaction back on this 422, so a rejected request never silently persists part of a mutation.
             case final ProfileResult.Invalid invalid ->
-                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(profileRejectionBanner(invalid.rejection(), locale)).build();
+                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(profileRejectionBanner(invalid.rejection(), user.locale())).build();
         };
+    }
+
+    // The stats picker posts EVERY row's key in its (drag-arranged) DOM order as statsOrder, the ticked subset as statsEnabled, and each row's
+    // custom name as statsLabel; the two name lists pair up by index. An absent/empty order means the panel was not part of this PATCH.
+    private static PreferenceUpdates.@Nullable StatsFieldSubmission statsSubmission(final @Nullable List<String> statsOrder,
+        final @Nullable List<String> statsEnabled, final @Nullable List<String> statsLabel) {
+        if (statsOrder == null || statsOrder.isEmpty()) {
+            return null;
+        }
+        final List<String> enabled = statsEnabled == null ? List.of() : statsEnabled;
+        return new PreferenceUpdates.StatsFieldSubmission(statsOrder, enabled, StatField.labelsByKey(statsOrder, statsLabel));
     }
 
     private String profileRejectionBanner(final ProfileRejection rejection, final Locale locale) {
         if (rejection instanceof ProfileRejection.InvalidTextField(final TextOutcome.Failure failure)) {
-            return textFailureMessageTemplate
-                .data("failure", failure)
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)
-                .render();
+            return textFailureBanner.render(failure, locale);
         }
 
         final ProfileRejection.ProfileRejectionBanner banner = rejection.banner();
@@ -248,86 +258,6 @@ public class SettingsWebResource {
             .data("kind", banner.kind(), "allowedValues", banner.allowedValues())
             .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)
             .render();
-    }
-
-    private ProfileResult applyAppearance(final User user, final ProfileResult current, final @Nullable String theme, final @Nullable String font,
-        final @Nullable String language, final @Nullable String calendarView, final @Nullable String noteColour, final @Nullable String timezone,
-        final @Nullable String weekStart) {
-        ProfileResult result = current;
-        if (theme != null && stillValid(result)) {
-            result = profileService.updateTheme(user, theme);
-        }
-        if (font != null && stillValid(result)) {
-            result = profileService.updateFont(user, font);
-        }
-        if (language != null && stillValid(result)) {
-            result = profileService.updateLanguage(user, language);
-        }
-        if (calendarView != null && stillValid(result)) {
-            result = profileService.updateCalendarView(user, calendarView);
-        }
-        if (noteColour != null && stillValid(result)) {
-            result = profileService.updateNoteColour(user, noteColour);
-        }
-        if (timezone != null && stillValid(result)) {
-            result = profileService.updateTimezone(user, timezone);
-        }
-        if (weekStart != null && stillValid(result)) {
-            result = profileService.updateWeekStart(user, weekStart);
-        }
-        return result;
-    }
-
-    private ProfileResult applyPaging(final User user, final ProfileResult current, final @Nullable String pageSize,
-        final @Nullable List<String> pageSizeSection, final @Nullable List<String> pageSizeValue, final @Nullable String decimalPlaces) {
-        ProfileResult result = current;
-        if (pageSize != null && stillValid(result)) {
-            result = profileService.updatePageSize(user, pageSize);
-        }
-        // The overrides panel posts EVERY section row (its key as pageSizeSection, its value as pageSizeValue), so the two lists pair up by index
-        // and a save carries the user's whole set - a row cleared back to "Default" arrives as a blank value.
-        if (pageSizeSection != null && !pageSizeSection.isEmpty() && stillValid(result)) {
-            result = profileService.updatePageSizes(user, pageSizeSection, pageSizeValue);
-        }
-        if (decimalPlaces != null && stillValid(result)) {
-            result = profileService.updateDecimalPlaces(user, decimalPlaces);
-        }
-        return result;
-    }
-
-    // Both toggles post a hidden "false" plus (when ticked) "true", so presence = any value and the setting is on iff the values
-    // contain "true". Each row hx-includes only itself, so an absent parameter means "unchanged", never "off".
-    private ProfileResult applyToggles(final User user, final ProfileResult current, final @Nullable List<String> showStatsSummary,
-        final @Nullable List<String> showNoteCounter) {
-        ProfileResult result = current;
-        if (showStatsSummary != null && !showStatsSummary.isEmpty() && stillValid(result)) {
-            result = profileService.updateShowStatsSummary(user, showStatsSummary.contains("true"));
-        }
-        if (showNoteCounter != null && !showNoteCounter.isEmpty() && stillValid(result)) {
-            result = profileService.updateShowNoteCounter(user, showNoteCounter.contains("true"));
-        }
-        return result;
-    }
-
-    // The stats picker posts EVERY row's key in its (drag-arranged) DOM order as statsOrder, plus the ticked subset as
-    // statsEnabled and each row's custom name as statsLabel. Every row posts one key and one name, so the two lists pair
-    // up by index (StatField.labelsByKey).
-    private ProfileResult applyStatsFields(final User user, final ProfileResult current, final @Nullable List<String> statsOrder,
-        final @Nullable List<String> statsEnabled, final @Nullable List<String> statsLabel) {
-        if (statsOrder == null || statsOrder.isEmpty() || !stillValid(current)) {
-            return current;
-        }
-        return profileService.updateStatsFields(user, statsOrder, statsEnabled == null ? List.of() : statsEnabled,
-                StatField.labelsByKey(statsOrder, statsLabel));
-    }
-
-    // Each field is applied only while every field before it was accepted, so the first rejection is the one reported and nothing after it runs.
-    private static boolean stillValid(final ProfileResult result) {
-        return !(result instanceof ProfileResult.Invalid);
-    }
-
-    private static Locale locale(final User user) {
-        return Locale.forLanguageTag(user.language);
     }
 
     /**
@@ -365,10 +295,10 @@ public class SettingsWebResource {
             case final PasswordChangeResult.NotLocalAccount _ -> Response.status(Response.Status.FORBIDDEN).build();
             // The kind header, not the body's wording, is what tells settings.js to send the user back to step 1 - see its own comment above.
             case final PasswordChangeResult.WrongCurrentPassword _ ->
-                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(currentPasswordIncorrectBanner(locale(user)))
+                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(currentPasswordIncorrectBanner(user.locale()))
                     .header(HttpHeader.X_PASSWORD_ERROR.headerName(), CURRENT_PASSWORD_ERROR_KIND).build();
             case final PasswordChangeResult.InvalidNewPassword invalid ->
-                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(passwordRejectionBanner(invalid.reason(), locale(user))).build();
+                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(passwordRejectionBanner(invalid.reason(), user.locale())).build();
         };
     }
 
@@ -384,7 +314,7 @@ public class SettingsWebResource {
             case final PasswordRejection.Mismatch _ ->
                 passwordRejectionTemplate.data("kind", "mismatch").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
             case final PasswordRejection.TooLong tooLong ->
-                textFailureMessageTemplate.data("failure", tooLong.failure()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+                textFailureBanner.render(tooLong.failure(), locale);
             case final PasswordRejection.Unchanged _ ->
                 passwordRejectionTemplate.data("kind", "unchanged").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
         };
@@ -417,7 +347,7 @@ public class SettingsWebResource {
             // Carries the same kind header as updatePassword's matching branch, so the marker means one thing on both endpoints
             // even though this client only reads the status here (there is no second 422 shape to tell apart at step 1).
             case final PasswordChangeResult.WrongCurrentPassword _ ->
-                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(currentPasswordIncorrectBanner(locale(user)))
+                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(currentPasswordIncorrectBanner(user.locale()))
                     .header(HttpHeader.X_PASSWORD_ERROR.headerName(), CURRENT_PASSWORD_ERROR_KIND).build();
             case final PasswordChangeResult.InvalidNewPassword _ -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY).build();
         };
@@ -441,7 +371,7 @@ public class SettingsWebResource {
 
     private TemplateInstance settingsView(final User user, @Nullable final String msg) {
         final String providerName = oidcConfig.providerName();
-        final Locale locale = locale(user);
+        final Locale locale = user.locale();
         // The one-shot status banner for the connect flow's redirect back: the success code, or a refused connection's OidcDenialReason code
         // (the provisioner sends link denials back HERE — the session is still valid, and bouncing to the login page read as a logout).
         // An unknown (or absent) code renders no banner. Rendered via oidcMessagesTemplate (a real, locale-aware template render) rather than
@@ -456,13 +386,11 @@ public class SettingsWebResource {
             .render()
             .strip();
         final boolean settingsMessageIsError = !settingsMessage.isBlank() && !OidcWebResource.MSG_OIDC_CONNECTED.equals(msg);
-        return settingsTemplate
+        return PageShell.forUser(settingsTemplate, user)
                 .data("settingsMessage", settingsMessage)
                 .data("settingsBannerVariant", settingsMessageIsError ? "error" : "success")
                 .data("oidcEnabled", quarkusOidcConfig.tenantEnabled())
                 .data("oidcIssuerUrl", quarkusOidcConfig.authServerUrl())
-                .data("email", user.email)
-                .data("displayName", user.displayName)
                 // Any account HOLDING a password (in practice the break-glass administrator when password
                 // login is off) can change it; OIDC-only accounts have none, so the field is hidden.
                 // Deliberately independent of PASSWORD_AUTH_ENABLED — matches PasswordChangeService.
@@ -471,15 +399,10 @@ public class SettingsWebResource {
                 // Identity Provider section states the connection) and no Connect button.
                 .data("isOidcUser", user.oidcSubject != null && !user.oidcSubject.isBlank())
                 .data("oidcProviderName", oidcConfig.providerName())
-                .data("theme", user.theme)
-                .data("font", user.font)
-                .data("language", user.language)
                 // The picker's closed button words the current language exactly as its list words it (partials/language-option-label), so it
                 // needs the CONSTANT, not just the stored string every other part of the page renders.
                 .data("selectedLanguage", Language.fromValue(user.language))
                 .data("languageOptions", Language.pickerOrder())
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)
-                .data("isAdmin", user.isAdmin())
                 .data("pageSize", user.pageSize)
                 .data("pageSizeOptions", UserSettings.PAGE_SIZE_OPTIONS)
                 // One row per section the user can reach (the admin-only ones only for an administrator), each carrying

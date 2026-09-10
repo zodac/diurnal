@@ -19,15 +19,11 @@ package net.zodac.diurnal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -45,8 +41,6 @@ import org.junit.jupiter.api.Test;
  */
 class LogsIdentifyUsersByEmailTest {
 
-    private static final Path SOURCE_ROOT = Path.of("src", "main", "java");
-
     // A logging call and everything up to the end of its statement, across line breaks.
     private static final Pattern LOG_STATEMENT = Pattern.compile("LOGGER\\.\\w+\\(.*?\\);", Pattern.DOTALL);
 
@@ -63,8 +57,8 @@ class LogsIdentifyUsersByEmailTest {
     void noLogStatementNamesAnAccountByItsId() {
         final List<String> offenders = new ArrayList<>();
 
-        for (final Path sourceFile : sourceFiles()) {
-            final Matcher statements = LOG_STATEMENT.matcher(readSource(sourceFile));
+        for (final Path sourceFile : SourceFiles.java()) {
+            final Matcher statements = LOG_STATEMENT.matcher(SourceFiles.read(sourceFile));
             while (statements.find()) {
                 final String statement = statements.group();
                 USER_ID_REFERENCES.stream()
@@ -82,8 +76,8 @@ class LogsIdentifyUsersByEmailTest {
     void theGuardIsActuallyLookingAtLoggingStatements() {
         final List<String> accountStatements = new ArrayList<>();
 
-        for (final Path sourceFile : sourceFiles()) {
-            final Matcher statements = LOG_STATEMENT.matcher(readSource(sourceFile));
+        for (final Path sourceFile : SourceFiles.java()) {
+            final Matcher statements = LOG_STATEMENT.matcher(SourceFiles.read(sourceFile));
             while (statements.find()) {
                 if (statements.group().contains(".email")) {
                     accountStatements.add(sourceFile.getFileName().toString());
@@ -96,25 +90,6 @@ class LogsIdentifyUsersByEmailTest {
         assertThat(accountStatements)
             .as("the guard must still be finding the logging statements that name an account")
             .isNotEmpty();
-    }
-
-    private static List<Path> sourceFiles() {
-        try (final Stream<Path> paths = Files.walk(SOURCE_ROOT)) {
-            return paths
-                .filter(path -> path.toString().endsWith(".java"))
-                .sorted()
-                .toList();
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Cannot walk " + SOURCE_ROOT.toAbsolutePath(), e);
-        }
-    }
-
-    private static String readSource(final Path sourceFile) {
-        try {
-            return Files.readString(sourceFile);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Cannot read " + sourceFile.toAbsolutePath(), e);
-        }
     }
 
     private static String condensed(final String statement) {

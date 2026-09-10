@@ -19,13 +19,9 @@ package net.zodac.diurnal.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
+import net.zodac.diurnal.SourceFiles;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -40,8 +36,6 @@ import org.junit.jupiter.api.Test;
  */
 class QueryBindingsAreTypedTest {
 
-    private static final Path SOURCE_ROOT = Path.of("src", "main", "java");
-
     // The two wrappers ARE the sanctioned binding, so the one raw call each makes is the point of them.
     private static final List<String> ALLOWED = List.of("JpqlQuery.java", "SqlQuery.java");
 
@@ -49,9 +43,9 @@ class QueryBindingsAreTypedTest {
 
     @Test
     void noSourceFileBindsQueryParametersByString() {
-        final List<String> offenders = sources().stream()
+        final List<String> offenders = SourceFiles.java().stream()
             .filter(source -> !ALLOWED.contains(source.getFileName().toString()))
-            .filter(source -> STRING_BINDING.matcher(read(source)).find())
+            .filter(source -> STRING_BINDING.matcher(SourceFiles.read(source)).find())
             .map(source -> source.getFileName().toString())
             .toList();
 
@@ -63,27 +57,9 @@ class QueryBindingsAreTypedTest {
 
     @Test
     void theGuardIsActuallyLookingAtTheSources() {
-        assertThat(sources())
+        assertThat(SourceFiles.java())
             .as("a guard that reads no files passes for the wrong reason")
             .hasSizeGreaterThan(100);
     }
 
-    private static List<Path> sources() {
-        try (final Stream<Path> tree = Files.walk(SOURCE_ROOT)) {
-            return tree
-                .filter(Files::isRegularFile)
-                .filter(path -> path.getFileName().toString().endsWith(".java"))
-                .toList();
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Unable to walk the application sources", e);
-        }
-    }
-
-    private static String read(final Path source) {
-        try {
-            return Files.readString(source);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Unable to read " + source, e);
-        }
-    }
 }

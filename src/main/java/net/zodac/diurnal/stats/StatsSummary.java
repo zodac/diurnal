@@ -75,7 +75,7 @@ public final class StatsSummary {
             .stream()
             .limit(FIELD_LIMIT)
             .toList();
-        final Locale locale = Locale.forLanguageTag(user.language);
+        final Locale locale = user.locale();
         return template
                 .data("dayStats", dayStats)
                 .data("summaryFields", summaryFields)

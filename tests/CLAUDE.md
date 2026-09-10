@@ -29,5 +29,11 @@ command. **The Maven build is unit + `*IT` (+ linters) ONLY — do not re-add th
   form applies.
 - **A single spec timing out may be sandbox CPU contention**, not a regression — see the `gate` skill to isolate it
   with `--workers=1`.
+- **Do not `waitForResponse` on a fragment the client caches.** The dashboard's day panel is served from
+  `dashboard.js`'s `createFragmentCache`, so clicking a day already shown (or prefetched) issues NO request —
+  waiting for one hangs to the 30s test timeout. It failed six tests when tried. `helpers/dashboard.ts` waits only
+  on the log MUTATION posts, which always reach the server; assert on panel CONTENT for anything cache-backed.
+- **Check the exit code, not the tail of the output.** Playwright prints `N failed`, then the failure list, then
+  `M passed` — so a `tail` can show "62 passed" while the run actually failed.
 
 Full detail: [`TESTING.md`](../.claude/TESTING.md); the `ui` and `gate` skills hold the procedures.

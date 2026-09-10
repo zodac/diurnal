@@ -118,7 +118,7 @@ public class LogWebResource {
     public TemplateInstance dayPanel(@PathParam("date") final LocalDate date) {
         final User user = currentUser.get();
         final boolean future = LogGuards.isFuture(date, user, clock);
-        final Locale locale = locale(user);
+        final Locale locale = user.locale();
         final var page = future
             ? null
             : getActions(user.id, date, 1, "", PageSizes.forSection(user, PageSection.DASHBOARD), TextOrdering.byName(locale));
@@ -142,7 +142,7 @@ public class LogWebResource {
         @QueryParam("page") @DefaultValue("1") final int pageNum,
         @QueryParam("q") @DefaultValue("") final String searchTerm) {
         final User user = currentUser.get();
-        final Locale locale = locale(user);
+        final Locale locale = user.locale();
         final var page = getActions(user.id, date, pageNum, searchTerm, PageSizes.forSection(user, PageSection.DASHBOARD),
             TextOrdering.byName(locale));
         return dayActionsListTemplate.data("date", date, "page", page).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale);
@@ -191,7 +191,7 @@ public class LogWebResource {
             .collect(Collectors.groupingBy(DatedActionCount::date, Collectors.toMap(DatedActionCount::actionId, DatedActionCount::count)));
 
         final int dayPageSize = PageSizes.forSection(user, PageSection.DASHBOARD);
-        final Locale locale = locale(user);
+        final Locale locale = user.locale();
         // One comparator for the whole month's back-fill, not one per day - the collator inside it is stateful to build and identical for every
         // panel here.
         final Comparator<String> byName = TextOrdering.byName(locale);
@@ -272,7 +272,7 @@ public class LogWebResource {
         }
 
         final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
-        return Response.ok(item(date, action, entry == null ? 0 : entry.count, locale(user))).build();
+        return Response.ok(item(date, action, entry == null ? 0 : entry.count, user.locale())).build();
     }
 
     /**
@@ -292,7 +292,7 @@ public class LogWebResource {
         }
 
         return Response.ok(dayActionItemConfirmDeleteTemplate.data("date", date, "action", action)
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale(user))).build();
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, user.locale())).build();
     }
 
     /**
@@ -306,7 +306,7 @@ public class LogWebResource {
         @PathParam("date") final LocalDate date,
         @PathParam("actionId") final UUID actionId) {
         final User user = currentUser.get();
-        return translate(date, logService.deleteEntry(user, date, actionId), locale(user));
+        return translate(date, logService.deleteEntry(user, date, actionId), user.locale());
     }
 
     // ── Increment ─────────────────────────────────────────────────────────
@@ -364,7 +364,7 @@ public class LogWebResource {
         // (the API instead rejects it with a 400) — a per-surface translation of intent, not a
         // different write rule; the shared LogService owns the cap and delete-at-zero semantics.
         final User user = currentUser.get();
-        return translate(date, logService.updateCount(user, date, actionId, Math.max(requestedCount, 0)), locale(user));
+        return translate(date, logService.updateCount(user, date, actionId, Math.max(requestedCount, 0)), user.locale());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
@@ -378,7 +378,7 @@ public class LogWebResource {
         final LogResult result = delta == 0
             ? logService.readCount(user, date, actionId)
             : logService.adjust(user, date, actionId, delta, increment);
-        return translate(date, result, locale(user));
+        return translate(date, result, user.locale());
     }
 
     private Response translate(final LocalDate date, final LogResult result, final Locale locale) {
@@ -391,10 +391,6 @@ public class LogWebResource {
 
     private TemplateInstance item(final LocalDate date, final Action action, final int count, final Locale locale) {
         return dayActionItemTemplate.data("date", date, "action", action, "count", count).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale);
-    }
-
-    private static Locale locale(final User user) {
-        return Locale.forLanguageTag(user.language);
     }
 
     /**

@@ -17,21 +17,19 @@
 
 package net.zodac.diurnal.action;
 
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.http.ChangeSignature;
+import net.zodac.diurnal.persistence.AuditedEntity;
 import net.zodac.diurnal.persistence.JpqlQuery;
 import net.zodac.diurnal.persistence.QueryParameter;
 
@@ -40,7 +38,7 @@ import net.zodac.diurnal.persistence.QueryParameter;
  */
 @Entity
 @Table(name = "actions")
-public class Action extends PanacheEntityBase {
+public class Action extends AuditedEntity {
 
     private static final QueryParameter<UUID> USER_ID = QueryParameter.of("userId");
 
@@ -56,12 +54,6 @@ public class Action extends PanacheEntityBase {
 
     @Column(nullable = false, length = 7)
     public String colour = "#64748b";
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    public Instant createdAt = Instant.now();
-
-    @Column(name = "updated_at", nullable = false)
-    public Instant updatedAt = Instant.now();
 
     /**
      * Returns the user's actions, ordered by name.
@@ -124,11 +116,4 @@ public class Action extends PanacheEntityBase {
             .singleResult();
     }
 
-    /**
-     * Refreshes {@code updatedAt} before each update (JPA lifecycle callback).
-     */
-    @PreUpdate
-    void onUpdate() {
-        updatedAt = Instant.now();
-    }
 }

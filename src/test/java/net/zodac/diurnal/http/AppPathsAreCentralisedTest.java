@@ -19,15 +19,12 @@ package net.zodac.diurnal.http;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
+import net.zodac.diurnal.SourceFiles;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -44,8 +41,6 @@ import org.junit.jupiter.api.Test;
  */
 class AppPathsAreCentralisedTest {
 
-    private static final Path TEMPLATE_ROOT = Path.of("src", "main", "resources", "templates");
-    private static final Path SCRIPT_ROOT = Path.of("src", "main", "resources", "META-INF", "resources", "js");
     private static final String VENDORED_SCRIPT = "htmx.min.js";
 
     // An attribute or include parameter whose value is a literal absolute path, e.g. href="/settings" or listUrl='/internal/notes/list'.
@@ -69,8 +64,8 @@ class AppPathsAreCentralisedTest {
     void noTemplateLinksToHardcodedPath() {
         final List<String> offenders = new ArrayList<>();
 
-        for (final Path template : filesUnder(TEMPLATE_ROOT, ".html")) {
-            final String markup = TEMPLATE_COMMENT.matcher(read(template)).replaceAll("");
+        for (final Path template : SourceFiles.under(SourceFiles.TEMPLATE_ROOT, ".html")) {
+            final String markup = TEMPLATE_COMMENT.matcher(SourceFiles.read(template)).replaceAll("");
             final Matcher matcher = TEMPLATE_PATH_ATTRIBUTE.matcher(markup);
             while (matcher.find()) {
                 offenders.add(template.getFileName() + ": " + matcher.group());
@@ -86,11 +81,11 @@ class AppPathsAreCentralisedTest {
     void noScriptBuildsPathWithoutTheSharedHelper() {
         final List<String> offenders = new ArrayList<>();
 
-        for (final Path script : filesUnder(SCRIPT_ROOT, ".js")) {
+        for (final Path script : SourceFiles.under(SourceFiles.SCRIPT_ROOT, ".js")) {
             if (VENDORED_SCRIPT.equals(script.getFileName().toString())) {
                 continue;
             }
-            final String code = SCRIPT_LINE_COMMENT.matcher(SCRIPT_BLOCK_COMMENT.matcher(read(script)).replaceAll("")).replaceAll("");
+            final String code = SCRIPT_LINE_COMMENT.matcher(SCRIPT_BLOCK_COMMENT.matcher(SourceFiles.read(script)).replaceAll("")).replaceAll("");
             final Matcher matcher = SCRIPT_PATH_LITERAL.matcher(code);
             while (matcher.find()) {
                 if (!precededByHelperCall(code, matcher.start())) {
@@ -106,10 +101,10 @@ class AppPathsAreCentralisedTest {
 
     @Test
     void theGuardIsActuallyLookingAtSomething() {
-        assertThat(filesUnder(TEMPLATE_ROOT, ".html"))
+        assertThat(SourceFiles.under(SourceFiles.TEMPLATE_ROOT, ".html"))
             .as("The template root must be readable from the test's working directory, or this guard silently passes")
             .isNotEmpty();
-        assertThat(filesUnder(SCRIPT_ROOT, ".js"))
+        assertThat(SourceFiles.under(SourceFiles.SCRIPT_ROOT, ".js"))
             .as("The script root must be readable from the test's working directory, or this guard silently passes")
             .isNotEmpty();
         assertThat(TEMPLATE_PATH_ATTRIBUTE.matcher("<a href=\"/settings\">").find())
@@ -125,22 +120,4 @@ class AppPathsAreCentralisedTest {
         return callStart >= 0 && SANCTIONED_SCRIPT_CALL.equals(code.substring(callStart, quoteIndex));
     }
 
-    private static List<Path> filesUnder(final Path root, final String extension) {
-        try (final Stream<Path> files = Files.walk(root)) {
-            return files
-                .filter(Files::isRegularFile)
-                .filter(file -> file.getFileName().toString().endsWith(extension))
-                .toList();
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    private static String read(final Path file) {
-        try {
-            return Files.readString(file);
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
 }

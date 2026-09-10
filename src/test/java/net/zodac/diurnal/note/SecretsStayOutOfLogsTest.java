@@ -19,15 +19,13 @@ package net.zodac.diurnal.note;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import net.zodac.diurnal.SourceFiles;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -74,7 +72,7 @@ class SecretsStayOutOfLogsTest {
         final List<String> offenders = new ArrayList<>();
 
         for (final Path sourceFile : guardedSources()) {
-            final Matcher statements = LOG_STATEMENT.matcher(readSource(sourceFile));
+            final Matcher statements = LOG_STATEMENT.matcher(SourceFiles.read(sourceFile));
             while (statements.find()) {
                 final String statement = statements.group();
                 FORBIDDEN.stream()
@@ -92,7 +90,7 @@ class SecretsStayOutOfLogsTest {
     @Test
     void theGuardIsActuallyLookingAtLoggingStatements() {
         final long statements = guardedSources().stream()
-            .map(SecretsStayOutOfLogsTest::readSource)
+            .map(SourceFiles::read)
             .mapToLong(source -> LOG_STATEMENT.matcher(source).results().count())
             .sum();
 
@@ -105,28 +103,12 @@ class SecretsStayOutOfLogsTest {
 
     private static List<Path> guardedSources() {
         return GUARDED_PACKAGES.stream()
-            .flatMap(SecretsStayOutOfLogsTest::javaFilesIn)
+            .flatMap(guarded -> SourceFiles.under(guarded, ".java").stream())
             .toList();
     }
 
     private static Path sourcePackage(final String packageName) {
-        return Path.of("src", "main", "java", "net", "zodac", "diurnal", packageName);
-    }
-
-    private static Stream<Path> javaFilesIn(final Path directory) {
-        try (final Stream<Path> paths = Files.walk(directory)) {
-            return paths.filter(path -> path.toString().endsWith(".java")).sorted().toList().stream();
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Cannot walk " + directory.toAbsolutePath(), e);
-        }
-    }
-
-    private static String readSource(final Path sourceFile) {
-        try {
-            return Files.readString(sourceFile);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Cannot read " + sourceFile.toAbsolutePath(), e);
-        }
+        return SourceFiles.JAVA_ROOT.resolve(Path.of("net", "zodac", "diurnal", packageName));
     }
 
     private static String condensed(final String statement) {

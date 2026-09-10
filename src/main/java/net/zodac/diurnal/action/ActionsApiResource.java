@@ -36,11 +36,11 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.openapi.ApiPages;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
@@ -119,19 +119,18 @@ public class ActionsApiResource {
         // signature. It is computed before the page query so an unchanged listing can return 304 without building the page.
         final int pageSize = PageSizes.forSection(user, PageSection.ACTIONS);
         final EntityTag tag = EntityTags.weak(user.id, pageNum, searchTerm, pageSize, Action.userVersion(user.id));
-        final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
+        final Response notModified = EntityTags.privateNotModified(request, tag);
         if (notModified != null) {
-            return EntityTags.withPrivateValidator(notModified, tag).build();
+            return notModified;
         }
 
         final ActionsInternalResource.PaginatedActions page =
-            ActionsInternalResource.getActions(user.id, pageNum, searchTerm, pageSize, Locale.forLanguageTag(user.language));
-        // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range) so a
-        // page number is never silently changed to some other page.
-        if (pageNum < 1 || pageNum > Math.max(1, page.totalPages())) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ApiErrorResponse("Page " + pageNum + " is out of range"))
-                .build();
+            ActionsInternalResource.getActions(user.id, pageNum, searchTerm, pageSize, user.locale());
+        // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range), so a page number is never
+        // silently answered with some other page.
+        final Response outOfRange = ApiPages.outOfRange(pageNum, page.totalPages());
+        if (outOfRange != null) {
+            return outOfRange;
         }
         return EntityTags.withPrivateValidator(Response.ok(ActionPageDto.from(page)), tag).build();
     }

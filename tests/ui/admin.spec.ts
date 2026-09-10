@@ -1,7 +1,7 @@
 import type { TestUser } from "../helpers/fixtures"
 import { test, expect, registerUser, loginAs, pinLanguage } from "../helpers/fixtures"
 import { ensureSoleAdmin, ensureNotAdmin } from "../helpers/db"
-import type { Page, Request } from "@playwright/test"
+import type { Locator, Page, Request } from "@playwright/test"
 
 // A dedicated admin user for the admin-only screens. Rather than relying on RoleAssigner's
 // "first user ever = admin" rule (fragile: depends on spec order + a pristine DB), we register
@@ -220,6 +220,20 @@ const LONG_EMAIL_USER: TestUser = {
 // The admin's OWN row is the one row guaranteed to be on page 1 (see loginAsAdmin), so the long name
 // goes on that account rather than on a freshly registered one that the suite's other users could
 // push onto a later page. Nothing else asserts this account's display name.
+// One clipped free-text cell, measured three ways: what the value would need (`natural`), what the cap lets it
+// render (`rendered`), and how wide the column it sits in ended up (`column`). All three come from the cell's own
+// row, so nothing here moves with what else the shared database happens to be carrying.
+async function cellMetrics(cell: Locator): Promise<{ natural: number; rendered: number; column: number }> {
+    return cell.evaluate((el) => {
+        const td = el.closest("td")
+        return {
+            natural: el.scrollWidth,
+            rendered: el.clientWidth,
+            column: td === null ? Number.MAX_SAFE_INTEGER : td.getBoundingClientRect().width,
+        }
+    })
+}
+
 async function nameTheAdmin(page: Page, displayName: string): Promise<void> {
     const renamed = await page.request.patch("/api/v1/users/me", { data: { displayName } })
     if (!renamed.ok()) {
@@ -314,14 +328,29 @@ test.describe("User table at a full desktop width", () => {
         await nameTheAdmin(page, MAX_LENGTH_DISPLAY_NAME)
         await page.goto("/admin/users")
 
-        // Both free-text values are over their caps, so this row is the table at its widest - and the
-        // six remaining columns hold dates, a badge and the button pair, none of which vary with what
-        // is stored. The overflow assertion is therefore about the table as a whole and does not
-        // depend on which other accounts the shared database happens to be carrying.
-        const longEmail = page.locator("tr", { hasText: LONG_EMAIL_USER.email }).locator(".dt-cell-clip-wide")
-        expect(await longEmail.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(true)
+        // What "cannot scroll the table sideways" actually means, per column: the cap BINDS, so the column is
+        // sized by the cap rather than by the value in it. Asserted against each cell's own natural content
+        // width, which depends on nothing outside its row.
+        //
+        // This deliberately does NOT assert the whole table has zero horizontal overflow. That reading is not a
+        // property the page can hold: `partials/admin-users-list.html` uses auto layout inside `overflow-x-auto`
+        // precisely so the six UNCAPPED columns may push the table past its wrapper, and the table renders every
+        // account in the database - 16 specs x 2 projects each register one concurrently, so the row set, and
+        // with it the width, is whatever else is running. It was the suite's most reliable failure under load.
+        const emailCell = page.locator("tr", { hasText: LONG_EMAIL_USER.email }).locator(".dt-cell-clip-wide")
+        await expect(emailCell, "the long-email account should be listed").toHaveCount(1)
+        const email = await cellMetrics(emailCell)
+        expect(email.rendered, "the email is clipped, so it renders narrower than the full address")
+            .toBeLessThan(email.natural)
+        expect(email.column, "the email COLUMN is sized by its 34ch cap, not by the address in it")
+            .toBeLessThan(email.natural)
 
-        const wrap = page.locator("#admin-users-list .overflow-x-auto")
-        expect(await wrap.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0)
+        const nameCell = page.locator("tr", { hasText: ADMIN.email }).locator(".dt-cell-clip:not(.dt-cell-clip-wide)")
+        await expect(nameCell, "the renamed admin should be listed").toHaveCount(1)
+        const name = await cellMetrics(nameCell)
+        expect(name.rendered, "the display name is clipped, so it renders narrower than the full name")
+            .toBeLessThan(name.natural)
+        expect(name.column, "the display-name COLUMN is sized by its cap, not by the name in it")
+            .toBeLessThan(name.natural)
     })
 })

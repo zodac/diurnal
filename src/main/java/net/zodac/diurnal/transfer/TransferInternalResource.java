@@ -19,6 +19,7 @@ package net.zodac.diurnal.transfer;
 
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
+import io.quarkus.qute.TemplateInstance;
 import io.quarkus.qute.i18n.MessageBundles;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -34,6 +35,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
+import net.zodac.diurnal.text.TextFailureBanner;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -81,7 +83,7 @@ public class TransferInternalResource {
     private final ImportService importService;
     private final Template importPanelTemplate;
     private final Template importReasonTemplate;
-    private final Template textFailureMessageTemplate;
+    private final TextFailureBanner textFailureBanner;
 
     /**
      * Injects the current-user accessor, the shared import service and the import panel partial and the two partials that translate an
@@ -91,18 +93,18 @@ public class TransferInternalResource {
      * @param importService              the shared import service
      * @param importPanelTemplate        the import panel partial template
      * @param importReasonTemplate       the translated import-refusal-reason partial template
-     * @param textFailureMessageTemplate the shared text-validation-pipeline rejection message partial template
+     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
      */
     @Inject
     public TransferInternalResource(final CurrentUser currentUser, final ImportService importService,
         @Location("partials/import-panel") final Template importPanelTemplate,
         @Location("partials/import-reason") final Template importReasonTemplate,
-        @Location("partials/text-failure-message") final Template textFailureMessageTemplate) {
+        final TextFailureBanner textFailureBanner) {
         this.currentUser = currentUser;
         this.importService = importService;
         this.importPanelTemplate = importPanelTemplate;
         this.importReasonTemplate = importReasonTemplate;
-        this.textFailureMessageTemplate = textFailureMessageTemplate;
+        this.textFailureBanner = textFailureBanner;
     }
 
     /**
@@ -116,7 +118,7 @@ public class TransferInternalResource {
     @Consumes(APPLICATION_ZIP)
     public Response preview(final byte[] archive) {
         final var user = currentUser.get();
-        return render(importService.preview(user, archive), Locale.forLanguageTag(user.language));
+        return render(importService.preview(user, archive), user.locale());
     }
 
     /**
@@ -131,7 +133,7 @@ public class TransferInternalResource {
     @Transactional
     public Response apply(final byte[] archive) {
         final var user = currentUser.get();
-        return render(importService.apply(user, archive), Locale.forLanguageTag(user.language));
+        return render(importService.apply(user, archive), user.locale());
     }
 
     private Response render(final ImportResult result, final Locale locale) {
@@ -173,55 +175,48 @@ public class TransferInternalResource {
         return problem.reason() instanceof ImportReason.MissingMember ? "" : problem.file();
     }
 
-    // One exhaustive arm per ImportReason variant, so its length/coupling is the size of the catalogue rather than complexity - see
-    // ImportService.message's identical shape (the API's own composer over the same sealed type) for why splitting it is worse.
-    @SuppressWarnings({"OverlyLongMethod", "OverlyCoupledMethod"})
     private String importReasonBanner(final ImportReason reason, final Locale locale) {
+        return importReason(reason).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+    }
+
+    /*
+     * One exhaustive arm per ImportReason variant, so its length/coupling is the size of the catalogue rather than complexity - see
+     * ImportService.message's identical shape (the API's own composer over the same sealed type) for why splitting it is worse. Each arm names only
+     * the partial and the values that arm carries; binding the locale and rendering is the caller's single line below, so the twenty arms cannot
+     * disagree about it.
+     */
+    @SuppressWarnings({"OverlyLongMethod", "OverlyCoupledMethod"})
+    private TemplateInstance importReason(final ImportReason reason) {
         return switch (reason) {
-            case final ImportReason.InvalidTextField invalid ->
-                textFailureMessageTemplate.data("failure", invalid.failure()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.NotZipArchive _ ->
-                importReasonTemplate.data("kind", "notZipArchive").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.TooManyEntries tooMany -> importReasonTemplate.data("kind", "tooManyEntries", "maxEntries", tooMany.maxEntries())
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.ArchiveTooLarge _ ->
-                importReasonTemplate.data("kind", "archiveTooLarge").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.ArchiveUnreadable unreadable ->
-                importReasonTemplate.data("kind", "archiveUnreadable", "detail", String.valueOf(unreadable.detail()))
-                    .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.CsvUnreadable _ ->
-                importReasonTemplate.data("kind", "csvUnreadable").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.MissingMember missing -> importReasonTemplate.data("kind", "missingMember", "file", missing.file())
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.EmptyFile empty -> importReasonTemplate.data("kind", "emptyFile", "header", chippedColumns(empty.columns()))
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.WrongHeader wrongHeader -> importReasonTemplate
-                .data("kind", "wrongHeader", "header", chippedColumns(wrongHeader.columns()))
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.WrongColumnCount wrongCount -> importReasonTemplate
-                .data("kind", "wrongColumnCount", "expected", wrongCount.expected(), "actual", wrongCount.actual())
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.InvalidColour _ ->
-                importReasonTemplate.data("kind", "invalidColour").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.DuplicateAction duplicate -> importReasonTemplate.data("kind", "duplicateAction", "name", duplicate.name())
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.FutureLog futureLog -> importReasonTemplate
-                .data("kind", "futureLog", "date", futureLog.date().toString()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.UnknownAction unknown -> importReasonTemplate.data("kind", "unknownAction", "actionName", unknown.actionName())
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.NonNumericCount nonNumeric -> importReasonTemplate.data("kind", "nonNumericCount", "raw", nonNumeric.raw())
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.CountOutOfRange outOfRange -> importReasonTemplate.data("kind", "countOutOfRange", "max", outOfRange.max())
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.DuplicateLog duplicate -> importReasonTemplate
-                .data("kind", "duplicateLog", "actionName", duplicate.actionName(), "date", duplicate.date().toString())
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.EmptyNote emptyNote -> importReasonTemplate
-                .data("kind", "emptyNote", "date", emptyNote.date().toString()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.DuplicateNote duplicate -> importReasonTemplate
-                .data("kind", "duplicateNote", "date", duplicate.date().toString()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.InvalidDate invalidDate -> importReasonTemplate.data("kind", "invalidDate", "raw", invalidDate.raw())
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.NotZipArchive _ -> importReasonTemplate.data("kind", "notZipArchive");
+            case final ImportReason.TooManyEntries tooMany -> importReasonTemplate.data("kind", "tooManyEntries", "maxEntries",
+                tooMany.maxEntries());
+            case final ImportReason.ArchiveTooLarge _ -> importReasonTemplate.data("kind", "archiveTooLarge");
+            case final ImportReason.ArchiveUnreadable unreadable -> importReasonTemplate.data("kind", "archiveUnreadable", "detail",
+                String.valueOf(unreadable.detail()));
+            case final ImportReason.CsvUnreadable _ -> importReasonTemplate.data("kind", "csvUnreadable");
+            case final ImportReason.MissingMember missing -> importReasonTemplate.data("kind", "missingMember", "file", missing.file());
+            case final ImportReason.EmptyFile empty -> importReasonTemplate.data("kind", "emptyFile", "header", chippedColumns(empty.columns()));
+            case final ImportReason.WrongHeader wrongHeader -> importReasonTemplate.data("kind", "wrongHeader", "header",
+                chippedColumns(wrongHeader.columns()));
+            case final ImportReason.WrongColumnCount wrongCount -> importReasonTemplate.data("kind", "wrongColumnCount", "expected",
+                wrongCount.expected(), "actual", wrongCount.actual());
+            case final ImportReason.InvalidColour _ -> importReasonTemplate.data("kind", "invalidColour");
+            case final ImportReason.DuplicateAction duplicate -> importReasonTemplate.data("kind", "duplicateAction", "name", duplicate.name());
+            case final ImportReason.FutureLog futureLog -> importReasonTemplate.data("kind", "futureLog", "date", futureLog.date().toString());
+            case final ImportReason.UnknownAction unknown -> importReasonTemplate.data("kind", "unknownAction", "actionName",
+                unknown.actionName());
+            case final ImportReason.NonNumericCount nonNumeric -> importReasonTemplate.data("kind", "nonNumericCount", "raw", nonNumeric.raw());
+            case final ImportReason.CountOutOfRange outOfRange -> importReasonTemplate.data("kind", "countOutOfRange", "max", outOfRange.max());
+            case final ImportReason.DuplicateLog duplicate -> importReasonTemplate.data("kind", "duplicateLog", "actionName",
+                duplicate.actionName(), "date", duplicate.date().toString());
+            case final ImportReason.EmptyNote emptyNote -> importReasonTemplate.data("kind", "emptyNote", "date", emptyNote.date().toString());
+            case final ImportReason.DuplicateNote duplicate -> importReasonTemplate.data("kind", "duplicateNote", "date",
+                duplicate.date().toString());
+            case final ImportReason.InvalidDate invalidDate -> importReasonTemplate.data("kind", "invalidDate", "raw", invalidDate.raw());
+            // The one arm that is not this partial at all: a refused free-text value is worded by the shared text pipeline's own sentence, exactly
+            // as ProfileRejection and RegistrationError word theirs. It binds the locale and renders through the same tail as every arm above.
+            case final ImportReason.InvalidTextField invalid -> textFailureBanner.instance(invalid.failure());
         };
     }
 

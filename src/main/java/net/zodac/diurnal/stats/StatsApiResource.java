@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.openapi.ApiPages;
 import net.zodac.diurnal.time.Durations;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Language;
@@ -105,12 +106,11 @@ public class StatsApiResource {
         final User user = currentUser.get();
         final StatsInternalResource.PaginatedStats page = StatsInternalResource.paginate(statsService.forAllSubjects(user.id), pageNum,
             PageSizes.forSection(user, PageSection.STATS));
-        // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range) so a
-        // page number is never silently changed to some other page.
-        if (pageNum < 1 || pageNum > Math.max(1, page.totalPages())) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ApiErrorResponse("Page " + pageNum + " is out of range"))
-                .build();
+        // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range), so a page number is never
+        // silently answered with some other page.
+        final Response outOfRange = ApiPages.outOfRange(pageNum, page.totalPages());
+        if (outOfRange != null) {
+            return outOfRange;
         }
         return Response.ok(StatsPageDto.from(page)).build();
     }
@@ -162,22 +162,17 @@ public class StatsApiResource {
         // the one caller that always supplies Language.DEFAULT rather than the viewing user's own.
         return switch (statsService.frequency(user.id, subjectId, compareIds, period, at, Language.DEFAULT)) {
             case FrequencyResult.Charted(final FrequencyChart chart) -> Response.ok(FrequencyChartDto.from(chart)).build();
-            case FrequencyResult.UnknownPeriod(final String submitted) -> badRequest("Unknown period '" + submitted + "'");
+            case FrequencyResult.UnknownPeriod(final String submitted) -> ApiErrorResponse.badRequest("Unknown period '" + submitted + "'");
             case FrequencyResult.UnknownWindow(final String submitted) ->
-                badRequest("Window '" + submitted + "' is not valid for the requested period");
+                ApiErrorResponse.badRequest("Window '" + submitted + "' is not valid for the requested period");
             case FrequencyResult.TooManySubjects(final int submitted, final int maximum) ->
-                badRequest("Cannot chart " + submitted + " actions together; the maximum is " + maximum);
-            case FrequencyResult.DuplicateSubject(final UUID duplicate) -> badRequest("Action " + duplicate + " is charted more than once");
+                ApiErrorResponse.badRequest("Cannot chart " + submitted + " actions together; the maximum is " + maximum);
+            case FrequencyResult.DuplicateSubject(final UUID duplicate) ->
+                ApiErrorResponse.badRequest("Action " + duplicate + " is charted more than once");
             case FrequencyResult.NotLogged(final UUID unlogged) ->
-                badRequest("Action " + unlogged + " has never been logged, so it cannot be compared against");
+                ApiErrorResponse.badRequest("Action " + unlogged + " has never been logged, so it cannot be compared against");
             case final FrequencyResult.NotOwned _ -> Response.status(Response.Status.NOT_FOUND).build();
         };
-    }
-
-    private static Response badRequest(final String message) {
-        return Response.status(Response.Status.BAD_REQUEST)
-            .entity(new ApiErrorResponse(message))
-            .build();
     }
 
     /**

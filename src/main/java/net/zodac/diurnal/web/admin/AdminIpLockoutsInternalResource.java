@@ -36,7 +36,6 @@ import jakarta.ws.rs.core.Response;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -51,7 +50,6 @@ import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Language;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
-import net.zodac.diurnal.web.HtmxResponses;
 
 /**
  * The web UI's internal HTMX endpoints for administering the per-IP auth lockout: the paginated history partial and the manual-unlock mutation. The
@@ -68,12 +66,10 @@ import net.zodac.diurnal.web.HtmxResponses;
 @RollbackOnErrorStatus
 public class AdminIpLockoutsInternalResource {
 
-    private static final String ERROR_BANNER_TARGET = "#admin-error";
-
     private final Template adminIpLockoutsTableTemplate;
     private final Template adminIpLockoutRowTemplate;
     private final Template confirmDeleteRowTemplate;
-    private final Template adminMessagesTemplate;
+    private final AdminConsole adminConsole;
     private final SecurityIdentity identity;
     private final CurrentUser currentUser;
     private final IpLockoutService ipLockoutService;
@@ -88,7 +84,7 @@ public class AdminIpLockoutsInternalResource {
      * @param adminIpLockoutsTableTemplate the lockout-table partial template
      * @param adminIpLockoutRowTemplate    the single lockout-row partial template
      * @param confirmDeleteRowTemplate     the shared in-place confirm-row partial template (reused for the unlock confirmation)
-     * @param adminMessagesTemplate        the fixed-shape admin banner/prompt message partial template
+     * @param adminConsole the shared admin-console banner wording and timestamp format
      * @param identity                     the calling administrator's security identity
      * @param currentUser                  the current-user accessor
      * @param ipLockoutService             the shared per-IP lockout service
@@ -100,13 +96,13 @@ public class AdminIpLockoutsInternalResource {
     public AdminIpLockoutsInternalResource(@Location("partials/admin-ip-lockouts-table") final Template adminIpLockoutsTableTemplate,
         @Location("partials/admin-ip-lockout-row") final Template adminIpLockoutRowTemplate,
         @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
-        @Location("partials/admin-messages") final Template adminMessagesTemplate, final SecurityIdentity identity,
+        final AdminConsole adminConsole, final SecurityIdentity identity,
         final CurrentUser currentUser, final IpLockoutService ipLockoutService, final IpThrottleConfig ipThrottleConfig, final AppClock clock,
         final AppPaths appPaths) {
         this.adminIpLockoutsTableTemplate = adminIpLockoutsTableTemplate;
         this.adminIpLockoutRowTemplate = adminIpLockoutRowTemplate;
         this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
-        this.adminMessagesTemplate = adminMessagesTemplate;
+        this.adminConsole = adminConsole;
         this.identity = identity;
         this.currentUser = currentUser;
         this.ipLockoutService = ipLockoutService;
@@ -134,7 +130,7 @@ public class AdminIpLockoutsInternalResource {
         final Language language = Language.fromValue(actor.language);
         final PaginatedIpLockouts history = toHistory(ipLockoutService.history(pageNum, actor.pageSize, now), zone, language, now);
         return Response.ok(adminIpLockoutsTableTemplate.data("history", history)
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale(actor))).build();
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, actor.locale())).build();
     }
 
     /**
@@ -151,10 +147,10 @@ public class AdminIpLockoutsInternalResource {
         if (!ipThrottleConfig.enabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        final Locale locale = locale(currentUser.get());
+        final Locale locale = currentUser.get().locale();
         final IpLockout lockout = ipLockoutService.find(id);
         if (lockout == null) {
-            return HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("lockoutNotFound", locale));
+            return adminConsole.errorBanner("lockoutNotFound", locale);
         }
         // Unlock re-renders the whole table (innerHTML), so the confirm row's destructive POST targets #ip-lockouts-table; Cancel restores just this
         // row from /internal/admin/ip-lockouts/{id}/row. The unlock itself is keyed by IP (it clears the in-memory enforcement entry for the IP).
@@ -163,8 +159,8 @@ public class AdminIpLockoutsInternalResource {
                 .data("cols", 5)
                 .data("swatchColour", null)
                 .data("label", lockout.ipAddress)
-                .data("prompt", messageBanner("unlockPrompt", locale))
-                .data("confirmLabel", messageBanner("unlockLabel", locale))
+                .data("prompt", adminConsole.banner("unlockPrompt", locale))
+                .data("confirmLabel", adminConsole.banner("unlockLabel", locale))
                 .data("deleteUrl", appPaths.internalIpLockoutUnlock(lockout.ipAddress))
                 .data("deleteTarget", "#ip-lockouts-table")
                 .data("deleteSwap", "innerHTML")
@@ -186,10 +182,10 @@ public class AdminIpLockoutsInternalResource {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         final User actor = currentUser.get();
-        final Locale locale = locale(actor);
+        final Locale locale = actor.locale();
         final IpLockout lockout = ipLockoutService.find(id);
         if (lockout == null) {
-            return HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("lockoutNotFound", locale));
+            return adminConsole.errorBanner("lockoutNotFound", locale);
         }
         final ZoneId zone = clock.zoneFor(actor.timezone);
         final Language language = Language.fromValue(actor.language);
@@ -211,9 +207,9 @@ public class AdminIpLockoutsInternalResource {
         if (!ipThrottleConfig.enabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        final Locale locale = locale(currentUser.get());
+        final Locale locale = currentUser.get().locale();
         return switch (ipLockoutService.unlock(identity.getPrincipal().getName(), ip, clock.now())) {
-            case final IpUnlockResult.NotLocked _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("ipNotLocked", locale));
+            case final IpUnlockResult.NotLocked _ -> adminConsole.errorBanner("ipNotLocked", locale);
             case final IpUnlockResult.Success _ -> {
                 final User actor = currentUser.get();
                 final ZoneId zone = clock.zoneFor(actor.timezone);
@@ -235,7 +231,7 @@ public class AdminIpLockoutsInternalResource {
      * @return the page as rendered history rows
      */
     static PaginatedIpLockouts toHistory(final IpLockoutService.HistoryPage page, final ZoneId zone, final Language language, final Instant now) {
-        final DateTimeFormatter fmt = formatter(zone, language);
+        final DateTimeFormatter fmt = AdminConsole.timestampFormatter(zone, language);
         final String zoneLabel = zone.getId();
         final List<IpLockoutHistoryRow> items = page.rows().stream()
             .map(row -> IpLockoutHistoryRow.of(row, fmt, zoneLabel, now))
@@ -244,22 +240,7 @@ public class AdminIpLockoutsInternalResource {
     }
 
     private static IpLockoutHistoryRow singleRow(final IpLockout lockout, final ZoneId zone, final Language language, final Instant now) {
-        return IpLockoutHistoryRow.of(lockout, formatter(zone, language), zone.getId(), now);
-    }
-
-    // Localised for the viewing administrator - see AdminUsersInternalResource#formatter for why, and for why the date style is MEDIUM.
-    private static DateTimeFormatter formatter(final ZoneId zone, final Language language) {
-        return language.localizeNumerals(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
-            .withLocale(language.locale())
-            .withZone(zone));
-    }
-
-    private String messageBanner(final String key, final Locale locale) {
-        return adminMessagesTemplate.data("key", key).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-    }
-
-    private static Locale locale(final User user) {
-        return Locale.forLanguageTag(user.language);
+        return IpLockoutHistoryRow.of(lockout, AdminConsole.timestampFormatter(zone, language), zone.getId(), now);
     }
 
     /**

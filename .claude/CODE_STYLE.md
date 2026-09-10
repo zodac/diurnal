@@ -1,6 +1,6 @@
 # CODE_STYLE.md
 
-> **This file is ~41 KB. Read only the section you need** - `grep -n '^#' .claude/CODE_STYLE.md` for its
+> **This file is ~44 KB. Read only the section you need** - `grep -n '^#' .claude/CODE_STYLE.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Java** — Format with the IDE formatter (Checkstyle-aligned), Javadoc must use the multi-line form, Block comments and Javadoc fill the line
@@ -13,7 +13,8 @@
 >   `@SuppressWarnings`, AssertJ assertions must be fluent-chained across multiple lines, Multi-argument terminal assertions use an extracted `List`,
 >   Configuration is read through typed `@ConfigMapping`, never scattered property lookups, Panache statics are called on the entity, NEVER on
 >   `PanacheEntityBase`, A request DTO's constraints are `@Schema` attributes, NEVER Jakarta Bean Validation, A constant regex is a `static final
->   Pattern`, never `String.matches`/`replaceAll`
+>   Pattern`, never `String.matches`/`replaceAll`, Production code kept alive only by its test is dead
+>   code
 
 Project-specific conventions **on top of** the inherited linter suite (Checkstyle / PMD / SpotBugs / Javadoc / NullAway). Every rule here is *
 *mandatory**. Re-read before a task; keep it in sync when conventions change.
@@ -838,3 +839,46 @@ public static boolean isInvalidHex(final String colour) {
 > `Pattern.quote(theUsersSearchTerm)` per search, and `SecretsStayOutOfLogsTest` compiles a whole-word matcher per guarded identifier — the pattern
 > text is not known until the call, so there is no constant to hoist. Do not contort a readable `List.of(…)` of names into a parallel `Map<String,
 > Pattern>` to satisfy the linter; SonarQube's `java:S4248` only reports a **constant** argument.
+
+### Production code kept alive only by its test is dead code
+
+**A member whose only remaining caller lives in `src/test` is unreachable in production, and nothing in the gate
+will tell you.** Qodana's unused-declaration inspection is the one check that reports an unused *public*
+declaration, and it counts a call from a test as a use — so the build stays green while the code is dead. This is
+the single dead-code shape the whole quality gate is blind to.
+
+The sweep for it, the false positives that dominate a raw run, and the judgement calls a real hit needs are the
+**[`deadcode` skill](skills/deadcode/SKILL.md)** — invoke it before deleting anything on suspicion, and re-run it
+after any change that narrows visibility or removes Javadoc, since that is when new orphans appear. **Never delete
+on the scan alone**: grep the whole repository for the bare name first, because a reference can live somewhere no
+structured scan looks — `frontend/css/app.css` cites `StatField.MAX_LABEL_LENGTH` from a CSS comment.
+
+The trap is not only the wasted code. `FrequencyPeriod.label()` returned the English strings `"Month"`/`"Year"`
+with no production caller — the chart's toggle words come from `{msg:month}`/`{msg:year}` at the render site — and
+an English label sitting unused on an enum is exactly the "third bucket" shape [`I18N.md`](I18N.md) records as
+having shipped English into two surfaces already. The test asserting `label()` returned `"Month"` was the only
+thing keeping it compiling, and read as proof it was wanted.
+
+❌ **Wrong** — an accessor no production caller reaches, pinned by a test:
+
+```java
+public String label() {          // no Java caller; the template hardcodes {msg:month}
+    return label;
+}
+```
+
+✅ **Right** — the member is gone, and the type's Javadoc records why, so it is not re-added:
+
+```java
+/**
+ * …
+ * <p>
+ * Deliberately NO display label: the toggle's words are resolved at the render site from {@code AppMessages}
+ * ({@code {msg:month}}/{@code {msg:year}}), because an English {@code label()} on the enum is the thing that
+ * renders in every language until someone notices — the "third bucket" rule in {@code .claude/I18N.md}.
+ */
+```
+
+> **Deleting one is verified at RUNTIME, not by the compiler.** A Qute template reaches Java by name
+> (`{inject:appInfo.cssUrl}` → `getCssUrl()`), so removing an accessor a partial reads still compiles and fails
+> when the page renders. `mvn -o clean install -Dall` is the check, because its ITs render the real pages.

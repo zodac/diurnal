@@ -38,7 +38,6 @@ import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -147,9 +146,9 @@ public class LogsApiResource {
         // The response embeds each action's name/colour, so the validator folds in both the range's log signature
         // and the user's action signature — a rename or recolour must invalidate an otherwise-unchanged range.
         final EntityTag tag = LogValidators.rangeValidator(userId, startDate, endDate);
-        final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
+        final Response notModified = EntityTags.privateNotModified(request, tag);
         if (notModified != null) {
-            return EntityTags.withPrivateValidator(notModified, tag).build();
+            return notModified;
         }
 
         final Map<UUID, Action> actionMap = Action.mapByUser(userId);
@@ -197,9 +196,9 @@ public class LogsApiResource {
         // A single day is just a one-day range; the response embeds action name/colour, so fold in the action signature too.
         final EntityTag tag = EntityTags.weak(user.id, day,
             ActionLog.rangeVersion(user.id, day, day), Action.userVersion(user.id));
-        final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
+        final Response notModified = EntityTags.privateNotModified(request, tag);
         if (notModified != null) {
-            return EntityTags.withPrivateValidator(notModified, tag).build();
+            return notModified;
         }
 
         final Map<UUID, Integer> counts = ActionLog.countsByAction(user.id, day);
@@ -209,7 +208,7 @@ public class LogsApiResource {
         // Collated rather than code-point order: user-typed action names are free text in any script, and plain
         // String.compareTo (uppercase-before-lowercase, ordinal for accented/non-Latin characters) mis-sorts them
         // for the viewing user's own language.
-        final Comparator<String> byName = TextOrdering.byName(Locale.forLanguageTag(user.language));
+        final Comparator<String> byName = TextOrdering.byName(user.locale());
         final List<DayLogEntryDto> entries = Action.findByUserAndIds(user.id, counts.keySet()).stream()
             .map(a -> new DayLogEntryDto(a.id, a.name, a.colour, Objects.requireNonNull(counts.get(a.id))))
             .sorted(Comparator.comparing(DayLogEntryDto::name, byName))
@@ -254,10 +253,10 @@ public class LogsApiResource {
         // it to the cap) — per-surface translations of intent, not different write rules.
         final Integer requested = request == null ? null : request.count();
         if (requested == null || requested < 0) {
-            return badRequest("A non-negative 'count' is required");
+            return ApiErrorResponse.badRequest("A non-negative 'count' is required");
         }
         if (requested > ActionLog.MAX_DAILY_COUNT) {
-            return badRequest("'count' cannot exceed " + ActionLog.MAX_DAILY_COUNT);
+            return ApiErrorResponse.badRequest("'count' cannot exceed " + ActionLog.MAX_DAILY_COUNT);
         }
 
         final User user = currentUser.get();
@@ -363,7 +362,7 @@ public class LogsApiResource {
         final User user = currentUser.get();
         final LocalDate day = DateRanges.requireDate("date", date);
         return switch (logService.deleteEntry(user, day, actionId)) {
-            case final LogResult.FutureDate _ -> badRequest(FUTURE_DATE_MESSAGE);
+            case final LogResult.FutureDate _ -> ApiErrorResponse.badRequest(FUTURE_DATE_MESSAGE);
             case final LogResult.NotOwned _ -> Response.status(Response.Status.NOT_FOUND).build();
             case final LogResult.Updated _ -> Response.noContent().build();
         };
@@ -377,7 +376,7 @@ public class LogsApiResource {
         final Integer requested = request == null ? null : request.amount();
         final int amount = requested == null ? 1 : requested;
         if (amount < 1) {
-            return badRequest("'amount' must be at least 1");
+            return ApiErrorResponse.badRequest("'amount' must be at least 1");
         }
 
         final User user = currentUser.get();
@@ -393,7 +392,7 @@ public class LogsApiResource {
                 return translate(current, actionId, day);
             }
             if (existing.count() + amount > ActionLog.MAX_DAILY_COUNT) {
-                return badRequest("Count cannot exceed " + ActionLog.MAX_DAILY_COUNT);
+                return ApiErrorResponse.badRequest("Count cannot exceed " + ActionLog.MAX_DAILY_COUNT);
             }
         }
         return translate(logService.adjust(user, day, actionId, amount, increment), actionId, day);
@@ -401,16 +400,10 @@ public class LogsApiResource {
 
     private static Response translate(final LogResult result, final UUID actionId, final LocalDate day) {
         return switch (result) {
-            case final LogResult.FutureDate _ -> badRequest(FUTURE_DATE_MESSAGE);
+            case final LogResult.FutureDate _ -> ApiErrorResponse.badRequest(FUTURE_DATE_MESSAGE);
             case final LogResult.NotOwned _ -> Response.status(Response.Status.NOT_FOUND).build();
             case final LogResult.Updated updated -> Response.ok(new LogEntryDto(actionId, day.toString(), updated.count())).build();
         };
-    }
-
-    private static Response badRequest(final String message) {
-        return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ApiErrorResponse(message))
-                .build();
     }
 
     /**

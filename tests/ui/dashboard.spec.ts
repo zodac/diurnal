@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test"
 import { test, expect, loginAs, logout } from "../helpers/fixtures"
 import { todayStr, pastDateStr, futureDateStr, otherDaysThisMonth } from "../helpers/dates"
 import { showMonthOf } from "../helpers/calendar"
+import { clickAndWait, firstLogCount, readyDayLogger, LOG_MUTATION } from "../helpers/dashboard"
 
 // Unique action name for this test run — kept live, so no DB unique-constraint collision
 // across repeated runs or across chromium/mobile-chrome sharing the same user+DB.
@@ -102,9 +103,10 @@ test.describe("Dashboard", () => {
     test("clicking a logged event loads the correct day panel", async ({ authenticatedPage: page }) => {
         // Log an action on today via the day panel first
         await page.goto("/")
-        await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
-        const countEl = page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")
-        await expect(countEl).toHaveValue("1")
+        const incrementBtn = await readyDayLogger(page)
+        const countEl = firstLogCount(page)
+        await clickAndWait(page, incrementBtn, LOG_MUTATION)
+        await expect(countEl, "today should be logged once before navigating away").toHaveValue("1")
 
         // Navigate to yesterday — its count should be 0 (reset first: yesterday is the 1st of the month
         // on the 2nd, which another spec in this file logs on)
@@ -112,7 +114,7 @@ test.describe("Dashboard", () => {
         await resetLogsOn(page, past)
         await showMonthOf(page, past)
         await page.locator(`.d-min-cell[data-date="${past}"]`).click()
-        await expect(page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")).toHaveValue("0")
+        await expect(firstLogCount(page), `${past} was reset, so its count is 0`).toHaveValue("0")
 
         // Click the event on today's cell (clicking anywhere in the cell selects its day) to navigate back.
         // Yesterday is only in the same month view as today for most of a month - on the 1st it is the
@@ -128,26 +130,36 @@ test.describe("Dashboard", () => {
         await page.goto("/")
         const countEl = page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")
         await expect(countEl).toHaveValue("0")
-        await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
+        await clickAndWait(page, page.locator("#day-logger-panel").getByLabel("Increase").first(), LOG_MUTATION)
         await expect(countEl).toHaveValue("1")
     })
 
     test("increment twice reaches count 2", async ({ authenticatedPage: page }) => {
         await page.goto("/")
-        const incrementBtn = page.locator("#day-logger-panel").getByLabel("Increase").first()
-        await incrementBtn.click()
-        await incrementBtn.click()
-        const countEl = page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")
-        await expect(countEl).toHaveValue("2")
+        const incrementBtn = await readyDayLogger(page)
+        const countEl = firstLogCount(page)
+
+        // Each stage is asserted so a failure names WHICH increment did not land, rather than only that the
+        // total was wrong. Asserting "1" between the clicks is also what makes the second click safe: the
+        // button is re-rendered by the first swap, so clicking again before it arrives can hit a stale node.
+        await expect(countEl, "beforeEach resets today, so the count starts at 0").toHaveValue("0")
+        await clickAndWait(page, incrementBtn, LOG_MUTATION)
+        await expect(countEl, "the first increment should have landed").toHaveValue("1")
+        await clickAndWait(page, incrementBtn, LOG_MUTATION)
+        await expect(countEl, "the second increment should have landed").toHaveValue("2")
     })
 
     test("decrement from 1 reaches 0 and hides minus button", async ({ authenticatedPage: page }) => {
         await page.goto("/")
-        await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
-        await page.locator("#day-logger-panel").getByLabel("Decrease").first().click()
-        const countEl = page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")
-        await expect(countEl).toHaveValue("0")
-        await expect(page.locator("#day-logger-panel").getByLabel("Decrease").first()).toBeHidden()
+        const incrementBtn = await readyDayLogger(page)
+        const countEl = firstLogCount(page)
+
+        await clickAndWait(page, incrementBtn, LOG_MUTATION)
+        await expect(countEl, "the increment should have landed before decrementing").toHaveValue("1")
+        await clickAndWait(page, page.locator("#day-logger-panel").getByLabel("Decrease").first(), LOG_MUTATION)
+        await expect(countEl, "the decrement should have landed").toHaveValue("0")
+        await expect(page.locator("#day-logger-panel").getByLabel("Decrease").first(),
+            "Decrease is hidden at 0").toBeHidden()
     })
 
     test("decrement button is hidden when count is 0", async ({ authenticatedPage: page }) => {
@@ -161,7 +173,7 @@ test.describe("Dashboard", () => {
         // No events for today initially (before logging)
         const eventsBefore = await page.locator(`.d-min-cell[data-date="${today}"] .d-full-event`).count()
         // Log an action
-        await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
+        await clickAndWait(page, page.locator("#day-logger-panel").getByLabel("Increase").first(), LOG_MUTATION)
         // The grid refetches its month after htmx:afterRequest — wait for the new event row
         await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-full-event`)).toHaveCount(Math.max(eventsBefore + 1, 1), { timeout: 5000 })
     })
@@ -180,32 +192,33 @@ test.describe("Dashboard", () => {
 
         await page.goto("/")
 
+        // Navigation here is DOM-driven (`showMonthOf`) and never waits on the events feed. dashboard.js
+        // PREFETCHES the months either side on load, so whether paging onto one issues a request at all
+        // depends on whether that prefetch has landed - a `waitForResponse` on it hangs to the 30s test
+        // timeout whenever the cache won, which is exactly how this test failed under load. Only the log
+        // POSTs are waited on: those always reach the server. Each stage asserts, so a failure says which
+        // month's grid was wrong rather than only that the total was.
+
         // Ensure DashAction has a log on the 1st of the current month, so its cell holds exactly one event.
         const firstEvent = page.locator(`.d-min-cell[data-date="${first}"] .d-full-event`).filter({ hasText: "DashAction" })
         await page.locator(`.d-min-cell[data-date="${first}"]`).click()
         if ((await firstEvent.count()) === 0) {
-            await Promise.all([
-                page.waitForResponse(r => r.url().includes("/api/v1/logs/events")),
-                page.locator("#day-logger-panel").getByLabel("Increase").first().click(),
-            ])
+            await clickAndWait(page, await readyDayLogger(page), LOG_MUTATION)
         }
-        await expect(firstEvent).toHaveCount(1, { timeout: 5000 })
+        await expect(firstEvent, `the 1st (${first}) should hold exactly one DashAction event`).toHaveCount(1)
 
         // Go to the previous month and log there. The mutation force-refreshes the *previous* month, whose
         // range (pre-fix) overran into the 1st of the current month and re-appended its event.
-        await Promise.all([
-            page.waitForResponse(r => r.url().includes("/api/v1/logs/events")),
-            page.locator("#cal-prev").click(),
-        ])
+        await showMonthOf(page, prevFirst)
         await page.locator(`.d-min-cell[data-date="${prevFirst}"]`).click()
-        await Promise.all([
-            page.waitForResponse(r => r.url().includes("/api/v1/logs/events")), // the force-refresh of the previous month
-            page.locator("#day-logger-panel").getByLabel("Increase").first().click(),
-        ])
+        await clickAndWait(page, await readyDayLogger(page), LOG_MUTATION)
+        await expect(page.locator(`.d-min-cell[data-date="${prevFirst}"] .d-full-event`).filter({ hasText: "DashAction" }),
+            `the previous month's 1st (${prevFirst}) should hold its own event once the force-refresh lands`).toHaveCount(1)
 
-        // Back to the current month (served from cache) — the 1st must still show exactly one event, not two.
-        await page.locator("#cal-next").click()
-        await expect(firstEvent).toHaveCount(1, { timeout: 5000 })
+        // Back to the current month — the 1st must still show exactly one event, not two.
+        await showMonthOf(page, first)
+        await expect(firstEvent, `the 1st (${first}) must not gain a duplicate from the previous month's refetch`)
+            .toHaveCount(1)
     })
 
     test('future date shows "future" message with no +/− buttons', async ({ authenticatedPage: page }) => {
@@ -256,7 +269,7 @@ test.describe("Dashboard", () => {
         await expect(summary).toBeEmpty()
 
         // Log the action on today — the summary reloads for the selected day and names it.
-        await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
+        await clickAndWait(page, page.locator("#day-logger-panel").getByLabel("Increase").first(), LOG_MUTATION)
         await expect(summary).toContainText("DashAction")
 
         // Move the selection to a day with nothing logged: the card empties again...
@@ -276,7 +289,7 @@ test.describe("Dashboard", () => {
 
     test("stats summary is cleared when only the month changes", async ({ authenticatedPage: page }) => {
         await page.goto("/")
-        await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
+        await clickAndWait(page, page.locator("#day-logger-panel").getByLabel("Increase").first(), LOG_MUTATION)
         await expect(page.locator("#stats-summary")).toContainText("DashAction")
 
         // A month arrow selects no specific day, so there is no day left to summarise.
@@ -555,7 +568,7 @@ test.describe("Dashboard – panel layout", () => {
         test("stats summary is exactly the calendar's width, directly below it", async ({ authenticatedPage: page }) => {
             await page.goto("/")
             // Log something so the summary renders a card rather than staying an empty wrapper.
-            await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
+            await clickAndWait(page, page.locator("#day-logger-panel").getByLabel("Increase").first(), LOG_MUTATION)
             await expect(page.locator("#stats-summary")).toContainText("DashAction")
 
             const calendar = await page.locator("#calendar-wrap").locator("xpath=..").boundingBox()
@@ -592,12 +605,25 @@ test.describe("Dashboard – panel layout", () => {
             // The regression this pins: with the note nested under the logger it floated well above the
             // summary whenever the day had few actions, leaving a gap in the right-hand column.
             await page.goto("/")
-            await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
-            await expect(page.locator("#stats-summary")).toContainText("DashAction")
+            const incrementBtn = await readyDayLogger(page)
+            await clickAndWait(page, incrementBtn, LOG_MUTATION)
 
-            const logger = await page.locator("#day-logger-panel").boundingBox()
-            const note = await page.locator("#note-panel").boundingBox()
-            const summary = await page.locator("#stats-summary").boundingBox()
+            // Each panel is asserted present BEFORE anything is measured. A missing box previously surfaced as
+            // "a dashboard panel has no layout box", which named none of the three; now the failure names the
+            // panel, and separates "the panel never rendered" from "the panels rendered in the wrong places".
+            const loggerPanel = page.locator("#day-logger-panel")
+            const notePanel = page.locator("#note-panel")
+            const summaryPanel = page.locator("#stats-summary")
+            await expect(summaryPanel, "the stats summary should list the logged action").toContainText("DashAction")
+            await expect(loggerPanel, "the day-logger panel should be laid out").toBeVisible()
+            await expect(notePanel, "the note panel should be laid out").toBeVisible()
+
+            const logger = await loggerPanel.boundingBox()
+            const note = await notePanel.boundingBox()
+            const summary = await summaryPanel.boundingBox()
+            expect(logger, "the day-logger panel should have a layout box").not.toBeNull()
+            expect(note, "the note panel should have a layout box").not.toBeNull()
+            expect(summary, "the stats summary should have a layout box").not.toBeNull()
             if (!logger || !note || !summary) {
                 throw new Error("a dashboard panel has no layout box")
             }
@@ -613,7 +639,7 @@ test.describe("Dashboard – panel layout", () => {
 
         test("panels stack in order: calendar, day logger, note, stats summary", async ({ authenticatedPage: page }) => {
             await page.goto("/")
-            await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
+            await clickAndWait(page, page.locator("#day-logger-panel").getByLabel("Increase").first(), LOG_MUTATION)
             await expect(page.locator("#stats-summary")).toContainText("DashAction")
 
             const calendar = await page.locator("#calendar-wrap").locator("xpath=..").boundingBox()

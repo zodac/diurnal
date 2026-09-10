@@ -19,15 +19,11 @@ package net.zodac.diurnal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -45,8 +41,6 @@ import org.junit.jupiter.api.Test;
  * as UTF-8 and are free to use whatever characters read best.
  */
 class LogOutputIsPlainAsciiTest {
-
-    private static final Path SOURCE_ROOT = Path.of("src", "main", "java");
 
     // A logging call or an exception construction, and everything up to the end of its statement, across line breaks.
     private static final Pattern LOGGED_STATEMENT = Pattern.compile("(?:LOGGER\\.\\w+\\(|new \\w*Exception\\().*?\\);", Pattern.DOTALL);
@@ -70,7 +64,7 @@ class LogOutputIsPlainAsciiTest {
     void noLoggedStringCarriesNonAsciiCharacters() {
         final List<String> offenders = new ArrayList<>();
 
-        for (final Path sourceFile : sourceFiles()) {
+        for (final Path sourceFile : SourceFiles.java()) {
             for (final String literal : loggedStringLiterals(sourceFile)) {
                 if (isNotPlainAscii(literal)) {
                     offenders.add(sourceFile.getFileName() + ": " + condensed(literal));
@@ -88,8 +82,8 @@ class LogOutputIsPlainAsciiTest {
         final List<String> loggingFiles = new ArrayList<>();
         final List<String> exceptionFiles = new ArrayList<>();
 
-        for (final Path sourceFile : sourceFiles()) {
-            final Matcher statements = LOGGED_STATEMENT.matcher(readSource(sourceFile));
+        for (final Path sourceFile : SourceFiles.java()) {
+            final Matcher statements = LOGGED_STATEMENT.matcher(SourceFiles.read(sourceFile));
             while (statements.find()) {
                 final String statement = statements.group();
                 if (statement.startsWith("LOGGER.")) {
@@ -113,7 +107,7 @@ class LogOutputIsPlainAsciiTest {
     private static List<String> loggedStringLiterals(final Path sourceFile) {
         final List<String> literals = new ArrayList<>();
 
-        final Matcher statements = LOGGED_STATEMENT.matcher(readSource(sourceFile));
+        final Matcher statements = LOGGED_STATEMENT.matcher(SourceFiles.read(sourceFile));
         while (statements.find()) {
             final Matcher stringLiterals = STRING_LITERAL.matcher(statements.group());
             while (stringLiterals.find()) {
@@ -137,25 +131,6 @@ class LogOutputIsPlainAsciiTest {
         }
 
         return false;
-    }
-
-    private static List<Path> sourceFiles() {
-        try (final Stream<Path> paths = Files.walk(SOURCE_ROOT)) {
-            return paths
-                .filter(path -> path.toString().endsWith(".java"))
-                .sorted()
-                .toList();
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Cannot walk " + SOURCE_ROOT.toAbsolutePath(), e);
-        }
-    }
-
-    private static String readSource(final Path sourceFile) {
-        try {
-            return Files.readString(sourceFile);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Cannot read " + sourceFile.toAbsolutePath(), e);
-        }
     }
 
     private static String condensed(final String literal) {

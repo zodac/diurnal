@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.openapi.ApiPages;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -103,12 +104,11 @@ public class AdminUsersApiResource {
         @QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User actor = currentUser.get();
         final AdminUserService.UsersPage page = adminUserService.usersPage(pageNum, PageSizes.forSection(actor, PageSection.USERS));
-        // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range) so a
-        // page number is never silently changed to some other page.
-        if (pageNum < 1 || pageNum > Math.max(1, page.totalPages())) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ApiErrorResponse("Page " + pageNum + " is out of range"))
-                .build();
+        // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range), so a page number is never
+        // silently answered with some other page.
+        final Response outOfRange = ApiPages.outOfRange(pageNum, page.totalPages());
+        if (outOfRange != null) {
+            return outOfRange;
         }
         return Response.ok(AdminUserPageDto.from(page)).build();
     }

@@ -25,9 +25,14 @@ import org.jspecify.annotations.Nullable;
  * bar per day, or a calendar year drawn as one bar per month.
  *
  * <p>
- * Each constant pairs the stable {@link #value()} (the {@code period} query parameter on both the internal fragment endpoint and its public API twin,
- * and the value the chart's toggle buttons post) with the {@link #label()} shown on that toggle. Declaration order is the toggle's display order, and
- * {@link #DEFAULT} is the window the chart opens on.
+ * Each constant carries only the stable {@link #value()} — the {@code period} query parameter on both the internal fragment endpoint and its public
+ * API twin, and the value the chart's toggle buttons post. Declaration order is the toggle's display order, and {@link #DEFAULT} is the window the
+ * chart opens on.
+ *
+ * <p>
+ * Deliberately NO display label: the toggle's words are resolved at the render site from {@code AppMessages} ({@code {msg:month}}/{@code {msg:year}}
+ * in {@code partials/stats-chart.html}), because an English {@code label()} on the enum is the thing that renders in every language until someone
+ * notices — the "third bucket" rule in {@code .claude/I18N.md}, and what {@code PageSection}/{@code IpLockoutStatus} each shipped once.
  *
  * <p>
  * The period only decides the shape of the window; {@link FrequencyKeys} owns every calendar rule for anchoring, wording and stepping one.
@@ -37,12 +42,12 @@ public enum FrequencyPeriod {
     /**
      * One calendar month, drawn as one bar per day of that month.
      */
-    MONTH("month", "Month"),
+    MONTH("month"),
 
     /**
      * One calendar year, drawn as one bar per month of that year.
      */
-    YEAR("year", "Year");
+    YEAR("year");
 
     /**
      * The window the chart opens on when no {@code period} is supplied.
@@ -50,11 +55,9 @@ public enum FrequencyPeriod {
     public static final FrequencyPeriod DEFAULT = MONTH;
 
     private final String value;
-    private final String label;
 
-    FrequencyPeriod(final String value, final String label) {
+    FrequencyPeriod(final String value) {
         this.value = value;
-        this.label = label;
     }
 
     /**
@@ -64,15 +67,6 @@ public enum FrequencyPeriod {
      */
     public String value() {
         return value;
-    }
-
-    /**
-     * The human-readable caption for the chart's period toggle.
-     *
-     * @return the period's display label
-     */
-    public String label() {
-        return label;
     }
 
     /**

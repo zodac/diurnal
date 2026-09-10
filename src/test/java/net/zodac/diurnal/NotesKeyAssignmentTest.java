@@ -19,13 +19,9 @@ package net.zodac.diurnal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -44,7 +40,6 @@ import org.junit.jupiter.api.Test;
  */
 class NotesKeyAssignmentTest {
 
-    private static final Path SOURCE_ROOT = Path.of("src", "main", "java");
     private static final String CREATES_A_USER = "new User()";
     private static final String ASSIGNS_A_KEY = "assignTo(";
 
@@ -52,10 +47,10 @@ class NotesKeyAssignmentTest {
     void everyPathCreatingUserAlsoMintsItsNotesKey() {
         final List<String> offenders = new ArrayList<>();
 
-        for (final Path sourceFile : sourceFiles()) {
-            final String source = readSource(sourceFile);
+        for (final Path sourceFile : SourceFiles.java()) {
+            final String source = SourceFiles.read(sourceFile);
             if (source.contains(CREATES_A_USER) && !source.contains(ASSIGNS_A_KEY)) {
-                offenders.add(SOURCE_ROOT.relativize(sourceFile).toString());
+                offenders.add(SourceFiles.JAVA_ROOT.relativize(sourceFile).toString());
             }
         }
 
@@ -69,8 +64,8 @@ class NotesKeyAssignmentTest {
     void theGuardStillFindsTheKnownUserCreatingPaths() {
         final List<String> creators = new ArrayList<>();
 
-        for (final Path sourceFile : sourceFiles()) {
-            if (readSource(sourceFile).contains(CREATES_A_USER)) {
+        for (final Path sourceFile : SourceFiles.java()) {
+            if (SourceFiles.read(sourceFile).contains(CREATES_A_USER)) {
                 creators.add(sourceFile.getFileName().toString());
             }
         }
@@ -82,22 +77,4 @@ class NotesKeyAssignmentTest {
             .contains("RegistrationService.java", "OidcUserProvisioner.java");
     }
 
-    private static List<Path> sourceFiles() {
-        try (final Stream<Path> paths = Files.walk(SOURCE_ROOT)) {
-            return paths
-                .filter(path -> path.toString().endsWith(".java"))
-                .sorted()
-                .toList();
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Cannot walk " + SOURCE_ROOT.toAbsolutePath(), e);
-        }
-    }
-
-    private static String readSource(final Path sourceFile) {
-        try {
-            return Files.readString(sourceFile);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Cannot read " + sourceFile.toAbsolutePath(), e);
-        }
-    }
 }

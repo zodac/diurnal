@@ -17,7 +17,6 @@
 
 package net.zodac.diurnal.user;
 
-import java.util.Arrays;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -33,65 +32,38 @@ import org.jspecify.annotations.Nullable;
  * and a {@code page-<value>-full-dark.webp} preview), and it automatically appears in the settings picker — the template loops these values, so no
  * template change is needed.
  */
-public enum Font implements PreviewOption { // NOPMD: DataClass - thin settings-picker metadata catalogue; accessor-heavy by design
+public enum Font implements PreviewOption {
 
     /**
      * The brand Nova typography (Nova Flat body, Nova Round headings); the default.
      */
-    NOVA("nova", "Nova", "Nova font", "Dashboard shown in the Nova font", "page-nova-full-dark"),
+    NOVA(new OptionPreview("nova", "Nova", "Nova font", "Dashboard shown in the Nova font", "page-nova-full-dark")),
 
     /**
      * The system sans-serif stack (no web font fetched).
      */
-    STANDARD("standard", "Standard", "Standard font", "Dashboard shown in the standard system font", "page-standard-full-dark"),
+    STANDARD(new OptionPreview("standard", "Standard", "Standard font", "Dashboard shown in the standard system font", "page-standard-full-dark")),
 
     /**
      * The OpenDyslexic accessibility face (weighted letter bottoms to ease reading for people with dyslexia).
      */
-    DYSLEXIC("dyslexic", "OpenDyslexic", "OpenDyslexic font", "Dashboard shown in the OpenDyslexic accessibility font", "page-dyslexic-full-dark");
+    DYSLEXIC(new OptionPreview("dyslexic", "OpenDyslexic", "OpenDyslexic font", "Dashboard shown in the OpenDyslexic accessibility font",
+        "page-dyslexic-full-dark"));
 
     /**
      * The font applied when the stored/submitted value is absent or unrecognised.
      */
     public static final Font DEFAULT = NOVA;
 
-    private final String value;
-    private final String label;
-    private final String title;
-    private final String alt;
-    private final String previewImage;
+    private final OptionPreview preview;
 
-    Font(final String value, final String label, final String title, final String alt, final String previewImage) {
-        this.value = value;
-        this.label = label;
-        this.title = title;
-        this.alt = alt;
-        this.previewImage = previewImage;
+    Font(final OptionPreview preview) {
+        this.preview = preview;
     }
 
     @Override
-    public String value() {
-        return value;
-    }
-
-    @Override
-    public String label() {
-        return label;
-    }
-
-    @Override
-    public String title() {
-        return title;
-    }
-
-    @Override
-    public String alt() {
-        return alt;
-    }
-
-    @Override
-    public String previewImage() {
-        return previewImage;
+    public OptionPreview preview() {
+        return preview;
     }
 
     /**
@@ -102,6 +74,6 @@ public enum Font implements PreviewOption { // NOPMD: DataClass - thin settings-
      * @return {@code true} when the value is one of the offered options
      */
     public static boolean isValid(final @Nullable String value) {
-        return Arrays.stream(values()).anyMatch(option -> option.value.equals(value));
+        return PreviewOption.isValid(values(), value);
     }
 }

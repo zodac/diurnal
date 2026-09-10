@@ -1,0 +1,24 @@
+{!
+  The "how long ago was this?" sub-caption, shared by the three tiles whose sub is an elapsed span
+  rather than a phrase of their own: first-performed, last-performed and last-day-with-multiples.
+  All three resolve it identically from tile.subDaysAgo, so it is written once here instead of three
+  times in partials/stat-tile-row. Params:
+    tile    — the StatTile being rendered
+    compact — passed straight through to partials/stat-tile-dispatch
+    label   — the caption the caller already resolved (the user's rename, or the catalogue's word)
+
+  subDaysAgo is -1 (never performed - or, for last-day-with-multiples, never performed more than once
+  in one day - tile.value is "" in this case, so msg:neverLoggedIn supplies the word and the
+  sub-caption stays the em dash placeholder, not a word), 0 (today), 1 (yesterday), or >= 2
+  (durationYears/Months/Days carry the elapsed span's breakdown, worded via msg:duration then wrapped
+  by msg:statSubAgo).
+!}
+{#if tile.subDaysAgo == -1}
+{#include partials/stat-tile-dispatch compact=compact label=label value=msg:neverLoggedIn sub="—" subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}
+{#else if tile.subDaysAgo == 0}
+{#let sub=msg:today}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+{#else if tile.subDaysAgo == 1}
+{#let sub=msg:statSubYesterday}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+{#else}
+{#let sub=msg:statSubAgo(msg:duration(tile.durationYears, tile.durationMonths, tile.durationDays))}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+{/if}

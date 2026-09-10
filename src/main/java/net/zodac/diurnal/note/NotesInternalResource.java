@@ -47,6 +47,7 @@ import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.log.DateRanges;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.text.TextFailureBanner;
 import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
@@ -84,7 +85,7 @@ public class NotesInternalResource {
     private static final Logger LOGGER = LogManager.getLogger(NotesInternalResource.class);
 
     private final Template notesListTemplate;
-    private final Template textFailureMessageTemplate;
+    private final TextFailureBanner textFailureBanner;
     private final CurrentUser currentUser;
     private final NoteService noteService;
     private final AppPaths appPaths;
@@ -94,17 +95,17 @@ public class NotesInternalResource {
      * shared note service.
      *
      * @param notesListTemplate the notes-page list partial
-     * @param textFailureMessageTemplate the shared text-validation-pipeline rejection message partial template
+     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
      * @param currentUser       the current-user accessor
      * @param noteService       the shared note-mutation service
      * @param appPaths the single builder of every application URL, for the "did you mean" link a search suggestion carries
      */
     @Inject
     public NotesInternalResource(@Location("partials/notes-list") final Template notesListTemplate,
-        @Location("partials/text-failure-message") final Template textFailureMessageTemplate, final CurrentUser currentUser,
+        final TextFailureBanner textFailureBanner, final CurrentUser currentUser,
         final NoteService noteService, final AppPaths appPaths) {
         this.notesListTemplate = notesListTemplate;
-        this.textFailureMessageTemplate = textFailureMessageTemplate;
+        this.textFailureBanner = textFailureBanner;
         this.currentUser = currentUser;
         this.noteService = noteService;
         this.appPaths = appPaths;
@@ -130,9 +131,9 @@ public class NotesInternalResource {
         final LocalDate endDate = DateRanges.requireDate("end", end);
 
         final EntityTag tag = EntityTags.weak(user.id, startDate, endDate, Note.rangeVersion(user.id, startDate, endDate));
-        final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
+        final Response notModified = EntityTags.notModified(request, tag);
         if (notModified != null) {
-            return EntityTags.withValidator(notModified, tag).build();
+            return notModified;
         }
 
         // One key opens the whole range, so it is resolved once rather than per note; the map keeps the query's date
@@ -168,7 +169,7 @@ public class NotesInternalResource {
 
         final User user = currentUser.get();
         final PaginatedHits hits = noteService.journalPage(user, searchTerm, pageNum, PageSizes.forSection(user, PageSection.NOTES));
-        final Locale locale = locale(user);
+        final Locale locale = user.locale();
         final PaginatedNotes page = NotePages.of(hits, TextValidation.searchTerm(searchTerm), locale, appPaths);
         return Response.ok(notesListTemplate.data("page", page, "extraQuery", NotePages.extraQuery(searchTerm))
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
@@ -198,7 +199,7 @@ public class NotesInternalResource {
         final @Nullable NoteSubmission request) {
 
         final User user = currentUser.get();
-        return translate(noteService.save(user, date, request == null ? null : request.content()), locale(user));
+        return translate(noteService.save(user, date, request == null ? null : request.content()), user.locale());
     }
 
     /**
@@ -213,7 +214,7 @@ public class NotesInternalResource {
     public Response clear(@PathParam("date") final LocalDate date) {
         final User user = currentUser.get();
         LOGGER.debug("Note clear requested for {} by user {}", date, user.email);
-        return translate(noteService.clear(user, date), locale(user));
+        return translate(noteService.clear(user, date), user.locale());
     }
 
     private Response translate(final NoteResult result, final Locale locale) {
@@ -222,15 +223,9 @@ public class NotesInternalResource {
             case final NoteResult.Cleared cleared -> Response.ok(new SavedNote(cleared.date().toString(), "")).build();
             // 422 on the web where the API answers 400 - the same per-surface split every other text input uses.
             case final NoteResult.Invalid invalid -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .entity(new ApiErrorResponse(textFailureMessageTemplate.data("failure", invalid.failure())
-                    .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)
-                    .render()))
+                .entity(new ApiErrorResponse(textFailureBanner.render(invalid.failure(), locale)))
                 .build();
         };
-    }
-
-    private static Locale locale(final User user) {
-        return Locale.forLanguageTag(user.language);
     }
 
     /**

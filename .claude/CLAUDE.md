@@ -77,6 +77,7 @@ carries the procedure and the traps; the deep-reference docs carry the detail.
 | `endpoint` | adding or changing an endpoint, a user-facing capability, or a preference               |
 | `ui`       | building or verifying UI — templates, partials, CSS, the JS that drives them            |
 | `perf`     | proposing or implementing ANY optimisation — an index, a cache, a rewrite, startup work |
+| `deadcode` | deleting anything on suspicion of being unused — finds what only the TESTS keep alive   |
 
 **Deep-reference docs — read the matching one before that kind of work.** All are large; each opens with its own
 section index, so `grep -n '^#'` the file and read only the range you need.
@@ -106,7 +107,7 @@ Everything under `.claude/` is checked in except `scheduled_tasks.lock` (if it e
 | `.claude/settings.local.json`   | Personal overrides, gitignored. Keep machine-specific paths here; anything the whole project wants belongs in `settings.json`, which survives a fresh clone                                                                     |
 | `.claude/hooks/*.sh`            | The `PreToolUse` guards. Each exits `2` to block with its reason on stderr                                                                                                                                                      |
 | `.claude/hooks/tests/`          | Their behaviour tests — the `shellcheck:hooks` gate tier, and `sandbox/setup.sh` at session start                                                                                                                               |
-| `.claude/skills/`               | The five skills, each with a `references/` folder for the parts only some tasks need                                                                                                                                            |
+| `.claude/skills/`               | The six skills, each with a `references/` folder for the parts only some tasks need                                                                                                                                             |
 | `.claude/agents/gate-runner.md` | Subagent that runs a gate step and returns only the triaged verdict - use it for the ~10-minute `java` step so its output stays out of the conversation                                                                         |
 | `.claude/commands/precommit.md` | `/precommit` - scopes the gate to the diff, checks the docs kept up, proposes a message. It does NOT commit                                                                                                                     |
 | `.claude/*.md`                  | This file and the deep-reference docs                                                                                                                                                                                           |

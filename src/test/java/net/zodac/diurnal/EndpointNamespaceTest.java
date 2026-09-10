@@ -19,16 +19,12 @@ package net.zodac.diurnal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -41,7 +37,6 @@ import org.junit.jupiter.api.Test;
  */
 class EndpointNamespaceTest {
 
-    private static final Path SOURCE_ROOT = Path.of("src", "main", "java");
     private static final Pattern PATH_ANNOTATION = Pattern.compile("@Path\\(\"(?<path>[^\"]*)\"\\)");
     private static final Pattern TYPE_DECLARATION = Pattern.compile("public\\s+(?:final\\s+|abstract\\s+)?(?:class|interface|enum|record)\\s+\\w+");
     private static final Pattern REPEATED_SLASHES = Pattern.compile("/+");
@@ -71,10 +66,10 @@ class EndpointNamespaceTest {
     void everyEndpointLivesInSanctionedNamespace() {
         final List<String> offenders = new ArrayList<>();
 
-        for (final Path sourceFile : sourceFiles()) {
+        for (final Path sourceFile : SourceFiles.java()) {
             for (final String endpoint : endpointsIn(sourceFile)) {
                 if (!isSanctioned(endpoint)) {
-                    offenders.add(endpoint + " (" + SOURCE_ROOT.relativize(sourceFile) + ")");
+                    offenders.add(endpoint + " (" + SourceFiles.JAVA_ROOT.relativize(sourceFile) + ")");
                 }
             }
         }
@@ -94,23 +89,12 @@ class EndpointNamespaceTest {
             || PAGE_AND_OPERATIONAL_ROUTES.stream().anyMatch(route -> route.startsWith(endpoint + "/"));
     }
 
-    private static List<Path> sourceFiles() {
-        try (final Stream<Path> paths = Files.walk(SOURCE_ROOT)) {
-            return paths
-                .filter(path -> path.toString().endsWith(".java"))
-                .sorted()
-                .toList();
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Cannot walk " + SOURCE_ROOT.toAbsolutePath(), e);
-        }
-    }
-
     // Resolves each source file's endpoints: the class-level @Path (everything before the type
     // declaration) joined with each method-level @Path after it. A class with a base @Path always
     // contributes the base itself too, covering methods with no @Path of their own (e.g. the
     // class-root GET on the page resources).
     private static List<String> endpointsIn(final Path sourceFile) {
-        final String source = readSource(sourceFile);
+        final String source = SourceFiles.read(sourceFile);
         final Matcher typeDeclaration = TYPE_DECLARATION.matcher(source);
         if (!typeDeclaration.find()) {
             return List.of();
@@ -133,14 +117,6 @@ class EndpointNamespaceTest {
             endpoints.add(join(base, methodMatcher.group("path")));
         }
         return endpoints;
-    }
-
-    private static String readSource(final Path sourceFile) {
-        try {
-            return Files.readString(sourceFile);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Cannot read " + sourceFile.toAbsolutePath(), e);
-        }
     }
 
     private static String join(final String base, final String sub) {

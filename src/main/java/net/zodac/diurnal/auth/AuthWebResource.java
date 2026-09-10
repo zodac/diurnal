@@ -55,11 +55,11 @@ import net.zodac.diurnal.auth.session.SessionStore;
 import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.http.ClientAddress;
 import net.zodac.diurnal.http.HttpHeader;
+import net.zodac.diurnal.text.TextFailureBanner;
 import net.zodac.diurnal.time.AppClock;
-import net.zodac.diurnal.user.Font;
 import net.zodac.diurnal.user.Language;
-import net.zodac.diurnal.user.Theme;
 import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.web.PageShell;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -88,7 +88,7 @@ public class AuthWebResource {
     private final Template registerTemplate;
     private final Template setupTemplate;
     private final Template oidcMessagesTemplate;
-    private final Template textFailureMessageTemplate;
+    private final TextFailureBanner textFailureBanner;
     private final Template passwordRejectionTemplate;
     private final AppClock clock;
     private final AuthenticationService authenticationService;
@@ -110,7 +110,7 @@ public class AuthWebResource {
      * @param registerTemplate the register page template
      * @param setupTemplate the first-run setup page template
      * @param oidcMessagesTemplate the translated OIDC connect/denial banner partial template
-     * @param textFailureMessageTemplate the shared text-validation-pipeline rejection message partial template
+     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
      * @param passwordRejectionTemplate the translated password-mismatch/unchanged banner partial template
      * @param clock the application clock for date-boundary logic
      * @param authenticationService the shared credential-verification service
@@ -130,7 +130,7 @@ public class AuthWebResource {
     @Inject
     public AuthWebResource(@Location("login") final Template loginTemplate, @Location("register") final Template registerTemplate,
         @Location("setup") final Template setupTemplate, @Location("partials/oidc-messages") final Template oidcMessagesTemplate,
-        @Location("partials/text-failure-message") final Template textFailureMessageTemplate,
+        final TextFailureBanner textFailureBanner,
         @Location("partials/password-rejection") final Template passwordRejectionTemplate,
         final AppClock clock,
         final AuthenticationService authenticationService,
@@ -141,7 +141,7 @@ public class AuthWebResource {
         this.registerTemplate = registerTemplate;
         this.setupTemplate = setupTemplate;
         this.oidcMessagesTemplate = oidcMessagesTemplate;
-        this.textFailureMessageTemplate = textFailureMessageTemplate;
+        this.textFailureBanner = textFailureBanner;
         this.passwordRejectionTemplate = passwordRejectionTemplate;
         this.clock = clock;
         this.authenticationService = authenticationService;
@@ -209,11 +209,9 @@ public class AuthWebResource {
             .data("code", oidcErrorCookie, "provider", oidcConfig.providerName(), "fallbackToUnauthorized", true)
             .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, language.locale())
             .render();
-        final Response.ResponseBuilder builder = Response.ok(loginTemplate
-            .data("error", showError, "registered", registered, "theme", Theme.DEFAULT.value())
-            .data("font", Font.DEFAULT.value())
-            .data("language", language.value())
-            .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, language.locale())
+        final Response.ResponseBuilder builder = Response.ok(PageShell.anonymous(loginTemplate, language)
+            .data("error", showError)
+            .data("registered", registered)
             .data("locked", showLocked)
             .data("lockoutSeconds", LockoutMessages.retrySeconds(lockoutRemaining))
             .data("oidcError", showOidcError)
@@ -320,12 +318,7 @@ public class AuthWebResource {
             return Response.seeOther(appPaths.loginUri()).build();
         }
         final Language language = Language.fromAcceptLanguageHeader(acceptLanguage);
-        return Response.ok(setupTemplate
-                .data("theme", Theme.DEFAULT.value())
-                .data("font", Font.DEFAULT.value())
-                .data("language", language.value())
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, language.locale()))
-            .build();
+        return Response.ok(PageShell.anonymous(setupTemplate, language)).build();
     }
 
     // ── Register ───────────────────────────────────────────────────────────
@@ -415,7 +408,7 @@ public class AuthWebResource {
         final boolean duplicateEmail, final long lockoutSeconds, final String acceptLanguage) {
         final Language language = Language.fromAcceptLanguageHeader(acceptLanguage);
         final Locale locale = language.locale();
-        return registerTemplate
+        return PageShell.anonymous(registerTemplate, language)
                 .data("email", email)
                 .data("displayName", displayName)
                 .data("missingFields", missingFields.stream().map(RegistrationResult.RequiredField::key).toList())
@@ -423,17 +416,13 @@ public class AuthWebResource {
                 .data("duplicateEmail", duplicateEmail)
                 .data("lockoutSeconds", lockoutSeconds)
                 .data("setup", setupRequired())
-                .data("registrationDisabled", false)
-                .data("theme", Theme.DEFAULT.value())
-                .data("font", Font.DEFAULT.value())
-                .data("language", language.value())
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale);
+                .data("registrationDisabled", false);
     }
 
     private String registrationErrorBanner(final RegistrationError error, final Locale locale) {
         return switch (error) {
             case final RegistrationError.FieldError fieldError ->
-                textFailureMessageTemplate.data("failure", fieldError.failure()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+                textFailureBanner.render(fieldError.failure(), locale);
             case final RegistrationError.PasswordMismatch _ ->
                 passwordRejectionTemplate.data("kind", "mismatch").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
         };
@@ -441,13 +430,9 @@ public class AuthWebResource {
 
     private TemplateInstance renderRegisterDisabled(final String acceptLanguage) {
         final Language language = Language.fromAcceptLanguageHeader(acceptLanguage);
-        return registerTemplate
+        return PageShell.anonymous(registerTemplate, language)
                 .data("registrationDisabled", true)
-                .data("setup", false)
-                .data("theme", Theme.DEFAULT.value())
-                .data("font", Font.DEFAULT.value())
-                .data("language", language.value())
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, language.locale());
+                .data("setup", false);
     }
 
     private static boolean setupRequired() {
