@@ -55,7 +55,7 @@ public enum Theme implements PreviewOption {
      */
     public static final Theme DEFAULT = SYSTEM;
 
-    private final OptionPreview preview;
+    private final OptionPreview preview; // NOPMD: NonSerializableClass - an enum serialises by NAME only, so this field is never written
 
     Theme(final OptionPreview preview) {
         this.preview = preview;

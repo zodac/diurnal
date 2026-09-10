@@ -136,8 +136,8 @@ Every action gets a full set of statistics, including
 
 These can be enabled/disabled, renamed, or re-ordered in user settings (see [Statistics](#statistics) below).
 
-Each subject also has a **frequency graph**, opened from the chart icon on its card: a bar per day over a month, or a bar per month over a year, with
-the exact figures on hover. Up to three subjects can be charted together.
+Each subject also has a frequency graph, opened from the chart icon on its card: a bar per day over a month, or a bar per month over a year, with the
+exact figures on hover. Up to three subjects can be charted together.
 
 |                                                    Stats page                                                     |                                                         Frequency graph                                                          |
 |:-----------------------------------------------------------------------------------------------------------------:|:--------------------------------------------------------------------------------------------------------------------------------:|
@@ -154,21 +154,12 @@ Diurnal ships light and dark themes (or follow the system setting), and three fo
 ### Languages
 
 Diurnal can be used in a choice of languages, each with its own translated text, correctly-formatted dates and numbers. Before you sign in, the app
-picks a language from your browser; once signed in, you can instead choose your own from [Settings](#preferences).
+picks a language from your browser; once signed in, you can instead choose your own from [Settings](#preferences). Right-to-left languages, like
+Arabic, mirror the layout to match.
 
-<!-- markdownlint-disable MD033 -- centered screenshots: intentional inline HTML -->
-<p align="center">
-  <img src="docs/screenshots/language-dropdown-dark.webp" alt="The Settings language picker, open, showing the offered languages by their own name" height="180">
-</p>
-<!-- markdownlint-enable MD033 -->
-
-Right-to-left languages, like Arabic, mirror the layout to match:
-
-<!-- markdownlint-disable MD033 -- centered screenshot: intentional inline HTML -->
-<p align="center">
-  <img src="docs/screenshots/dashboard-arabic-dark.webp" alt="The dashboard shown in Arabic, mirrored right-to-left" width="600">
-</p>
-<!-- markdownlint-enable MD033 -->
+|                                                                         Language picker                                                                         |                                                     Right-to-left (Arabic)                                                      |
+|:---------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-------------------------------------------------------------------------------------------------------------------------------:|
+| <img src="docs/screenshots/language-dropdown-dark.webp" alt="The Settings language picker, open, showing the offered languages by their own name" height="256"> | <img src="docs/screenshots/dashboard-arabic-dark.webp" alt="The dashboard shown in Arabic, mirrored right-to-left" width="400"> |
 
 #### Contributing a Translation
 
@@ -236,8 +227,8 @@ The Compose files also tune PostgreSQL itself; those knobs live in [Performance 
 
 ### Note Configuration
 
-Your [notes](#notes) are **encrypted before they are stored**. Each account gets its own randomly-generated key when it is created, and every note is
-sealed under that key. The account keys are themselves stored only in encrypted form, protected by `NOTE_ENCRYPTION_KEY`.
+Your [notes](#notes) are encrypted. Each account gets its own randomly-generated key when it is created, and every note is sealed under that key. The
+account keys are themselves stored only in encrypted form, protected by `NOTE_ENCRYPTION_KEY`.
 
 | Variable                        | Default | Description                                                                       |
 |---------------------------------|---------|-----------------------------------------------------------------------------------|

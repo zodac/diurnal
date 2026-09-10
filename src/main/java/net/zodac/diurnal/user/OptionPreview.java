@@ -17,15 +17,18 @@
 
 package net.zodac.diurnal.user;
 
-import java.io.Serializable;
-
 /**
  * The settings-picker metadata one {@link PreviewOption} carries: everything {@code partials/preview-picker.html} reads off a tile, held as one value
  * so each picker enum declares it once per constant instead of five parallel fields and five accessors.
  *
  * <p>
- * Pure data — the {@link PreviewOption} accessors read straight through to these components. {@link Serializable} because an enum constant is, and
- * each picker constant holds one of these as its only field.
+ * Pure data — the {@link PreviewOption} accessors read straight through to these components.
+ *
+ * <p>
+ * Deliberately NOT {@code Serializable}. PMD's {@code NonSerializableClass} reports this as a non-serializable field of a serializable class, which
+ * is a false positive for an ENUM: an enum constant is serialised by NAME only and its instance fields are never written, so this record can never
+ * reach an {@code ObjectOutputStream} through one. Declaring it serializable satisfied the rule but bought nothing at runtime, and cost five
+ * missing-serial-tag Javadoc warnings in exchange. The rule is suppressed at each picker enum's field instead.
  *
  * @param value        the stable identifier: the radio value posted by the form, persisted for the setting, and rendered into the page
  * @param label        the short human-readable caption shown beneath the preview thumbnail
@@ -33,6 +36,6 @@ import java.io.Serializable;
  * @param alt          the alt text describing the preview thumbnail image
  * @param previewImage the base name (no extension) of the WebP preview thumbnail under {@code /img/settings/}
  */
-public record OptionPreview(String value, String label, String title, String alt, String previewImage) implements Serializable {
+public record OptionPreview(String value, String label, String title, String alt, String previewImage) {
 
 }
