@@ -38,7 +38,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,7 +55,6 @@ import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
-import net.zodac.diurnal.web.HtmxResponses;
 
 /**
  * The web UI's internal HTMX endpoints for admin user management: the paginated list partial, single-row partials, and the role-change/delete
@@ -70,12 +68,10 @@ import net.zodac.diurnal.web.HtmxResponses;
 @RollbackOnErrorStatus
 public class AdminUsersInternalResource {
 
-    private static final String ERROR_BANNER_TARGET = "#admin-error";
-
     private final Template adminUsersListTemplate;
     private final Template adminUserRowTemplate;
     private final Template confirmDeleteRowTemplate;
-    private final Template adminMessagesTemplate;
+    private final AdminConsole adminConsole;
     private final SecurityIdentity identity;
     private final CurrentUser currentUser;
     private final AdminUserService adminUserService;
@@ -90,7 +86,7 @@ public class AdminUsersInternalResource {
      * @param adminUsersListTemplate the paginated admin-users-list partial template
      * @param adminUserRowTemplate the single admin-user-row partial template
      * @param confirmDeleteRowTemplate the delete-confirmation row partial template
-     * @param adminMessagesTemplate the fixed-shape admin banner/prompt message partial template
+     * @param adminConsole the shared admin-console banner wording and timestamp format
      * @param identity the calling administrator's security identity
      * @param currentUser the current-user accessor
      * @param adminUserService the shared admin-user-mutation service
@@ -102,13 +98,13 @@ public class AdminUsersInternalResource {
     public AdminUsersInternalResource(@Location("partials/admin-users-list") final Template adminUsersListTemplate,
         @Location("partials/admin-user-row") final Template adminUserRowTemplate,
         @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
-        @Location("partials/admin-messages") final Template adminMessagesTemplate, final SecurityIdentity identity,
+        final AdminConsole adminConsole, final SecurityIdentity identity,
         final CurrentUser currentUser, final AdminUserService adminUserService, final SessionActivityService sessionActivityService,
         final AppClock clock, final AppPaths appPaths) {
         this.adminUsersListTemplate = adminUsersListTemplate;
         this.adminUserRowTemplate = adminUserRowTemplate;
         this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
-        this.adminMessagesTemplate = adminMessagesTemplate;
+        this.adminConsole = adminConsole;
         this.identity = identity;
         this.currentUser = currentUser;
         this.adminUserService = adminUserService;
@@ -129,7 +125,7 @@ public class AdminUsersInternalResource {
     public TemplateInstance usersList(@QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User actor = currentUser.get();
         return adminUsersListTemplate.data("page", pageRows(adminUserService.usersPage(pageNum, PageSizes.forSection(actor, PageSection.USERS))))
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale(actor));
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, actor.locale());
     }
 
     /**
@@ -142,10 +138,10 @@ public class AdminUsersInternalResource {
     @Path("{id}")
     @Produces(MediaType.TEXT_HTML)
     public Response userRow(@PathParam("id") final UUID id) {
-        final Locale locale = locale(currentUser.get());
+        final Locale locale = currentUser.get().locale();
         final User target = adminUserService.find(id);
         if (target == null) {
-            return HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("userNotFound", locale));
+            return adminConsole.errorBanner("userNotFound", locale);
         }
         return Response.ok(adminUserRowTemplate.data("u", singleRow(target)).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }
@@ -160,10 +156,10 @@ public class AdminUsersInternalResource {
     @Path("{id}/confirm-delete")
     @Produces(MediaType.TEXT_HTML)
     public Response confirmDeleteUser(@PathParam("id") final UUID id) {
-        final Locale locale = locale(currentUser.get());
+        final Locale locale = currentUser.get().locale();
         final User target = adminUserService.find(id);
         if (target == null) {
-            return HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("userNotFound", locale));
+            return adminConsole.errorBanner("userNotFound", locale);
         }
         // Admin delete re-renders the whole list (innerHTML), so the confirmation row's destructive
         // POST targets #admin-users-list; Cancel restores just this row from /internal/admin/users/{id}.
@@ -172,7 +168,7 @@ public class AdminUsersInternalResource {
                 .data("cols", 8)
                 .data("swatchColour", null)
                 .data("label", target.email)
-                .data("prompt", messageBanner("deleteUserPrompt", locale))
+                .data("prompt", adminConsole.banner("deleteUserPrompt", locale))
                 .data("deleteUrl", appPaths.internalAdminUserDelete(id))
                 .data("deleteTarget", "#admin-users-list")
                 .data("deleteSwap", "innerHTML")
@@ -193,11 +189,11 @@ public class AdminUsersInternalResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response changeRole(@PathParam("id") final UUID id, @FormParam("role") final String role) {
-        final Locale locale = locale(currentUser.get());
+        final Locale locale = currentUser.get().locale();
         return switch (adminUserService.changeRole(identity.getPrincipal().getName(), id, role)) {
-            case final AdminUserResult.InvalidRole _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("invalidRole", locale));
-            case final AdminUserResult.NotFound _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("userNotFound", locale));
-            case final AdminUserResult.LastAdmin _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("lastAdminRemove", locale));
+            case final AdminUserResult.InvalidRole _ -> adminConsole.errorBanner("invalidRole", locale);
+            case final AdminUserResult.NotFound _ -> adminConsole.errorBanner("userNotFound", locale);
+            case final AdminUserResult.LastAdmin _ -> adminConsole.errorBanner("lastAdminRemove", locale);
             // Re-render just this row (outerHTML) so the surrounding rows don't repaint — the edited row
             // swaps straight from its edit state to a fresh view state, with no whole-list flash.
             case final AdminUserResult.Success success -> Response.ok(
@@ -216,11 +212,11 @@ public class AdminUsersInternalResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response deleteUser(@PathParam("id") final UUID id) {
-        final Locale locale = locale(currentUser.get());
+        final Locale locale = currentUser.get().locale();
         return switch (adminUserService.deleteUser(identity.getPrincipal().getName(), id)) {
-            case final AdminUserResult.NotFound _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("userNotFound", locale));
-            case final AdminUserResult.LastAdmin _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("lastAdminDelete", locale));
-            case final AdminUserResult.InvalidRole _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("invalidRole", locale));
+            case final AdminUserResult.NotFound _ -> adminConsole.errorBanner("userNotFound", locale);
+            case final AdminUserResult.LastAdmin _ -> adminConsole.errorBanner("lastAdminDelete", locale);
+            case final AdminUserResult.InvalidRole _ -> adminConsole.errorBanner("invalidRole", locale);
             case final AdminUserResult.Success _ -> Response.ok(
                 adminUsersListTemplate.data("page", pageRows(firstPage())).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
         };
@@ -246,7 +242,8 @@ public class AdminUsersInternalResource {
     // A single row (post-mutation re-render / cancel restore), with its own recently-active presence resolved.
     private UserRow singleRow(final User u) {
         final ZoneId zone = actorZone();
-        return UserRow.of(u, formatter(zone, actorLanguage()), zone.getId(), sessionActivityService.recentActivityForUser(u.id, clock.now()));
+        return UserRow.of(u, AdminConsole.timestampFormatter(zone, actorLanguage()), zone.getId(),
+            sessionActivityService.recentActivityForUser(u.id, clock.now()));
     }
 
     /**
@@ -260,7 +257,7 @@ public class AdminUsersInternalResource {
      */
     static PaginatedUsers toRows(final AdminUserService.UsersPage page, final ZoneId zone, final Language language,
         final Map<UUID, RecentActivity> activity) {
-        final DateTimeFormatter fmt = formatter(zone, language);
+        final DateTimeFormatter fmt = AdminConsole.timestampFormatter(zone, language);
         final String zoneLabel = zone.getId();
         final List<UserRow> items = page.users().stream()
             .map(u -> UserRow.of(u, fmt, zoneLabel, activity.getOrDefault(u.id, RecentActivity.INACTIVE)))
@@ -268,26 +265,8 @@ public class AdminUsersInternalResource {
         return new PaginatedUsers(items, page.totalCount(), page.totalPages(), page.currentPage());
     }
 
-    // Localised for the viewing administrator, like every other date the app renders: a fixed "yyyy-MM-dd HH:mm" in Locale.ROOT pinned the field
-    // order, forced 24-hour regardless of the language's own hour cycle, and emitted ASCII digits on a page whose every other number was in the
-    // language's own glyphs. MEDIUM (not SHORT) for the date, because SHORT abbreviates the year to two digits and "9/5/26" reads as two different
-    // days in en-GB and en-US - an admin comparing this against a log needs it unambiguous.
-    private static DateTimeFormatter formatter(final ZoneId zone, final Language language) {
-        return language.localizeNumerals(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
-            .withLocale(language.locale())
-            .withZone(zone));
-    }
-
-    private String messageBanner(final String key, final Locale locale) {
-        return adminMessagesTemplate.data("key", key).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-    }
-
     private Language actorLanguage() {
         return Language.fromValue(currentUser.get().language);
-    }
-
-    private static Locale locale(final User user) {
-        return Locale.forLanguageTag(user.language);
     }
 
     // The timestamps are rendered in the viewing administrator's configured timezone (falling back to

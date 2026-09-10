@@ -64,6 +64,9 @@ public record StubAppConfig(String repositoryUrl, String buildTimestamp, Optiona
         return false;
     }
 
+    // MemorySize(BigInteger) is marked for removal, but it is the ONLY public constructor this Quarkus version exposes and the type has no
+    // factory method - there is nothing to migrate to until one is added upstream.
+    @SuppressWarnings("removal")
     @Override
     public MemorySize maxRequestBody() {
         return new MemorySize(BigInteger.valueOf(DEFAULT_MAX_REQUEST_BODY_BYTES));

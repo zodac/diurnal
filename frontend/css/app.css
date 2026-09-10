@@ -770,7 +770,7 @@
      on the page (which is exactly what this layout must not do — see WCAG 1.4.10 Reflow). */
   .stats-card-grid { grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); }
   .stat-tile-grid { grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); }
-  /* A caption may be a user's own name for the stat (ActionStatField.MAX_LABEL_LENGTH bounds its
+  /* A caption may be a user's own name for the stat (StatField.MAX_LABEL_LENGTH bounds its
      WIDTH, to two caption lines at the default tile size). One with no spaces in it has no wrapping
      opportunity, so without this it would sit on one line and spill out of the tile sideways rather
      than using the two lines the cap budgets for it. */

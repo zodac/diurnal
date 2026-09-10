@@ -18,9 +18,13 @@
 package net.zodac.diurnal.user;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import net.zodac.diurnal.colour.Colours;
 import net.zodac.diurnal.http.NotUiFacing;
 import net.zodac.diurnal.stats.StatField;
@@ -46,6 +50,10 @@ import org.jspecify.annotations.Nullable;
  * {@link TextValidation} pipeline, so they obey the same blank/length/content rules as every other text input in the app.
  *
  * <p>
+ * <strong>{@link #applyAll(User, PreferenceUpdates)} is the entry point</strong> — the per-field rules below are its steps, private because the
+ * order they run in and the stop-at-the-first-rejection behaviour are part of the same decision and must not be reachable piecemeal.
+ *
+ * <p>
  * Callers own the transaction (each endpoint is {@code @Transactional}); this bean only assumes one is active.
  */
 @ApplicationScoped
@@ -53,14 +61,7 @@ public class ProfileService {
 
     private static final Logger LOGGER = LogManager.getLogger(ProfileService.class);
 
-    /**
-     * Updates the display name, rejecting a blank or out-of-bounds value.
-     *
-     * @param user        the acting user
-     * @param displayName the submitted display name ({@code null} is treated as blank)
-     * @return the outcome
-     */
-    public ProfileResult updateDisplayName(final User user, final @Nullable String displayName) {
+    private static ProfileResult updateDisplayName(final User user, final @Nullable String displayName) {
         return switch (TextValidation.check(TextFields.DISPLAY_NAME, displayName)) {
             case final TextOutcome.Valid valid -> applyDisplayName(user, valid.value());
             case final TextOutcome.Failure failure -> new ProfileResult.Invalid(new ProfileRejection.InvalidTextField(failure));
@@ -74,87 +75,44 @@ public class ProfileService {
         return new ProfileResult.Updated();
     }
 
-    /**
-     * Updates the theme, rejecting an unrecognised value.
-     *
-     * @param user  the acting user
-     * @param theme the submitted theme value
-     * @return the outcome
-     */
-    public ProfileResult updateTheme(final User user, final @Nullable String theme) {
+    private static ProfileResult updateTheme(final User user, final @Nullable String theme) {
         if (theme == null || !Theme.isValid(theme)) {
-            return new ProfileResult.Invalid(new ProfileRejection.InvalidTheme(allowedValues(Theme.values())));
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidTheme(PreviewOption.allowedValues(Theme.values())));
         }
         return applySetting(user, "Theme", theme, () -> user.theme = theme);
     }
 
-    /**
-     * Updates the font, rejecting an unrecognised value.
-     *
-     * @param user the acting user
-     * @param font the submitted font value
-     * @return the outcome
-     */
-    public ProfileResult updateFont(final User user, final @Nullable String font) {
+    private static ProfileResult updateFont(final User user, final @Nullable String font) {
         if (font == null || !Font.isValid(font)) {
-            return new ProfileResult.Invalid(new ProfileRejection.InvalidFont(allowedValues(Font.values())));
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidFont(PreviewOption.allowedValues(Font.values())));
         }
         return applySetting(user, "Font", font, () -> user.font = font);
     }
 
-    /**
-     * Updates the UI language, rejecting an unrecognised value.
-     *
-     * @param user     the acting user
-     * @param language the submitted language value
-     * @return the outcome
-     */
-    public ProfileResult updateLanguage(final User user, final @Nullable String language) {
+    private static ProfileResult updateLanguage(final User user, final @Nullable String language) {
         if (language == null || !Language.isValid(language)) {
-            return new ProfileResult.Invalid(new ProfileRejection.InvalidLanguage(allowedLanguageValues()));
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidLanguage(allowedValues(Language.values(), Language::value)));
         }
         return applySetting(user, "Language", language, () -> user.language = language);
     }
 
-    /**
-     * Updates the dashboard calendar style, rejecting an unrecognised value.
-     *
-     * @param user         the acting user
-     * @param calendarView the submitted calendar-view value
-     * @return the outcome
-     */
-    public ProfileResult updateCalendarView(final User user, final @Nullable String calendarView) {
+    private static ProfileResult updateCalendarView(final User user, final @Nullable String calendarView) {
         if (calendarView == null || !CalendarView.isValid(calendarView)) {
-            return new ProfileResult.Invalid(new ProfileRejection.InvalidCalendarView(allowedValues(CalendarView.values())));
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidCalendarView(PreviewOption.allowedValues(CalendarView.values())));
         }
         return applySetting(user, "Calendar view", calendarView, () -> user.calendarView = calendarView);
     }
 
-    /**
-     * Updates the colour the user's day notes are shown in, rejecting anything that is not a {@code #rrggbb} hex value. Held to the same
-     * {@link Colours#isInvalidHex(String)} rule as an action's colour, and stored exactly as picked: the app renders it unchanged in both themes,
-     * and derives a lightened variant only where the marker sits on the calendar's brand fill (see {@link Colours#readableOn(String, String)}).
-     *
-     * @param user       the acting user
-     * @param noteColour the submitted colour
-     * @return the outcome
-     */
-    public ProfileResult updateNoteColour(final User user, final @Nullable String noteColour) {
+    // Held to the same Colours.isInvalidHex rule as an action's colour, and stored exactly as picked: the app renders it unchanged in
+    // both themes, and derives a lightened variant only where the marker sits on the calendar's brand fill (Colours.readableOn).
+    private static ProfileResult updateNoteColour(final User user, final @Nullable String noteColour) {
         if (noteColour == null || Colours.isInvalidHex(noteColour)) {
             return new ProfileResult.Invalid(new ProfileRejection.InvalidNoteColour());
         }
         return applySetting(user, "Note colour", noteColour, () -> user.noteColour = noteColour);
     }
 
-    /**
-     * Updates the timezone, rejecting an unrecognised zone. A blank submission is the explicit "follow the server default" reset (stored as
-     * {@code null}).
-     *
-     * @param user     the acting user
-     * @param timezone the submitted IANA timezone id, or blank to follow the server default
-     * @return the outcome
-     */
-    public ProfileResult updateTimezone(final User user, final @Nullable String timezone) {
+    private static ProfileResult updateTimezone(final User user, final @Nullable String timezone) {
         if (timezone == null || timezone.isBlank()) {
             return applySetting(user, "Timezone", null, () -> user.timezone = null); // NOPMD: NullAssignment - null IS the server-default state
         }
@@ -164,32 +122,17 @@ public class ProfileService {
         return applySetting(user, "Timezone", timezone, () -> user.timezone = timezone);
     }
 
-    /**
-     * Updates the day the dashboard calendar's week starts on, rejecting an unrecognised day. A blank submission is the explicit "follow the
-     * account's language" reset (stored as {@code null}), the same shape a blank timezone takes.
-     *
-     * @param user      the acting user
-     * @param weekStart the submitted week-start value, or blank to follow the account's language
-     * @return the outcome
-     */
-    public ProfileResult updateWeekStart(final User user, final @Nullable String weekStart) {
+    private static ProfileResult updateWeekStart(final User user, final @Nullable String weekStart) {
         if (weekStart == null || weekStart.isBlank()) {
             return applySetting(user, "Week start", null, () -> user.weekStart = null); // NOPMD: NullAssignment - null IS the follow-the-locale state
         }
         if (!WeekStart.isValid(weekStart)) {
-            return new ProfileResult.Invalid(new ProfileRejection.InvalidWeekStart(allowedWeekStartValues()));
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidWeekStart(allowedValues(WeekStart.values(), WeekStart::value)));
         }
         return applySetting(user, "Week start", weekStart, () -> user.weekStart = weekStart);
     }
 
-    /**
-     * Updates the page size, rejecting a non-numeric or out-of-range value.
-     *
-     * @param user     the acting user
-     * @param pageSize the submitted page size (raw form value)
-     * @return the outcome
-     */
-    public ProfileResult updatePageSize(final User user, final @Nullable String pageSize) {
+    private static ProfileResult updatePageSize(final User user, final @Nullable String pageSize) {
         final Integer parsed = UserSettings.parsePageSize(pageSize);
         if (parsed == null) {
             return new ProfileResult.Invalid(new ProfileRejection.InvalidPageSize());
@@ -198,36 +141,14 @@ public class ProfileService {
         return applySetting(user, "Page size", value, () -> user.pageSize = value);
     }
 
-    /**
-     * Updates the per-section page-size overrides: {@code sections} holds one {@link PageSection} key per row and {@code values} the page size
-     * submitted for it, pairing up by index. The submission carries the user's WHOLE set (both surfaces post every row), so a section left out of it
-     * loses any override it had.
-     *
-     * <p>
-     * Every rule is {@link PageSizes#parse(List, List)}: a blank value resets that section to the general "Items per page" preference, an
-     * unrecognised section key is dropped, and a non-numeric or out-of-range value is rejected rather than coerced - the same treatment, and the same
-     * message, the general page size gets.
-     *
-     * @param sections the submitted section keys
-     * @param values   the submitted page sizes, in the same order as {@code sections}
-     * @param user     the acting user
-     * @return the outcome: {@link ProfileResult.Invalid} for a rejected value, otherwise {@link ProfileResult.Updated}
-     */
-    public ProfileResult updatePageSizes(final User user, final List<String> sections, final @Nullable List<String> values) {
+    private static ProfileResult updatePageSizes(final User user, final List<String> sections, final @Nullable List<String> values) {
         return switch (PageSizes.parse(sections, values)) {
             case final PageSizeOutcome.Failure _ -> new ProfileResult.Invalid(new ProfileRejection.InvalidPageSize());
             case final PageSizeOutcome.Valid valid -> applyPageSizes(user, valid.overrides());
         };
     }
 
-    /**
-     * Updates the decimal-place preference, rejecting a non-numeric or out-of-range value.
-     *
-     * @param user          the acting user
-     * @param decimalPlaces the submitted decimal-place count (raw form value)
-     * @return the outcome
-     */
-    public ProfileResult updateDecimalPlaces(final User user, final @Nullable String decimalPlaces) {
+    private static ProfileResult updateDecimalPlaces(final User user, final @Nullable String decimalPlaces) {
         final Integer parsed = UserSettings.parseDecimalPlaces(decimalPlaces);
         if (parsed == null) {
             return new ProfileResult.Invalid(new ProfileRejection.InvalidDecimalPlaces());
@@ -236,50 +157,18 @@ public class ProfileService {
         return applySetting(user, "Decimal places", value, () -> user.decimalPlaces = value);
     }
 
-    /**
-     * Toggles whether the dashboard renders the stats-summary strip.
-     *
-     * @param user the acting user
-     * @param show the submitted value
-     * @return the outcome (always {@link ProfileResult.Updated})
-     */
-    public ProfileResult updateShowStatsSummary(final User user, final boolean show) {
+    private static ProfileResult updateShowStatsSummary(final User user, final boolean show) {
         return applySetting(user, "Show stats summary", show, () -> user.showStatsSummary = show);
     }
 
-    /**
-     * Toggles whether the dashboard note box shows its character counter.
-     *
-     * <p>
-     * Display-only, and deliberately not a way to opt out of the bound: an over-long note is refused exactly as before, and the counter reappears
-     * while one IS over the bound however this is set - it is the only thing explaining why Save has gone inert.
-     *
-     * @param user the acting user
-     * @param show the submitted value
-     * @return the outcome (always {@link ProfileResult.Updated})
-     */
-    public ProfileResult updateShowNoteCounter(final User user, final boolean show) {
+    // Display-only, and deliberately NOT a way to opt out of the bound: an over-long note is refused exactly as before, and the counter
+    // reappears while one IS over the bound however this is set - it is the only thing explaining why Save has gone inert.
+    private static ProfileResult updateShowNoteCounter(final User user, final boolean show) {
         return applySetting(user, "Show note counter", show, () -> user.showNoteCounter = show);
     }
 
-    /**
-     * Updates which per-action stats show on the Stats page, in what order, and under what name: {@code order} is EVERY field key in the arranged
-     * order, {@code enabled} the shown subset, and {@code labels} the custom name of each renamed stat (a key with no entry, or a blank name, keeps
-     * the built-in one). Encoded by {@link StatField#encode(List, java.util.Collection, Map)} (disabled fields kept in place, the mandatory
-     * field forced enabled), so unknown keys are dropped identically on every surface. A display-only preference.
-     *
-     * <p>
-     * A name that breaks any rule of the shared text pipeline - longer than {@link StatField#MAX_LABEL_LENGTH} characters, or holding an
-     * invisible or text-direction character - is rejected rather than truncated or cleaned, on BOTH surfaces, so a stat is never captioned with
-     * something other than what was typed.
-     *
-     * @param user    the acting user
-     * @param order   every field key in the arranged order
-     * @param enabled the keys of the fields to show
-     * @param labels  the custom name of each renamed stat, by key
-     * @return the outcome: {@link ProfileResult.Invalid} for a rejected name, otherwise {@link ProfileResult.Updated}
-     */
-    public ProfileResult updateStatsFields(final User user, final List<String> order, final List<String> enabled, final Map<String, String> labels) {
+    private static ProfileResult updateStatsFields(final User user, final List<String> order, final List<String> enabled,
+        final Map<String, String> labels) {
         // The ONE pass over each submitted name: the outcome carries both the verdict and the normalised value, and it is that value which is
         // encoded below - the resource paired the names, and nothing downstream cleans or re-checks them.
         final Map<String, String> names = new LinkedHashMap<>();
@@ -301,17 +190,73 @@ public class ProfileService {
         return applySetting(user, "Action stats", logValue, () -> user.statsFields = StatField.encode(order, enabled, names));
     }
 
-    private static String allowedValues(final PreviewOption[] options) {
-        return java.util.Arrays.stream(options).map(PreviewOption::value).collect(java.util.stream.Collectors.joining(", "));
+    /**
+     * Applies every field the request carried, in {@link PreferenceUpdates}' own component order, stopping at the first rejection — the ONE
+     * implementation of the update walk, shared by the Settings page's form PATCH and {@code PATCH /api/v1/users/me}. An absent
+     * ({@code null}) field is skipped, so a request never has to restate what it is not changing.
+     *
+     * <p>
+     * A rejection leaves any field applied before it mutated on the managed entity; both surfaces are {@code @RollbackOnErrorStatus}, so the error
+     * status they translate this into rolls the whole transaction back rather than silently persisting part of a mutation.
+     *
+     * @param user    the acting user
+     * @param updates the submitted fields
+     * @return the outcome: the first {@link ProfileResult.Invalid} encountered, otherwise {@link ProfileResult.Updated}
+     */
+    // Deliberately an INSTANCE method though it holds no state: this is the bean both resources inject, and the *Service seam
+    // (one implementation per use case, injectable and stubbable) is the architecture's, not an accident of this class having no fields.
+    // No suppression needed - MethodMayBeStatic only reports private/final methods, and this is public on a non-final class.
+    public ProfileResult applyAll(final User user, final PreferenceUpdates updates) {
+        ProfileResult result = step(new ProfileResult.Updated(), updates.displayName(), () -> updateDisplayName(user, updates.displayName()));
+        result = step(result, updates.theme(), () -> updateTheme(user, updates.theme()));
+        result = step(result, updates.font(), () -> updateFont(user, updates.font()));
+        result = step(result, updates.language(), () -> updateLanguage(user, updates.language()));
+        result = step(result, updates.calendarView(), () -> updateCalendarView(user, updates.calendarView()));
+        result = step(result, updates.noteColour(), () -> updateNoteColour(user, updates.noteColour()));
+        result = step(result, updates.timezone(), () -> updateTimezone(user, updates.timezone()));
+        result = step(result, updates.weekStart(), () -> updateWeekStart(user, updates.weekStart()));
+        result = step(result, updates.pageSize(), () -> updatePageSize(user, updates.pageSize()));
+
+        // Written out rather than threaded through step(...): each unwraps a value NullAway has to see narrowed OUTSIDE a lambda.
+        final PreferenceUpdates.PageSizeSubmission pageSizes = updates.pageSizes();
+        if (pageSizes != null && stillValid(result)) {
+            result = updatePageSizes(user, pageSizes.sections(), pageSizes.values());
+        }
+        result = step(result, updates.decimalPlaces(), () -> updateDecimalPlaces(user, updates.decimalPlaces()));
+
+        final Boolean showStatsSummary = updates.showStatsSummary();
+        if (showStatsSummary != null && stillValid(result)) {
+            result = updateShowStatsSummary(user, showStatsSummary);
+        }
+        final Boolean showNoteCounter = updates.showNoteCounter();
+        if (showNoteCounter != null && stillValid(result)) {
+            result = updateShowNoteCounter(user, showNoteCounter);
+        }
+
+        final PreferenceUpdates.StatsFieldSubmission statsFields = updates.statsFields();
+        if (statsFields != null && stillValid(result)) {
+            result = updateStatsFields(user, statsFields.order(), statsFields.enabled(), statsFields.labels());
+        }
+        return result;
     }
 
-    // Language does not implement PreviewOption (see its Javadoc), so it needs its own allowed-values join.
-    private static String allowedLanguageValues() {
-        return java.util.Arrays.stream(Language.values()).map(Language::value).collect(java.util.stream.Collectors.joining(", "));
+    // Each field is applied only while every field before it was accepted, so the first rejection is the one reported and nothing after it runs.
+    // An absent field is skipped without disturbing the running result.
+    private static ProfileResult step(final ProfileResult current, final @Nullable Object submitted, final Supplier<ProfileResult> apply) {
+        if (submitted == null || !stillValid(current)) {
+            return current;
+        }
+        return apply.get();
     }
 
-    private static String allowedWeekStartValues() {
-        return java.util.Arrays.stream(WeekStart.values()).map(WeekStart::value).collect(java.util.stream.Collectors.joining(", "));
+    private static boolean stillValid(final ProfileResult result) {
+        return !(result instanceof ProfileResult.Invalid);
+    }
+
+    // Language and WeekStart do not implement PreviewOption (a flag-icon/word picker is not a preview tile - see Language's Javadoc), so the join
+    // takes the value accessor rather than the interface.
+    private static <E extends Enum<E>> String allowedValues(final E[] options, final Function<E, String> valueOf) {
+        return Arrays.stream(options).map(valueOf).collect(Collectors.joining(", "));
     }
 
     private static ProfileResult applyPageSizes(final User user, final @Nullable List<PageSizePref> overrides) {

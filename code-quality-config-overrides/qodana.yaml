@@ -20,8 +20,10 @@ profile:
   inspections:
     - inspection: OptionalContainsCollection
       # SmallRye requires `Optional<List<?>>` because the CollectionConverter reads the empty string as null and then the boot fails
-      ignore: [ 'src/main/java/net/zodac/diurnal/config/**', 'src/main/java/net/zodac/diurnal/crypto/**',
-                'src/main/java/net/zodac/diurnal/note/**', 'src/main/java/net/zodac/diurnal/transfer/**' ]
+      # (note/NotesEncryptionConfig#previousKeys), and ArchiveParser threads an Optional<List<CsvRow>> per archive member.
+      # Scoped to the two packages that actually hold one: `config/**` carries only an Optional<String> and there has never been a
+      # top-level `crypto/**` package (the note encryption primitives are note/crypto, already covered), so both were inert.
+      ignore: [ 'src/main/java/net/zodac/diurnal/note/**', 'src/main/java/net/zodac/diurnal/transfer/**' ]
 
     # The JPA id-class contract, not a style choice: `ActionLogId` and `SubjectStatsCacheId` mirror their entity's composite key, and the provider
     # builds each through a no-argument constructor and then populates the fields - so they cannot be final, and the key they hold IS what equality

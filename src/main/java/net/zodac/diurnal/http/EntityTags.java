@@ -20,6 +20,7 @@ package net.zodac.diurnal.http;
 import jakarta.ws.rs.core.CacheControl;
 import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -100,6 +101,35 @@ public final class EntityTags {
      */
     public static Response.ResponseBuilder withPrivateValidator(final Response.ResponseBuilder builder, final EntityTag tag) {
         return withValidator(builder, tag).cacheControl(privateNoCache());
+    }
+
+    /**
+     * Evaluates the caller's {@code If-None-Match} against the tag and, when it matches, returns the bodiless {@code 304} to hand straight back —
+     * validator and {@code Vary} attached, but no caching directive, for the {@code /internal/*} fragments whose {@code Cache-Control} the
+     * {@code html-pages} response filter supplies. {@code null} means the caller must build the real response.
+     *
+     * @param request the JAX-RS request carrying the conditional headers
+     * @param tag     the validator tag for the result the caller would otherwise build
+     * @return the {@code 304} response, or {@code null} when the result has changed
+     */
+    @Nullable
+    public static Response notModified(final Request request, final EntityTag tag) {
+        final Response.ResponseBuilder builder = request.evaluatePreconditions(tag);
+        return builder == null ? null : withValidator(builder, tag).build();
+    }
+
+    /**
+     * The {@link #notModified(Request, EntityTag)} of the public {@code /api/v1/*} reads, which no response filter touches: the {@code 304} also
+     * carries the {@code private, no-cache} directive.
+     *
+     * @param request the JAX-RS request carrying the conditional headers
+     * @param tag     the validator tag for the result the caller would otherwise build
+     * @return the {@code 304} response, or {@code null} when the result has changed
+     */
+    @Nullable
+    public static Response privateNotModified(final Request request, final EntityTag tag) {
+        final Response.ResponseBuilder builder = request.evaluatePreconditions(tag);
+        return builder == null ? null : withPrivateValidator(builder, tag).build();
     }
 
     private static String hash(final String value) {

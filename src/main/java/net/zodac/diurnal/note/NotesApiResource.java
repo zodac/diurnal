@@ -42,6 +42,7 @@ import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.log.DateRanges;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.openapi.ApiPages;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
@@ -178,9 +179,9 @@ public class NotesApiResource {
         // whole validator. The search term is part of it: two different terms over an unchanged journal are different bodies.
         final ChangeSignature version = window == null ? Note.version(user.id) : Note.rangeVersion(user.id, window.start(), window.end());
         final EntityTag tag = EntityTags.weak(user.id, window, searchTerm, pageNum, version);
-        final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
+        final Response notModified = EntityTags.privateNotModified(request, tag);
         if (notModified != null) {
-            return EntityTags.withPrivateValidator(notModified, tag).build();
+            return notModified;
         }
 
         // One key opens every note, so it is resolved once rather than per note. A note that will not open is dropped rather than reported: one
@@ -190,13 +191,11 @@ public class NotesApiResource {
             ? noteService.rangePage(user, searchTerm, null, null, pageNum, PAGE_SIZE)
             : noteService.rangePage(user, searchTerm, window.start(), window.end(), pageNum, PAGE_SIZE);
 
-        // Surface input policy, matching every other paginated API endpoint: an out-of-range page is REJECTED rather than clamped, so a page number
-        // is never silently answered with some other page. Page 1 of an empty range is legal and returns nothing. Past this guard the requested page
-        // is in range, so the clamp the shared window applied for the web surface has left it exactly as asked for.
-        if (pageNum < 1 || pageNum > Math.max(1, hits.totalPages())) {
-            return Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ApiErrorResponse("Page " + pageNum + " is out of range"))
-                .build();
+        // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range), so a page number is never
+        // silently answered with some other page.
+        final Response outOfRange = ApiPages.outOfRange(pageNum, hits.totalPages());
+        if (outOfRange != null) {
+            return outOfRange;
         }
 
         final List<NoteDto> items = hits.items()
@@ -285,9 +284,9 @@ public class NotesApiResource {
 
         // A single day is just a one-day range, so it reuses the same signature query.
         final EntityTag tag = EntityTags.weak(user.id, day, Note.rangeVersion(user.id, day, day));
-        final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
+        final Response notModified = EntityTags.privateNotModified(request, tag);
         if (notModified != null) {
-            return EntityTags.withPrivateValidator(notModified, tag).build();
+            return notModified;
         }
 
         final Note found = Note.findEntry(user.id, day);

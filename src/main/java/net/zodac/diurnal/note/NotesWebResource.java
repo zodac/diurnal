@@ -20,7 +20,6 @@ package net.zodac.diurnal.note;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
-import io.quarkus.qute.i18n.MessageBundles;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.DefaultValue;
@@ -29,7 +28,6 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
-import java.util.Locale;
 import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.user.CurrentUser;
@@ -37,6 +35,7 @@ import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.web.PageShell;
 
 /**
  * The {@code /notes} page: every note the user has written, most recent first, over a search box that filters them by content.
@@ -104,24 +103,17 @@ public class NotesWebResource {
 
         final User user = currentUser.get();
         final PaginatedHits hits = noteService.journalPage(user, searchTerm, pageNum, PageSizes.forSection(user, PageSection.NOTES));
-        final PaginatedNotes page = NotePages.of(hits, TextValidation.searchTerm(searchTerm), Locale.forLanguageTag(user.language), appPaths);
+        final PaginatedNotes page = NotePages.of(hits, TextValidation.searchTerm(searchTerm), user.locale(), appPaths);
 
         // Whether the account holds ANY note, which is not the same question as whether this page has rows: a search that matched nothing still
         // leaves the box enabled so the term can be cleared. That is exactly what selectionCount answers - the search has already selected every
         // note it could have matched - so this costs no query of its own, and reads the same on both branches.
         final boolean searchDisabled = hits.selectionCount() == 0L;
 
-        return notesTemplate
-            .data("displayName", user.displayName)
-            .data("email", user.email)
-            .data("isAdmin", user.isAdmin())
+        return PageShell.forUser(notesTemplate, user)
             .data("page", page)
             .data("searchDisabled", searchDisabled)
             .data("searchTerm", searchTerm)
-            .data("extraQuery", NotePages.extraQuery(searchTerm))
-            .data("theme", user.theme)
-            .data("font", user.font)
-            .data("language", user.language)
-            .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag(user.language));
+            .data("extraQuery", NotePages.extraQuery(searchTerm));
     }
 }

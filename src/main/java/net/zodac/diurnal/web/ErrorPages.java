@@ -18,14 +18,11 @@
 package net.zodac.diurnal.web;
 
 import io.quarkus.qute.Template;
-import io.quarkus.qute.i18n.MessageBundles;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import net.zodac.diurnal.user.Font;
 import net.zodac.diurnal.user.Language;
 import net.zodac.diurnal.user.Role;
-import net.zodac.diurnal.user.Theme;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -63,11 +60,7 @@ final class ErrorPages {
         }
         final Language language = Language.fromAcceptLanguageHeader(acceptLanguage);
         return Response.status(status)
-                .entity(template
-                        .data("theme", Theme.DEFAULT.value())
-                        .data("font", Font.DEFAULT.value())
-                        .data("language", language.value())
-                        .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, language.locale())
+                .entity(PageShell.anonymous(template, language)
                         .data("displayName", displayName)
                         .data("isAdmin", isAdmin))
                 .type(MediaType.TEXT_HTML_TYPE)

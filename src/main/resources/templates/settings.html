@@ -181,47 +181,16 @@
                                  login/register cards, which fetch for the same reason). !}
                             <form id="password-current-form" class="hidden" method="post"
                                   action="{inject:paths.internalSettingsPasswordVerify}">
-                                <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
-                                    <input type="password"
-                                           id="currentPassword"
-                                           name="currentPassword"
-                                           autocomplete="current-password"
-                                           placeholder="{msg:currentPasswordPlaceholder}"
-                                           {! `data-max-length`, never `maxlength` - see actions.html's new-action input. !}
-                                           data-max-length="{inject:textFields.password.maxLength}"
-                                           class="dt-text-input flex-1 min-w-0 h-7">
-                                    <button type="button" data-reveal-target="currentPassword"
-                                            aria-label="{msg:showPassword}" class="settings-eye">
-                                        {#include partials/eye-icons /}
-                                    </button>
-                                    <div class="dt-actions">
-                                        <button type="submit" class="dt-btn dt-btn-save">{msg:next}</button>
-                                        <button type="button" class="dt-btn dt-btn-cancel password-cancel-btn">{msg:cancel}</button>
-                                    </div>
-                                </div>
+                                {#include partials/password-step-field id="currentPassword" name="currentPassword" autocomplete="current-password"
+                                    placeholder=msg:currentPasswordPlaceholder submitLabel=msg:next /}
                             </form>
 
                             {! Step 2: enter the new password. Purely client-side (validated non-empty)
                                  before swapping to the confirm step — nothing is sent to the server until
                                  the re-entry is confirmed. !}
                             <form id="password-new-form" class="hidden relative">
-                                <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
-                                    <input type="password"
-                                           id="newPassword"
-                                           autocomplete="new-password"
-                                           placeholder="{msg:newPasswordPlaceholder}"
-                                           {! `data-max-length`, never `maxlength` - see actions.html's new-action input. !}
-                                           data-max-length="{inject:textFields.password.maxLength}"
-                                           class="dt-text-input flex-1 min-w-0 h-7">
-                                    <button type="button" data-reveal-target="newPassword"
-                                            aria-label="{msg:showPassword}" class="settings-eye">
-                                        {#include partials/eye-icons /}
-                                    </button>
-                                    <div class="dt-actions">
-                                        <button type="submit" class="dt-btn dt-btn-save">{msg:next}</button>
-                                        <button type="button" class="dt-btn dt-btn-cancel password-cancel-btn">{msg:cancel}</button>
-                                    </div>
-                                </div>
+                                {#include partials/password-step-field id="newPassword" name="" autocomplete="new-password"
+                                    placeholder=msg:newPasswordPlaceholder submitLabel=msg:next /}
                                 {! `differsFrom` adds the "must be a new password" row: the value must not equal the
                                      current password stashed in #pendingCurrent at step 1. The server enforces the
                                      same rule (PasswordChangeService), this only surfaces it live. !}
@@ -240,24 +209,8 @@
                                   action="{inject:paths.internalSettingsPassword}">
                                 <input type="hidden" id="pendingCurrent" name="currentPassword">
                                 <input type="hidden" id="pendingPassword" name="newPassword">
-                                <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
-                                    <input type="password"
-                                           id="confirmPassword"
-                                           name="confirmPassword"
-                                           autocomplete="new-password"
-                                           placeholder="{msg:reenterNewPasswordPlaceholder}"
-                                           {! `data-max-length`, never `maxlength` - see actions.html's new-action input. !}
-                                           data-max-length="{inject:textFields.password.maxLength}"
-                                           class="dt-text-input flex-1 min-w-0 h-7">
-                                    <button type="button" data-reveal-target="confirmPassword"
-                                            aria-label="{msg:showPassword}" class="settings-eye">
-                                        {#include partials/eye-icons /}
-                                    </button>
-                                    <div class="dt-actions">
-                                        <button type="submit" class="dt-btn dt-btn-save">{msg:save}</button>
-                                        <button type="button" class="dt-btn dt-btn-cancel password-cancel-btn">{msg:cancel}</button>
-                                    </div>
-                                </div>
+                                {#include partials/password-step-field id="confirmPassword" name="confirmPassword" autocomplete="new-password"
+                                    placeholder=msg:reenterNewPasswordPlaceholder submitLabel=msg:save /}
                             </form>
                         </div>
                         {/if}

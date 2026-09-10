@@ -569,6 +569,32 @@ document.addEventListener('DOMContentLoaded', function () {
             return (labelCount(b.label) - labelCount(a.label)) || labelName(a.label).localeCompare(labelName(b.label))
         }
 
+        // The ONE place a feed response is folded into `dayData`, shared by the single-month and the
+        // span fetch — they differ only in which months of the response they accept, which is what
+        // `accepts(monthKeyOfDate)` answers (the span skips months already cached, so the `full` feed
+        // never double-appends their events; the single-month fetch accepts everything). Keeping the
+        // merge here is what makes "the span behaves exactly as the single-month path" true rather
+        // than a comment: the grouping, the ×N labels and the highest-count-first sort are one copy.
+        function mergeFeed(data, accepts) {
+            if (calendarView === 'full') {
+                const touched = {}
+                data.forEach(function (ev) {                       // group the flat event list by its date
+                    if (!accepts(ev.start.substring(0, 7))) { return }
+                    (dayData[ev.start] = dayData[ev.start] || []).push({ colour: ev.backgroundColor, label: ev.title })
+                    touched[ev.start] = true
+                })
+                // Highest count first, then name (matches the minimal/stacked server-side ordering).
+                Object.keys(touched).forEach(function (d) {
+                    dayData[d].sort(fullDaySort)
+                })
+            } else {
+                data.forEach(function (day) {
+                    if (!accepts(day.date.substring(0, 7))) { return }
+                    dayData[day.date] = day.actions.map(function (a) { return { colour: a.colour, label: a.name } })
+                })
+            }
+        }
+
         // `force` re-fetches a month even if it's already cached (used by refresh() after a log change).
         // A forced fetch is AUTHORITATIVE for the month: when its data lands it drops the month's old day
         // entries before merging the fresh set, so a day whose last action was removed loses its dot.
@@ -593,21 +619,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         const prefix = `${key  }-`
                         Object.keys(dayData).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete dayData[d] } })
                     }
-                    if (calendarView === 'full') {
-                        const touched = {}
-                        data.forEach(function (ev) {               // group the flat event list by its date
-                            (dayData[ev.start] = dayData[ev.start] || []).push({ colour: ev.backgroundColor, label: ev.title })
-                            touched[ev.start] = true
-                        })
-                        // Highest count first, then name (matches the minimal/stacked server-side ordering).
-                        Object.keys(touched).forEach(function (d) {
-                            dayData[d].sort(fullDaySort)
-                        })
-                    } else {
-                        data.forEach(function (day) {
-                            dayData[day.date] = day.actions.map(function (a) { return { colour: a.colour, label: a.name } })
-                        })
-                    }
+                    mergeFeed(data, function () { return true })   // one month asked for, one month merged
                     monthLoaded[key] = true
                     evictIfNeeded()                               // trim once this month is actually resident
                     return data
@@ -688,22 +700,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const p = fetch(`${feedEndpoint()  }?start=${  start  }&end=${  end}`)
                 .then(feedJson)
                 .then(function (data) {
-                    if (calendarView === 'full') {
-                        const touched = {}
-                        data.forEach(function (ev) {
-                            if (!pendingKeys[ev.start.substring(0, 7)]) { return } // skip non-pending months in the span
-                            (dayData[ev.start] = dayData[ev.start] || []).push({ colour: ev.backgroundColor, label: ev.title })
-                            touched[ev.start] = true
-                        })
-                        Object.keys(touched).forEach(function (d) {
-                            dayData[d].sort(fullDaySort)
-                        })
-                    } else {
-                        data.forEach(function (day) {
-                            if (!pendingKeys[day.date.substring(0, 7)]) { return }
-                            dayData[day.date] = day.actions.map(function (a) { return { colour: a.colour, label: a.name } })
-                        })
-                    }
+                    // Merge ONLY the pending months: an already-cached month sitting inside the span is skipped.
+                    mergeFeed(data, function (month) { return Boolean(pendingKeys[month]) })
                     pending.forEach(function (ym) { monthLoaded[monthKey(ym[0], ym[1])] = true })
                     evictIfNeeded()
                     return data

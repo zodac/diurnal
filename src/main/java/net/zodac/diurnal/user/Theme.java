@@ -17,7 +17,6 @@
 
 package net.zodac.diurnal.user;
 
-import java.util.Arrays;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -33,65 +32,38 @@ import org.jspecify.annotations.Nullable;
  * <strong>Adding a new theme:</strong> add a constant here (with its supporting CSS/bootstrap handling and a matching preview WebP), and it
  * automatically appears in the settings picker — the template loops these values, so no template change is needed.
  */
-public enum Theme implements PreviewOption { // NOPMD: DataClass - thin settings-picker metadata catalogue; accessor-heavy by design
+public enum Theme implements PreviewOption {
 
     /**
      * Follows the operating system's light/dark preference; the default.
      */
-    SYSTEM("system", "System", "System theme", "Dashboard split diagonally between light and dark themes", "page-nova-full-system"),
+    SYSTEM(new OptionPreview("system", "System", "System theme", "Dashboard split diagonally between light and dark themes",
+        "page-nova-full-system")),
 
     /**
      * The light colour scheme.
      */
-    LIGHT("light", "Light", "Light theme", "Dashboard in light mode", "page-nova-full-light"),
+    LIGHT(new OptionPreview("light", "Light", "Light theme", "Dashboard in light mode", "page-nova-full-light")),
 
     /**
      * The dark colour scheme.
      */
-    DARK("dark", "Dark", "Dark theme", "Dashboard in dark mode", "page-nova-full-dark");
+    DARK(new OptionPreview("dark", "Dark", "Dark theme", "Dashboard in dark mode", "page-nova-full-dark"));
 
     /**
      * The theme applied when the stored/submitted value is absent or unrecognised.
      */
     public static final Theme DEFAULT = SYSTEM;
 
-    private final String value;
-    private final String label;
-    private final String title;
-    private final String alt;
-    private final String previewImage;
+    private final OptionPreview preview;
 
-    Theme(final String value, final String label, final String title, final String alt, final String previewImage) {
-        this.value = value;
-        this.label = label;
-        this.title = title;
-        this.alt = alt;
-        this.previewImage = previewImage;
+    Theme(final OptionPreview preview) {
+        this.preview = preview;
     }
 
     @Override
-    public String value() {
-        return value;
-    }
-
-    @Override
-    public String label() {
-        return label;
-    }
-
-    @Override
-    public String title() {
-        return title;
-    }
-
-    @Override
-    public String alt() {
-        return alt;
-    }
-
-    @Override
-    public String previewImage() {
-        return previewImage;
+    public OptionPreview preview() {
+        return preview;
     }
 
     /**
@@ -102,6 +74,6 @@ public enum Theme implements PreviewOption { // NOPMD: DataClass - thin settings
      * @return {@code true} when the value is one of the offered options
      */
     public static boolean isValid(final @Nullable String value) {
-        return Arrays.stream(values()).anyMatch(option -> option.value.equals(value));
+        return PreviewOption.isValid(values(), value);
     }
 }

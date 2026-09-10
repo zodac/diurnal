@@ -17,13 +17,11 @@
 
 package net.zodac.diurnal.note;
 
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -33,6 +31,7 @@ import java.util.stream.Stream;
 import net.zodac.diurnal.http.ChangeSignature;
 import net.zodac.diurnal.log.DailyActionTotal;
 import net.zodac.diurnal.log.MonthlyActionTotal;
+import net.zodac.diurnal.persistence.AuditedEntity;
 import net.zodac.diurnal.persistence.JpqlQuery;
 import net.zodac.diurnal.persistence.NoteStatements;
 import net.zodac.diurnal.persistence.SqlQuery;
@@ -52,7 +51,7 @@ import org.jspecify.annotations.Nullable;
  */
 @Entity
 @Table(name = "notes")
-public class Note extends PanacheEntityBase {
+public class Note extends AuditedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -69,20 +68,6 @@ public class Note extends PanacheEntityBase {
     // an administrator holding the whole database. See NoteContent and NOTES.md.
     @Column(name = "content_encrypted", nullable = false)
     public byte[] contentEncrypted;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    public Instant createdAt = Instant.now();
-
-    @Column(name = "updated_at", nullable = false)
-    public Instant updatedAt = Instant.now();
-
-    /**
-     * Refreshes {@code updatedAt} before each update (JPA lifecycle callback).
-     */
-    @PreUpdate
-    void onUpdate() {
-        updatedAt = Instant.now();
-    }
 
     // ── Queries ───────────────────────────────────────────────────────────
 

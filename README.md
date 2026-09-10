@@ -19,7 +19,7 @@
     - [Themes and Fonts](#themes-and-fonts)
     - [Languages](#languages)
         - [Contributing a Translation](#contributing-a-translation)
-- [Deployment](#deployment)
+- [Quick Start](#quick-start)
 - [Environment Variables](#environment-variables)
     - [Required](#required)
     - [Database](#database)
@@ -55,9 +55,9 @@
 
 ## Introduction
 
-Diurnal is a small, self-hosted web application for tracking daily habits. You define **actions** (the things you want to do or avoid each day) and
-log them as you go. Diurnal keeps a running calendar of everything you've logged and turns that history into meaningful statistics: current and
-longest streaks, weekly averages, month-over-month trends, and more.
+Diurnal is a small, self-hosted web application for tracking daily habits. You define actions (the things you want to do or avoid each day) and log
+them as you go. Diurnal keeps a running calendar of everything you've logged and turns that history into meaningful statistics: current and longest
+streaks, weekly averages, month-over-month trends, and more.
 
 <!-- markdownlint-disable MD013 MD033 -- centered dashboard screenshots: intentional inline HTML -->
 <p align="center">
@@ -71,16 +71,16 @@ longest streaks, weekly averages, month-over-month trends, and more.
 
 - **User-defined actions**: Define any habit/activities you want to track, each with its own name and colour
 - **Daily logging**: Log the occurrences of an action for a day
-- **Notes**: Write a free-text note or journal entry against any day, including future ones, and search back through them all
+- **Notes**: Write a free-text note or journal entry for a day
 - **Calendar views**: Your whole history on a calendar, with a choice of different styles
-- **Statistics**: Streaks, totals, averages and trends per action, with the tiles you care about in the order you want them
+- **Statistics**: Streaks, totals, averages and trends per action
 - **Mobile view**: Styled for both web browser and mobile usage
 - **OIDC**: Can be integrated with an external identity provider (Authelia, Keycloak, etc.)
 
 ### Actions and Daily Logging
 
-An **action** is anything you want to track, with its own name and colour. From the dashboard you can increment an action for a day, add ten at a
-time, set an exact count, or erase the day entirely.
+An action is anything you want to track, with its own name and colour. From the dashboard you can increment an action for a day, add ten at a time,
+set an exact count, or erase the day entirely.
 
 <details>
 <summary>Screenshot: the Actions page</summary>
@@ -91,7 +91,7 @@ time, set an exact count, or erase the day entirely.
 
 ### Notes
 
-Alongside the daily log, each day can carry a **note**, a free-text entry of up to 10,000 characters by default - whoever runs your Diurnal can set a
+Alongside the daily log, each day can carry a note, a free-text entry of up to 10,000 characters by default - whoever runs your Diurnal can set a
 different limit with [`NOTE_MAX_LENGTH`](#note-configuration). Unlike logging an action, a note can be written for any date, including ones in the
 future. The **Notes** page lists everything you have written, (most recent first) with the ability to search your notes.
 
@@ -134,14 +134,10 @@ Every action gets a full set of statistics, including
 - Comparisons to last month / last year
 - And more...
 
-These can be enabled/disabled or re-ordered in user settings (see [Statistics](#statistics) below).
-
-Your [notes](#notes) are treated as a subject in their own right: they get the same set of tiles as an action (streaks, gaps, totals, averages, and so
-on), shown first on the page.
+These can be enabled/disabled, renamed, or re-ordered in user settings (see [Statistics](#statistics) below).
 
 Each subject also has a **frequency graph**, opened from the chart icon on its card: a bar per day over a month, or a bar per month over a year, with
-the exact figures on hover. Up to three subjects can be charted together with **Compare to...**, all scaled against a single peak so they read against
-each other directly, including notes compared against an action.
+the exact figures on hover. Up to three subjects can be charted together.
 
 |                                                    Stats page                                                     |                                                         Frequency graph                                                          |
 |:-----------------------------------------------------------------------------------------------------------------:|:--------------------------------------------------------------------------------------------------------------------------------:|
@@ -149,8 +145,7 @@ each other directly, including notes compared against an action.
 
 ### Themes and Fonts
 
-Diurnal ships light and dark themes (or follow the system setting), and three font choices. Everything is rendered server-side, so there is no flash
-of the wrong theme on load.
+Diurnal ships light and dark themes (or follow the system setting), and three font choices.
 
 |                                             Dark                                              |                                              Light                                              |
 |:---------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------:|
@@ -159,7 +154,7 @@ of the wrong theme on load.
 ### Languages
 
 Diurnal can be used in a choice of languages, each with its own translated text, correctly-formatted dates and numbers. Before you sign in, the app
-picks a language from your browser; once signed in, you can instead choose your own from **Settings**.
+picks a language from your browser; once signed in, you can instead choose your own from [Settings](#preferences).
 
 <!-- markdownlint-disable MD033 -- centered screenshots: intentional inline HTML -->
 <p align="center">
@@ -179,12 +174,7 @@ Right-to-left languages, like Arabic, mirror the layout to match:
 
 Diurnal's translations are managed on [Crowdin](https://crowdin.com/project/diurnal>).
 
-Every piece of UI-facing text in the app is translated there rather than in this repository - sign in, pick a language, and suggest or review wording.
-Approved translations are synced back here as a pull request and ship with the next release.
-
-If the language you want isn't listed yet, ask for it on Crowdin or open an issue, and it can be added to the project.
-
-## Deployment
+## Quick Start
 
 Diurnal is distributed as a Docker image ([`zodac/diurnal`](https://hub.docker.com/r/zodac/diurnal)) and is intended to be run with Docker Compose
 alongside a PostgreSQL container. Quick start is below:
@@ -249,10 +239,10 @@ The Compose files also tune PostgreSQL itself; those knobs live in [Performance 
 Your [notes](#notes) are **encrypted before they are stored**. Each account gets its own randomly-generated key when it is created, and every note is
 sealed under that key. The account keys are themselves stored only in encrypted form, protected by `NOTE_ENCRYPTION_KEY`.
 
-| Variable                        | Default | Description                                                                         |
-|---------------------------------|---------|-------------------------------------------------------------------------------------|
-| `NOTE_ENCRYPTION_PREVIOUS_KEYS` |         | Comma-separated retired keys, set only while [rotating](#rotating-the-key)          |
-| `NOTE_MAX_LENGTH`               | `10000` | The longest note a user may save, in characters. Must be between `1` and `100000`   |
+| Variable                        | Default | Description                                                                       |
+|---------------------------------|---------|-----------------------------------------------------------------------------------|
+| `NOTE_ENCRYPTION_PREVIOUS_KEYS` |         | Comma-separated retired keys, set only while [rotating](#rotating-the-key)        |
+| `NOTE_MAX_LENGTH`               | `10000` | The longest note a user may save, in characters. Must be between `1` and `100000` |
 
 #### Rotating the Key
 
@@ -266,14 +256,13 @@ environment:
 ```
 
 On start, every account key that no longer opens under the new key is re-encrypted with it (no notes are rewritten). Once this has run, clear
-`NOTE_ENCRYPTION_PREVIOUS_KEYS` and restart again.
-
-For `NOTE_MAX_LENGTH`, lowering it does not touch notes you have already written. Such a note simply cannot be *saved* again until you shorten it.
+`NOTE_ENCRYPTION_PREVIOUS_KEYS` and restart again. For `NOTE_MAX_LENGTH`, lowering it does not touch notes you have already written. Such a note
+simply cannot be *saved* again until you shorten it.
 
 ### Authentication
 
-Diurnal supports two sign-in methods (local **password** accounts and **[OIDC](#oidc)**) which can run separately or together; at least one must be
-enabled or the app refuses to start. Regardless of how it is configured, the **first account is always created locally** through the setup page.
+Diurnal supports two sign-in methods (local password accounts and **[OIDC](#oidc)** accounts) which can run separately or together; at least one must
+be enabled or the app refuses to start. Regardless of how it is configured, the first account is always created locally through the setup page.
 
 <details>
 <summary>Screenshot: the login page</summary>
@@ -474,9 +463,9 @@ Each user can customise Diurnal from the **Settings** page (top-right menu).
 
 - **Email**: Your login identity (cannot be changed)
 - **Display name**: The name shown in the app
-- **Password**: Change your password, if enabled. Changing it signs out every *other* device.
+- **Password**: Change your password if it's a local account (changing your password logs the account out of every other device)
 - **Identity provider**: Shown when [OIDC](#oidc) is configured. Links to the IdP or allows a user to connect a password-only account
-- **Sessions**: **Log out everywhere** revokes every session forcing a fresh sign-in on all devices (includes the current device)
+- **Sessions**: **Log out everywhere** revokes every session forcing a fresh sign-in on all devices (including the current device)
 
 ### Preferences
 
@@ -489,8 +478,8 @@ Each user can customise Diurnal from the **Settings** page (top-right menu).
 
 ### Statistics
 
-An orderable list which allows the user to choose which [statistics](#statistics-and-streaks) appear for each action on the Stats page, and in what
-order, and each can be disabled and re-ordered. The **Last performed** statistic is always shown, but can still be reordered.
+An orderable list which allows the user to choose which [statistics](#statistics-and-streaks) appear for each action on the Stats page. The **Last
+performed** statistic is always shown, but can still be renamed/reordered.
 
 ### Appearance
 
@@ -511,12 +500,7 @@ order, and each can be disabled and re-ordered. The **Last performed** statistic
 ## Text Input
 
 Every free-text value you type - an action name, your display name, a renamed statistic, a day's note, your email, your password - goes through the
-same validation, whether you enter it in the app or through the [REST API](#rest-api). Nothing is silently truncated or rewritten: a value is either
-accepted as typed, tidied in a way you can see, or rejected with a message explaining what is wrong.
-
-A **note** is the one value that may span several lines, so its line breaks are kept where every other field folds them into a space. The parsing is
-otherwise identical: line endings are unified, each line has its trailing spaces removed, and a run of blank lines is condensed to one, so a note
-reads back exactly as it looked when you wrote it.
+same validation below.
 
 ### Length Limits
 
@@ -530,9 +514,6 @@ Limits are counted in **characters as a reader counts them**, not bytes: an acce
 | Note           | Up to 10,000 characters by default* (leave it blank to remove the note) |
 | Password       | 1-128 characters                                                        |
 | Statistic name | Up to 25 characters (leave it blank to restore the built-in name)       |
-
-\* The note limit is the only one here a deployment can change ([`NOTE_MAX_LENGTH`](#note-configuration)); every other limit is fixed. Lowering it
-leaves notes you have already written untouched - see [Note Configuration](#note-configuration).
 
 ### Accepted Characters
 

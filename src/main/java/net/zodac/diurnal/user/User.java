@@ -17,19 +17,18 @@
 
 package net.zodac.diurnal.user;
 
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import net.zodac.diurnal.persistence.AuditedEntity;
 import net.zodac.diurnal.text.TextFields;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -40,9 +39,11 @@ import org.jspecify.annotations.Nullable;
  */
 // A JPA active-record entity: its "fields" are almost all @Column mappings to the single `users`
 // table, so a wide flat set is inherent to the persistence mapping rather than a design smell. The
+// TooManyFields marker on the declaration line records exactly that, per-class rather than by
+// switching the rule off across the codebase.
 @Entity
 @Table(name = "users")
-public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA entity; every mapped column is a field
+public class User extends AuditedEntity { // NOPMD: TooManyFields - wide JPA entity; every mapped column is a field
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -65,12 +66,6 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     @Column(name = "oidc_issuer")
     @Nullable
     public String oidcIssuer;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    public Instant createdAt = Instant.now();
-
-    @Column(name = "updated_at", nullable = false)
-    public Instant updatedAt = Instant.now();
 
     @Preference
     @Column(name = "theme", nullable = false)
@@ -159,8 +154,23 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     @Column(name = "last_login_at")
     public Instant lastLoginAt;
 
+    /**
+     * Whether the account holds the administrator role, resolved from its stored {@link #role} value.
+     *
+     * @return {@code true} when the account is an administrator
+     */
     public boolean isAdmin() {
         return Role.fromStorageValue(role) == Role.ADMIN;
+    }
+
+    /**
+     * The account's UI {@link Locale}, resolved from its stored {@link #language} tag — the one place that conversion is made, so every surface
+     * that renders for this user (a page's {@code MessageBundles.ATTRIBUTE_LOCALE}, a date/number formatter, a collator) resolves it identically.
+     *
+     * @return the account's locale
+     */
+    public Locale locale() {
+        return Locale.forLanguageTag(language);
     }
 
     /**
@@ -192,11 +202,4 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
         return find("oidcIssuer = ?1 and oidcSubject = ?2", issuer, subject).firstResultOptional();
     }
 
-    /**
-     * Refreshes {@code updatedAt} before each update (JPA lifecycle callback).
-     */
-    @PreUpdate
-    void onUpdate() {
-        updatedAt = Instant.now();
-    }
 }

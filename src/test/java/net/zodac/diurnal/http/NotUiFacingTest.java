@@ -20,18 +20,15 @@ package net.zodac.diurnal.http;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
+import net.zodac.diurnal.SourceFiles;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
@@ -52,7 +49,6 @@ import org.junit.jupiter.api.Test;
  */
 class NotUiFacingTest {
 
-    private static final Path MAIN_SOURCES = Path.of("src", "main", "java");
     private static final String ANNOTATION = "@NotUiFacing";
     private static final String TEMPLATE_EXTENSION_ANNOTATION = "@TemplateExtension";
 
@@ -143,7 +139,7 @@ class NotUiFacingTest {
     // Read back through the classloader rather than the source, so the RUNTIME retention is exercised by something. Loaded without initialisation:
     // an annotation is readable either way, and running a service's static setup outside Quarkus buys nothing.
     private static List<Class<?>> annotatedOwners() {
-        return mainSources()
+        return SourceFiles.java()
             .stream()
             .filter(source -> codeOf(source).contains(ANNOTATION + '('))
             .<Class<?>>map(NotUiFacingTest::classFor)
@@ -151,7 +147,7 @@ class NotUiFacingTest {
     }
 
     private static Class<?> classFor(final Path sourceFile) {
-        final String relativePath = MAIN_SOURCES.relativize(sourceFile).toString();
+        final String relativePath = SourceFiles.JAVA_ROOT.relativize(sourceFile).toString();
         final String className = relativePath.substring(0, relativePath.lastIndexOf('.')).replace(File.separatorChar, '.');
 
         try {
@@ -164,7 +160,7 @@ class NotUiFacingTest {
     private static List<Marked> annotatedMembers() {
         final List<Marked> members = new ArrayList<>();
 
-        for (final Path sourceFile : mainSources()) {
+        for (final Path sourceFile : SourceFiles.java()) {
             final String fileName = sourceFile.getFileName().toString();
             final String owner = fileName.substring(0, fileName.lastIndexOf('.'));
             final List<String> lines = codeLines(sourceFile);
@@ -203,20 +199,10 @@ class NotUiFacingTest {
     }
 
     private static List<Path> uiSurfaces() {
-        return mainSources()
+        return SourceFiles.java()
             .stream()
             .filter(source -> UI_SURFACE_SUFFIXES.stream().anyMatch(suffix -> source.getFileName().toString().endsWith(suffix)))
             .toList();
-    }
-
-    private static List<Path> mainSources() {
-        try (final Stream<Path> sources = Files.walk(MAIN_SOURCES)) {
-            return sources
-                .filter(source -> source.getFileName().toString().endsWith(".java"))
-                .toList();
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Unable to walk " + MAIN_SOURCES, e);
-        }
     }
 
     private static String codeOf(final Path sourceFile) {
@@ -229,7 +215,7 @@ class NotUiFacingTest {
         final List<String> code = new ArrayList<>();
         boolean inBlockComment = false;
 
-        for (final String line : readLines(sourceFile)) {
+        for (final String line : SourceFiles.readLines(sourceFile)) {
             final String stripped = line.strip();
             if (inBlockComment || stripped.startsWith("/*")) {
                 inBlockComment = !stripped.endsWith("*/");
@@ -254,14 +240,6 @@ class NotUiFacingTest {
         }
 
         return line;
-    }
-
-    private static List<String> readLines(final Path sourceFile) {
-        try {
-            return Files.readAllLines(sourceFile);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Unable to read " + sourceFile, e);
-        }
     }
 
     private record Marked(String owner, String name, String declaration, List<String> annotations) {

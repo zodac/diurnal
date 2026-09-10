@@ -20,7 +20,6 @@ package net.zodac.diurnal.web.admin;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
-import io.quarkus.qute.i18n.MessageBundles;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.DefaultValue;
@@ -32,7 +31,6 @@ import jakarta.ws.rs.core.MediaType;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import net.zodac.diurnal.auth.lockout.IpLockoutService;
 import net.zodac.diurnal.auth.lockout.IpThrottleConfig;
@@ -45,6 +43,7 @@ import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.web.PageShell;
 
 /**
  * Serves the admin-only full pages: user management and the embedded API documentation. The user-management HTMX partials and mutations live under
@@ -108,14 +107,7 @@ public class AdminWebResource {
         final Instant now = clock.now();
         final List<UUID> ids = page.users().stream().map(u -> u.id).toList();
         final boolean lockoutEnabled = ipThrottleConfig.enabled();
-        return adminUsersTemplate
-                .data("email", actor.email)
-                .data("displayName", actor.displayName)
-                .data("theme", actor.theme)
-                .data("font", actor.font)
-                .data("language", actor.language)
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag(actor.language))
-                .data("isAdmin", true)
+        return PageShell.forUser(adminUsersTemplate, actor)
                 .data("page", AdminUsersInternalResource.toRows(page, zone, language, sessionActivityService.recentActivityByUser(ids, now)))
                 .data("ipThrottleEnabled", lockoutEnabled)
                 .data("lockoutsHistory", lockoutEnabled
@@ -133,13 +125,6 @@ public class AdminWebResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance apiDocsPage() {
         final User actor = currentUser.get();
-        return adminApiDocsTemplate
-                .data("email", actor.email)
-                .data("displayName", actor.displayName)
-                .data("theme", actor.theme)
-                .data("font", actor.font)
-                .data("language", actor.language)
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag(actor.language))
-                .data("isAdmin", true);
+        return PageShell.forUser(adminApiDocsTemplate, actor);
     }
 }

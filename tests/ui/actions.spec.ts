@@ -1,5 +1,6 @@
 import type { Request } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
+import { searchAndWait, ACTIONS_LIST_PATH } from "../helpers/search"
 
 /* global window -- referenced inside in-browser page.waitForFunction callbacks */
 
@@ -464,13 +465,13 @@ test.describe("Actions page", () => {
         }, { morning: morningRun, evening: eveningWalk })
         await page.reload()
 
-        await page.fill('input[placeholder*="Search"], input[name="q"]', "MORNING")
-        // HTMX fires on input — wait for the list to update
+        await searchAndWait(page, 'input[placeholder*="Search"], input[name="q"]', "MORNING", ACTIONS_LIST_PATH)
+
         await expect(page.locator("#action-list")).toContainText("Morning Run")
         await expect(page.locator("#action-list")).not.toContainText("Evening Walk")
 
         // Clear search restores full list
-        await page.fill('input[placeholder*="Search"], input[name="q"]', "")
+        await searchAndWait(page, 'input[placeholder*="Search"], input[name="q"]', "", ACTIONS_LIST_PATH)
         await expect(page.locator("#action-list")).toContainText("Evening Walk")
     })
 
@@ -517,7 +518,7 @@ test.describe("Actions page", () => {
         await expect(page.locator("#action-list")).toContainText(name)
 
         // A search matching no action keeps the table visible (the user still has actions).
-        await page.fill("#search-input", "zzz-no-such-action-zzz")
+        await searchAndWait(page, "#search-input", "zzz-no-such-action-zzz", ACTIONS_LIST_PATH)
         await expect(page.locator(".dt-table")).toBeVisible()
         await expect(page.locator("#search-input")).toBeVisible()
         await expect(page.locator("#action-list")).toContainText(/no actions match/i)

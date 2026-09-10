@@ -23,11 +23,14 @@ import jakarta.ws.rs.core.CacheControl;
 import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
+import java.util.Objects;
+import net.zodac.diurnal.stub.StubRequest;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 /**
  * Unit tests for {@link EntityTags}: the weak-tag construction (stability, sensitivity to every part, opaqueness), the {@code private, no-cache}
- * directive, and the two response decorators.
+ * directive, the two response decorators, and the two conditional-GET shortcuts built on them.
  */
 class EntityTagsTest {
 
@@ -135,5 +138,59 @@ class EntityTagsTest {
                 .contains("private")
                 .contains("no-cache");
         }
+    }
+
+    @Test
+    void notModified_isNullWhenTheResultHasChanged() {
+        final EntityTag tag = EntityTags.weak("user", 1);
+
+        assertThat(EntityTags.notModified(StubRequest.changedSincePrecondition(), tag))
+            .as("a changed result must hand the caller back nothing, so it builds the real response")
+            .isNull();
+    }
+
+    @Test
+    void notModified_attachesTagAndVaryButNoCacheControl() {
+        final EntityTag tag = EntityTags.weak("user", 1);
+
+        try (final Response response = requireNotModified(EntityTags.notModified(StubRequest.matchingPrecondition(), tag))) {
+            assertThat(response.getEntityTag())
+                .as("the 304 must carry the validator that produced it")
+                .isEqualTo(tag);
+            assertThat(response.getHeaderString(HttpHeaders.CACHE_CONTROL))
+                .as("an internal fragment's Cache-Control is supplied by the html-pages filter, not here")
+                .isNull();
+        }
+    }
+
+    @Test
+    void privateNotModified_isNullWhenTheResultHasChanged() {
+        final EntityTag tag = EntityTags.weak("user", 1);
+
+        assertThat(EntityTags.privateNotModified(StubRequest.changedSincePrecondition(), tag))
+            .as("a changed result must hand the caller back nothing, so it builds the real response")
+            .isNull();
+    }
+
+    @Test
+    void privateNotModified_attachesTagVaryAndPrivateNoCache() {
+        final EntityTag tag = EntityTags.weak("user", 1);
+
+        try (final Response response = requireNotModified(EntityTags.privateNotModified(StubRequest.matchingPrecondition(), tag))) {
+            assertThat(response.getEntityTag())
+                .as("the 304 must carry the validator that produced it")
+                .isEqualTo(tag);
+            assertThat(response.getHeaderString(HttpHeaders.VARY))
+                .as("Vary must separate the two authentication channels")
+                .isEqualTo("Authorization, Cookie");
+            assertThat(response.getHeaderString(HttpHeaders.CACHE_CONTROL))
+                .as("a public read's 304 carries the private, no-cache directive")
+                .contains("private")
+                .contains("no-cache");
+        }
+    }
+
+    private static Response requireNotModified(final @Nullable Response response) {
+        return Objects.requireNonNull(response, "a matching precondition must produce a 304 rather than null");
     }
 }

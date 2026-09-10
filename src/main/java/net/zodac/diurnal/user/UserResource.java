@@ -119,9 +119,9 @@ public class UserResource {
         // The user row is already loaded, so its updatedAt (bumped on every profile/preference/role change) is a
         // free, exact validator — the conditional just skips building and serialising the DTO.
         final EntityTag tag = EntityTags.weak(user.id, user.updatedAt.toEpochMilli());
-        final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
+        final Response notModified = EntityTags.privateNotModified(request, tag);
         if (notModified != null) {
-            return EntityTags.withPrivateValidator(notModified, tag).build();
+            return notModified;
         }
         return EntityTags.withPrivateValidator(Response.ok(UserDto.from(user)), tag).build();
     }
@@ -209,115 +209,42 @@ public class UserResource {
         };
     }
 
-    // Applies each present field in a fixed order, stopping at the first rejection; every rule lives in
-    // the shared ProfileService.
+    // Translates this surface's JSON shape into the shared PreferenceUpdates, which owns the order every field is applied in and the
+    // stop-at-the-first-rejection rule. Surface input policy lives here and nowhere else: an EMPTY 'pageSizes'/'statsFields' array is an explicit
+    // "clear every override"/"drop every arrangement" (the Settings form's empty list means the opposite - that the panel was not submitted at all),
+    // and the numeric preferences are re-rendered as text because the shared parser, not this resource, decides whether a value is in range.
     private ProfileResult applyUpdates(final User user, final UpdateMeRequest request) {
-        ProfileResult result = new ProfileResult.Updated();
-        if (request.displayName() != null) {
-            result = profileService.updateDisplayName(user, request.displayName());
-        }
         final PreferencesUpdate preferences = request.preferences();
-        if (preferences == null || result instanceof ProfileResult.Invalid) {
-            return result;
+        if (preferences == null) {
+            return profileService.applyAll(user, displayNameOnly(request.displayName()));
         }
-        result = applyAppearance(user, preferences);
-        if (result instanceof ProfileResult.Invalid) {
-            return result;
-        }
-        result = applyPaging(user, preferences);
-        if (result instanceof ProfileResult.Invalid) {
-            return result;
-        }
-        return applyStatsPreferences(user, preferences, result);
-    }
 
-    // Each group stops at its first rejection, so the message reported is always the first field the request got wrong.
-    private ProfileResult applyAppearance(final User user, final PreferencesUpdate preferences) {
-        ProfileResult result = new ProfileResult.Updated();
-        if (preferences.theme() != null) {
-            result = profileService.updateTheme(user, preferences.theme());
-            if (result instanceof ProfileResult.Invalid) {
-                return result;
-            }
-        }
-        if (preferences.font() != null) {
-            result = profileService.updateFont(user, preferences.font());
-            if (result instanceof ProfileResult.Invalid) {
-                return result;
-            }
-        }
-        if (preferences.language() != null) {
-            result = profileService.updateLanguage(user, preferences.language());
-            if (result instanceof ProfileResult.Invalid) {
-                return result;
-            }
-        }
-        if (preferences.calendarView() != null) {
-            result = profileService.updateCalendarView(user, preferences.calendarView());
-            if (result instanceof ProfileResult.Invalid) {
-                return result;
-            }
-        }
-        if (preferences.noteColour() != null) {
-            result = profileService.updateNoteColour(user, preferences.noteColour());
-            if (result instanceof ProfileResult.Invalid) {
-                return result;
-            }
-        }
-        // No Invalid branch: a boolean has no value to reject, exactly as showStatsSummary has none.
-        if (preferences.showNoteCounter() != null) {
-            result = profileService.updateShowNoteCounter(user, preferences.showNoteCounter());
-        }
-        if (preferences.timezone() != null) {
-            result = profileService.updateTimezone(user, preferences.timezone());
-            if (result instanceof ProfileResult.Invalid) {
-                return result;
-            }
-        }
-        if (preferences.weekStart() != null) {
-            result = profileService.updateWeekStart(user, preferences.weekStart());
-        }
-        return result;
-    }
-
-    private ProfileResult applyPaging(final User user, final PreferencesUpdate preferences) {
-        ProfileResult result = new ProfileResult.Updated();
-        if (preferences.pageSize() != null) {
-            result = profileService.updatePageSize(user, Integer.toString(preferences.pageSize()));
-            if (result instanceof ProfileResult.Invalid) {
-                return result;
-            }
-        }
-        // The whole override set, like statsFields: the resource pairs its own JSON shape into the two lists the shared service takes (the settings
-        // form posts the same pair), and the service holds every rule. An empty array clears every override.
         final List<PageSizePref> pageSizes = preferences.pageSizes();
-        if (pageSizes != null) {
-            final List<String> sections = pageSizes.stream().map(PageSizePref::section).toList();
-            final List<String> values = pageSizes.stream().map(pref -> Integer.toString(pref.pageSize())).toList();
-            result = profileService.updatePageSizes(user, sections, values);
-            if (result instanceof ProfileResult.Invalid) {
-                return result;
-            }
-        }
-        if (preferences.decimalPlaces() != null) {
-            result = profileService.updateDecimalPlaces(user, Integer.toString(preferences.decimalPlaces()));
-        }
-        return result;
+        final List<StatFieldPref> statsFields = preferences.statsFields();
+        return profileService.applyAll(user, new PreferenceUpdates(
+            request.displayName(), preferences.theme(), preferences.font(), preferences.language(), preferences.calendarView(),
+            preferences.noteColour(), preferences.timezone(), preferences.weekStart(), asText(preferences.pageSize()),
+            pageSizes == null ? null : new PreferenceUpdates.PageSizeSubmission(
+                pageSizes.stream().map(PageSizePref::section).toList(),
+                pageSizes.stream().map(pref -> Integer.toString(pref.pageSize())).toList()),
+            asText(preferences.decimalPlaces()), preferences.showStatsSummary(), preferences.showNoteCounter(),
+            statsFields == null ? null : statsFieldSubmission(statsFields)));
     }
 
-    private ProfileResult applyStatsPreferences(final User user, final PreferencesUpdate preferences, final ProfileResult current) {
-        ProfileResult result = current;
-        if (preferences.showStatsSummary() != null) {
-            result = profileService.updateShowStatsSummary(user, preferences.showStatsSummary());
-        }
-        final List<StatFieldPref> statsFields = preferences.statsFields();
-        if (statsFields != null) {
-            final List<String> order = statsFields.stream().map(StatFieldPref::key).toList();
-            final List<String> enabled = statsFields.stream().filter(StatFieldPref::enabled).map(StatFieldPref::key).toList();
-            final List<String> labels = statsFields.stream().map(pref -> pref.label() == null ? "" : pref.label()).toList();
-            result = profileService.updateStatsFields(user, order, enabled, StatField.labelsByKey(order, labels));
-        }
-        return result;
+    private static PreferenceUpdates displayNameOnly(final @Nullable String displayName) {
+        return new PreferenceUpdates(displayName, null, null, null, null, null, null, null, null, null, null, null, null, null);
+    }
+
+    private static PreferenceUpdates.StatsFieldSubmission statsFieldSubmission(final List<StatFieldPref> statsFields) {
+        final List<String> order = statsFields.stream().map(StatFieldPref::key).toList();
+        final List<String> enabled = statsFields.stream().filter(StatFieldPref::enabled).map(StatFieldPref::key).toList();
+        final List<String> labels = statsFields.stream().map(pref -> pref.label() == null ? "" : pref.label()).toList();
+        return new PreferenceUpdates.StatsFieldSubmission(order, enabled, StatField.labelsByKey(order, labels));
+    }
+
+    @Nullable
+    private static String asText(final @Nullable Integer value) {
+        return value == null ? null : Integer.toString(value);
     }
 
     @Nullable

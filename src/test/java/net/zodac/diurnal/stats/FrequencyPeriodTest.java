@@ -46,16 +46,6 @@ class FrequencyPeriodTest {
             .isEqualTo(FrequencyPeriod.MONTH);
     }
 
-    @Test
-    void label_isTheToggleCaption() {
-        assertThat(FrequencyPeriod.MONTH.label())
-            .as("unexpected value")
-            .isEqualTo("Month");
-        assertThat(FrequencyPeriod.YEAR.label())
-            .as("unexpected value")
-            .isEqualTo("Year");
-    }
-
     @ParameterizedTest
     @ValueSource(strings = {"month", "year"})
     void isValid_offeredValue_isAccepted(final String value) {

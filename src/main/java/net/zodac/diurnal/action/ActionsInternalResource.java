@@ -42,6 +42,7 @@ import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
+import net.zodac.diurnal.text.TextFailureBanner;
 import net.zodac.diurnal.text.TextOrdering;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextValidation;
@@ -68,7 +69,7 @@ public class ActionsInternalResource {
     private final Template actionRowTemplate;
     private final Template confirmDeleteRowTemplate;
     private final Template actionMessagesTemplate;
-    private final Template textFailureMessageTemplate;
+    private final TextFailureBanner textFailureBanner;
     private final CurrentUser currentUser;
     private final ActionService actionService;
     private final AppPaths appPaths;
@@ -80,7 +81,7 @@ public class ActionsInternalResource {
      * @param actionRowTemplate the single action-row partial template
      * @param confirmDeleteRowTemplate the delete-confirmation row partial template
      * @param actionMessagesTemplate the fixed-shape ActionResult/delete-prompt message partial template
-     * @param textFailureMessageTemplate the shared text-validation-pipeline rejection message partial template
+     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
      * @param currentUser the current-user accessor
      * @param actionService the shared action-mutation service
      * @param appPaths the single builder of every application URL, for the row's delete/restore endpoints
@@ -90,13 +91,13 @@ public class ActionsInternalResource {
         @Location("partials/action-row") final Template actionRowTemplate,
         @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
         @Location("partials/action-messages") final Template actionMessagesTemplate,
-        @Location("partials/text-failure-message") final Template textFailureMessageTemplate,
+        final TextFailureBanner textFailureBanner,
         final CurrentUser currentUser, final ActionService actionService, final AppPaths appPaths) {
         this.actionsListTemplate = actionsListTemplate;
         this.actionRowTemplate = actionRowTemplate;
         this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
         this.actionMessagesTemplate = actionMessagesTemplate;
-        this.textFailureMessageTemplate = textFailureMessageTemplate;
+        this.textFailureBanner = textFailureBanner;
         this.currentUser = currentUser;
         this.actionService = actionService;
         this.appPaths = appPaths;
@@ -118,12 +119,12 @@ public class ActionsInternalResource {
         @QueryParam("page") @DefaultValue("1") final int pageNum,
         @QueryParam("q") @DefaultValue("") final String searchTerm) {
         final User user = currentUser.get();
-        final var page = getActions(user.id, pageNum, searchTerm, PageSizes.forSection(user, PageSection.ACTIONS), locale(user));
+        final var page = getActions(user.id, pageNum, searchTerm, PageSizes.forSection(user, PageSection.ACTIONS), user.locale());
         final String extraQuery = (searchTerm == null || searchTerm.isBlank())
             ? ""
             : ("&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8));
         return Response.ok(actionsListTemplate.data("page", page, "extraQuery", extraQuery)
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale(user))).build();
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, user.locale())).build();
     }
 
     /**
@@ -154,7 +155,7 @@ public class ActionsInternalResource {
         if (action == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        return Response.ok(actionRowTemplate.data("action", action).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale(user))).build();
+        return Response.ok(actionRowTemplate.data("action", action).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, user.locale())).build();
     }
 
     /**
@@ -172,7 +173,7 @@ public class ActionsInternalResource {
         if (action == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        final Locale locale = locale(user);
+        final Locale locale = user.locale();
         // The prompt is resolved by rendering actionMessagesTemplate (a real, locale-aware template
         // render) rather than a Java string literal, so it translates correctly - a raw literal handed
         // to dt-confirm-delete-row.html as inert data can never pick up the request's locale.
@@ -213,7 +214,7 @@ public class ActionsInternalResource {
         // than treated as a PATCH-style "keep" by the shared service. A missing colour is passed on as
         // null, so it takes the same suggestion the API gives a caller that omitted it.
         final User user = currentUser.get();
-        return translate(actionService.create(user, name == null ? "" : name, colour), locale(user));
+        return translate(actionService.create(user, name == null ? "" : name, colour), user.locale());
     }
 
     /**
@@ -236,7 +237,7 @@ public class ActionsInternalResource {
         // The edit form always submits both fields; normalise a missing name to blank so it is rejected
         // rather than treated as a PATCH-style "keep" by the shared service.
         final User user = currentUser.get();
-        return translate(actionService.update(user, id, name == null ? "" : name, colour), locale(user));
+        return translate(actionService.update(user, id, name == null ? "" : name, colour), user.locale());
     }
 
     /**
@@ -310,11 +311,7 @@ public class ActionsInternalResource {
     }
 
     private String textFailureBanner(final TextOutcome.Failure failure, final Locale locale) {
-        return textFailureMessageTemplate.data("failure", failure).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-    }
-
-    private static Locale locale(final User user) {
-        return Locale.forLanguageTag(user.language);
+        return textFailureBanner.render(failure, locale);
     }
 
     /**

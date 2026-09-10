@@ -17,13 +17,11 @@
 
 package net.zodac.diurnal.log;
 
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.LockModeType;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -34,6 +32,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.http.ChangeSignature;
+import net.zodac.diurnal.persistence.AuditedEntity;
 import net.zodac.diurnal.persistence.JpqlQuery;
 import net.zodac.diurnal.persistence.LogStatements;
 import net.zodac.diurnal.persistence.SqlQuery;
@@ -54,7 +53,7 @@ import org.jspecify.annotations.Nullable;
 @Entity
 @Table(name = "action_logs")
 @IdClass(ActionLogId.class)
-public class ActionLog extends PanacheEntityBase {
+public class ActionLog extends AuditedEntity {
 
     public static final int MAX_DAILY_COUNT = 999;
 
@@ -72,20 +71,6 @@ public class ActionLog extends PanacheEntityBase {
 
     @Column(nullable = false, columnDefinition = "SMALLINT")
     public int count = 1;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    public Instant createdAt = Instant.now();
-
-    @Column(name = "updated_at", nullable = false)
-    public Instant updatedAt = Instant.now();
-
-    /**
-     * Refreshes {@code updatedAt} before each update (JPA lifecycle callback).
-     */
-    @PreUpdate
-    void onUpdate() {
-        updatedAt = Instant.now();
-    }
 
     // ── Queries ───────────────────────────────────────────────────────────
 

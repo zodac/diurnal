@@ -20,6 +20,7 @@ package net.zodac.diurnal.transfer;
 import java.time.LocalDate;
 import java.util.List;
 import net.zodac.diurnal.text.TextOutcome;
+import net.zodac.diurnal.text.TextOutcomeExtensions;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -45,10 +46,27 @@ public sealed interface ImportReason
     ImportReason.InvalidDate {
 
     /**
+     * The English wording for this refusal, for the API's {@code 400} body — reached through
+     * {@link ImportService#message(ImportReason)}, which is where the {@code @NotUiFacing} marker sits. Implemented per variant rather than
+     * switched on in one place, matching {@code ProfileRejection#rejectionReason()} over the same shape of sealed rejection hierarchy.
+     *
+     * <p>
+     * The web surface never calls this: it resolves a TRANSLATED sentence from {@code partials/import-reason.html} instead (or, for
+     * {@link InvalidTextField}, the shared {@code partials/text-failure-message.html}).
+     *
+     * @return the default (English) message
+     */
+    String message();
+
+    /**
      * The upload does not start with the ZIP signature.
      */
     record NotZipArchive() implements ImportReason {
 
+        @Override
+        public String message() {
+            return "The uploaded file is not a ZIP archive.";
+        }
     }
 
     /**
@@ -58,6 +76,10 @@ public sealed interface ImportReason
      */
     record TooManyEntries(int maxEntries) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "The uploaded archive holds more than " + maxEntries + " entries.";
+        }
     }
 
     /**
@@ -65,6 +87,10 @@ public sealed interface ImportReason
      */
     record ArchiveTooLarge() implements ImportReason {
 
+        @Override
+        public String message() {
+            return "The uploaded archive is too large once decompressed.";
+        }
     }
 
     /**
@@ -75,6 +101,10 @@ public sealed interface ImportReason
      */
     record ArchiveUnreadable(@Nullable String detail) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "The uploaded archive could not be read: " + detail;
+        }
     }
 
     /**
@@ -82,6 +112,10 @@ public sealed interface ImportReason
      */
     record CsvUnreadable() implements ImportReason {
 
+        @Override
+        public String message() {
+            return "The file could not be read - a quoted value is never closed - check for an unbalanced \" character.";
+        }
     }
 
     /**
@@ -91,6 +125,10 @@ public sealed interface ImportReason
      */
     record MissingMember(String file) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "The archive does not contain " + file + ".";
+        }
     }
 
     /**
@@ -102,6 +140,10 @@ public sealed interface ImportReason
      */
     record EmptyFile(List<String> columns) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "The file is empty - it must start with the header row " + String.join(",", columns) + ".";
+        }
     }
 
     /**
@@ -111,6 +153,10 @@ public sealed interface ImportReason
      */
     record WrongHeader(List<String> columns) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "The header row must be exactly " + String.join(",", columns) + ".";
+        }
     }
 
     /**
@@ -121,6 +167,10 @@ public sealed interface ImportReason
      */
     record WrongColumnCount(int expected, int actual) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "Expected " + expected + " columns but found " + actual + ".";
+        }
     }
 
     /**
@@ -131,6 +181,10 @@ public sealed interface ImportReason
      */
     record InvalidTextField(TextOutcome.Failure failure) implements ImportReason {
 
+        @Override
+        public String message() {
+            return TextOutcomeExtensions.message(failure);
+        }
     }
 
     /**
@@ -138,6 +192,10 @@ public sealed interface ImportReason
      */
     record InvalidColour() implements ImportReason {
 
+        @Override
+        public String message() {
+            return "The colour must be a hex value such as #6366f1.";
+        }
     }
 
     /**
@@ -147,6 +205,10 @@ public sealed interface ImportReason
      */
     record DuplicateAction(String name) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "The action '" + name + "' appears more than once.";
+        }
     }
 
     /**
@@ -156,6 +218,10 @@ public sealed interface ImportReason
      */
     record FutureLog(LocalDate date) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "A log cannot be dated in the future (" + date + ").";
+        }
     }
 
     /**
@@ -165,6 +231,10 @@ public sealed interface ImportReason
      */
     record UnknownAction(String actionName) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "No action named '" + actionName + "' is defined in " + TransferFiles.ACTIONS_FILE + ".";
+        }
     }
 
     /**
@@ -174,6 +244,10 @@ public sealed interface ImportReason
      */
     record NonNumericCount(String raw) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "'" + raw + "' is not a whole number.";
+        }
     }
 
     /**
@@ -183,6 +257,10 @@ public sealed interface ImportReason
      */
     record CountOutOfRange(int max) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "The count must be between 1 and " + max + ".";
+        }
     }
 
     /**
@@ -193,6 +271,10 @@ public sealed interface ImportReason
      */
     record DuplicateLog(String actionName, LocalDate date) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "There is already a log for '" + actionName + "' on " + date + ".";
+        }
     }
 
     /**
@@ -202,6 +284,10 @@ public sealed interface ImportReason
      */
     record EmptyNote(LocalDate date) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "The note for " + date + " is empty - delete the row instead.";
+        }
     }
 
     /**
@@ -211,6 +297,10 @@ public sealed interface ImportReason
      */
     record DuplicateNote(LocalDate date) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "There is already a note for " + date + ".";
+        }
     }
 
     /**
@@ -220,5 +310,9 @@ public sealed interface ImportReason
      */
     record InvalidDate(String raw) implements ImportReason {
 
+        @Override
+        public String message() {
+            return "'" + raw + "' is not a date in YYYY-MM-DD form.";
+        }
     }
 }
