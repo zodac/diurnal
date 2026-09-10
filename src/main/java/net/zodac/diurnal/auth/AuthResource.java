@@ -26,6 +26,7 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.time.Duration;
@@ -215,6 +216,7 @@ public class AuthResource {
 
         final String clientIp = ClientAddress.of(routingContext);
         final Instant now = clock.now();
+        LOGGER.debug("API login attempt from {} - forwarded headers: {}", clientIp, ClientAddress.forwardedSummary(routingContext));
         final LoginResult result = authenticationService.authenticate(email, password, clientIp, now);
 
         return switch (result) {
@@ -244,7 +246,7 @@ public class AuthResource {
     @Operation(summary = "Log out", description = "Revokes the Bearer session token used to make this request.")
     @APIResponse(responseCode = "204", description = "The session token was revoked (a missing/malformed header is a no-op).")
     @APIResponse(responseCode = "401", description = "No valid session token was supplied.")
-    public Response logout(@HeaderParam("Authorization") @Nullable final String authorization) {
+    public Response logout(@HeaderParam(HttpHeaders.AUTHORIZATION) @Nullable final String authorization) {
         if (authorization != null && authorization.startsWith(BEARER_PREFIX)) {
             sessionStore.revoke(authorization.substring(BEARER_PREFIX.length()).strip());
         }
@@ -279,7 +281,7 @@ public class AuthResource {
     }
 
     private String newSession(final User user, final @Nullable RoutingContext routingContext) {
-        final String userAgent = routingContext == null ? null : routingContext.request().getHeader("User-Agent");
+        final String userAgent = routingContext == null ? null : routingContext.request().getHeader(HttpHeaders.USER_AGENT);
         return sessionStore.create(user, Session.AUTH_SOURCE_PASSWORD, userAgent, ClientAddress.of(routingContext), clock.now());
     }
 
@@ -287,7 +289,7 @@ public class AuthResource {
     // shared per-IP counter feeds both), so there is a single 429 response builder.
     private static Response lockedResponse(final Duration remaining) {
         return Response.status(Response.Status.TOO_MANY_REQUESTS)
-                .header("Retry-After", Math.max(1L, remaining.toSeconds()))
+                .header(HttpHeaders.RETRY_AFTER, Math.max(1L, remaining.toSeconds()))
                 .entity(new ApiErrorResponse(LockoutMessages.retryMessage(remaining)))
                 .build();
     }

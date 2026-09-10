@@ -23,6 +23,7 @@ import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import net.zodac.diurnal.http.HttpHeader;
 
 /**
  * Adds security-related HTTP headers to every response: a {@code Content-Security-Policy} — strict on every route except the admin-gated OpenAPI
@@ -86,13 +87,13 @@ public class SecurityHeadersFilter {
 
     private static void addSecurityHeaders(final RoutingContext ctx) {
         final var headers = ctx.response().headers();
-        headers.add("Content-Security-Policy", CspPolicy.forPath(ctx.request().path()));
-        headers.add("X-Content-Type-Options", "nosniff");
-        headers.add("Referrer-Policy", "strict-origin-when-cross-origin");
-        headers.add("X-Frame-Options", "SAMEORIGIN");
-        headers.add("Cross-Origin-Opener-Policy", "same-origin");
-        headers.add("Permissions-Policy", PERMISSIONS_POLICY);
-        headers.add("Cross-Origin-Resource-Policy", "same-origin");
+        headers.add(HttpHeader.CONTENT_SECURITY_POLICY.headerName(), CspPolicy.forPath(ctx.request().path()));
+        headers.add(HttpHeader.X_CONTENT_TYPE_OPTIONS.headerName(), "nosniff");
+        headers.add(HttpHeader.REFERRER_POLICY.headerName(), "strict-origin-when-cross-origin");
+        headers.add(HttpHeader.X_FRAME_OPTIONS.headerName(), "SAMEORIGIN");
+        headers.add(HttpHeader.CROSS_ORIGIN_OPENER_POLICY.headerName(), "same-origin");
+        headers.add(HttpHeader.PERMISSIONS_POLICY.headerName(), PERMISSIONS_POLICY);
+        headers.add(HttpHeader.CROSS_ORIGIN_RESOURCE_POLICY.headerName(), "same-origin");
         ctx.next();
     }
 }

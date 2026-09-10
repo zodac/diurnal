@@ -19,6 +19,7 @@ package net.zodac.diurnal.update;
 
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import org.eclipse.microprofile.rest.client.annotation.ClientHeaderParam;
 
@@ -41,7 +42,7 @@ public interface GitHubReleasesApi {
      */
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    @ClientHeaderParam(name = "Accept", value = "application/vnd.github+json")
-    @ClientHeaderParam(name = "User-Agent", value = "diurnal-update-check")
+    @ClientHeaderParam(name = HttpHeaders.ACCEPT, value = "application/vnd.github+json")
+    @ClientHeaderParam(name = HttpHeaders.USER_AGENT, value = "diurnal-update-check")
     String listReleases();
 }

@@ -37,7 +37,7 @@ services:
       NOTE_ENCRYPTION_KEY: "${NOTE_ENCRYPTION_KEY:?NOTE_ENCRYPTION_KEY must be set}"
       TZ: "Pacific/Auckland"
       # Authentication config
-      ENABLE_REGISTRATION: "true"
+      ENABLE_REGISTRATION: "false"
       PASSWORD_AUTH_ENABLED: "true"
       # OIDC config
       OIDC_AUTO_REDIRECT: "false"

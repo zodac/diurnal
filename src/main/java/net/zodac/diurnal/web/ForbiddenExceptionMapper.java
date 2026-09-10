@@ -24,6 +24,7 @@ import io.quarkus.security.identity.SecurityIdentity;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 
@@ -59,6 +60,6 @@ public class ForbiddenExceptionMapper {
      */
     @ServerExceptionMapper
     public Response toResponse(final ForbiddenException exception, final RoutingContext routingContext) {
-        return ErrorPages.render(errorTemplate, Response.Status.FORBIDDEN, identity, routingContext.request().getHeader("Accept-Language"));
+        return ErrorPages.render(errorTemplate, Response.Status.FORBIDDEN, identity, routingContext.request().getHeader(HttpHeaders.ACCEPT_LANGUAGE));
     }
 }

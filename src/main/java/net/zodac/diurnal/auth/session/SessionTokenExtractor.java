@@ -19,6 +19,7 @@ package net.zodac.diurnal.auth.session;
 
 import io.vertx.core.http.Cookie;
 import io.vertx.ext.web.RoutingContext;
+import jakarta.ws.rs.core.HttpHeaders;
 import net.zodac.diurnal.openapi.OpenApiDocsAuthFilter;
 import org.jspecify.annotations.Nullable;
 
@@ -54,7 +55,7 @@ public final class SessionTokenExtractor {
             return cookie.getValue();
         }
 
-        final String authorization = context.request().getHeader("Authorization");
+        final String authorization = context.request().getHeader(HttpHeaders.AUTHORIZATION);
         if (authorization != null && authorization.startsWith(BEARER_PREFIX)) {
             final String token = authorization.substring(BEARER_PREFIX.length()).strip();
             return token.isBlank() ? null : token;

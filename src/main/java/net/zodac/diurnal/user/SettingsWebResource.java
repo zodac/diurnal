@@ -50,6 +50,7 @@ import net.zodac.diurnal.auth.session.SessionCookies;
 import net.zodac.diurnal.auth.session.SessionStore;
 import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.http.ClientAddress;
+import net.zodac.diurnal.http.HttpHeader;
 import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.http.QuarkusHttpLimitsConfig;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
@@ -74,7 +75,6 @@ public class SettingsWebResource {
     // whether to send the user back to step 1 (a wrong current password cannot be corrected from the confirmation step) or
     // leave them on it (a simple mismatch can). The body alone cannot say: it is a TRANSLATED sentence, so the client
     // used to match it against the English /current password/i and silently stopped working in every other language.
-    private static final String PASSWORD_ERROR_HEADER = "X-Password-Error";
 
     private static final String CURRENT_PASSWORD_ERROR_KIND = "current";
 
@@ -366,7 +366,7 @@ public class SettingsWebResource {
             // The kind header, not the body's wording, is what tells settings.js to send the user back to step 1 - see its own comment above.
             case final PasswordChangeResult.WrongCurrentPassword _ ->
                 Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(currentPasswordIncorrectBanner(locale(user)))
-                    .header(PASSWORD_ERROR_HEADER, CURRENT_PASSWORD_ERROR_KIND).build();
+                    .header(HttpHeader.X_PASSWORD_ERROR.headerName(), CURRENT_PASSWORD_ERROR_KIND).build();
             case final PasswordChangeResult.InvalidNewPassword invalid ->
                 Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(passwordRejectionBanner(invalid.reason(), locale(user))).build();
         };
@@ -418,7 +418,7 @@ public class SettingsWebResource {
             // even though this client only reads the status here (there is no second 422 shape to tell apart at step 1).
             case final PasswordChangeResult.WrongCurrentPassword _ ->
                 Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(currentPasswordIncorrectBanner(locale(user)))
-                    .header(PASSWORD_ERROR_HEADER, CURRENT_PASSWORD_ERROR_KIND).build();
+                    .header(HttpHeader.X_PASSWORD_ERROR.headerName(), CURRENT_PASSWORD_ERROR_KIND).build();
             case final PasswordChangeResult.InvalidNewPassword _ -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY).build();
         };
     }
