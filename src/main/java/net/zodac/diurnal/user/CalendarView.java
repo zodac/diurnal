@@ -57,7 +57,7 @@ public enum CalendarView implements PreviewOption {
      */
     public static final CalendarView DEFAULT = FULL;
 
-    private final OptionPreview preview;
+    private final OptionPreview preview; // NOPMD: NonSerializableClass - an enum serialises by NAME only, so this field is never written
 
     CalendarView(final OptionPreview preview) {
         this.preview = preview;

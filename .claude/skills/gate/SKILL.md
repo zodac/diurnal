@@ -59,6 +59,19 @@ That looks exactly like the gate died mid-run and invites a needless ~8-minute r
 re-running, check the artifacts: `.qodana/results/qodana-short.sarif.json` (`executionSuccessful`, `results: []`),
 an empty `tests/test-results/`, and a fresh `tests/playwright-report/index.html`.
 
+**A green exit code is not a clean build — check the WARNING count too.** Several tiers warn without failing, and
+the Javadoc plugin is the one that bites: it reports `missing @serial tag`, `no @param for …` and similar as
+`[WARNING]`, so the build stays green and CI shows the noise. Grepping the log for `violation|ERROR|BUILD FAIL`
+(the obvious filter) matches none of it. After any change, compare the count against master's:
+
+```bash
+grep -cE "^\[WARNING\] [0-9]+ warnings|warning:" /tmp/build.log
+```
+
+The case that prompted this: adding `implements Serializable` to a record to silence one PMD rule introduced five
+Javadoc warnings, and three separate local `-Dlint` runs reported "clean" because every grep was scoped to
+failures. Both the rule and the warnings turned out to be avoidable - see `OptionPreview`'s Javadoc.
+
 ## 4. Triage: is this failure actually mine?
 
 Work down this list before changing any product code.

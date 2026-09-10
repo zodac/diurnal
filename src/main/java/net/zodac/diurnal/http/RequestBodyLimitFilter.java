@@ -122,6 +122,7 @@ public class RequestBodyLimitFilter implements ContainerRequestFilter {
         try {
             return OptionalLong.of(Long.parseLong(contentLengthHeader));
         } catch (final NumberFormatException e) {
+            LOGGER.trace("Error parsing content length", e);
             return OptionalLong.empty();
         }
     }
