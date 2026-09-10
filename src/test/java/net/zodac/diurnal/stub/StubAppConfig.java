@@ -17,6 +17,8 @@
 
 package net.zodac.diurnal.stub;
 
+import io.quarkus.runtime.configuration.MemorySize;
+import java.math.BigInteger;
 import java.util.Optional;
 import net.zodac.diurnal.config.AppConfig;
 
@@ -30,6 +32,8 @@ import net.zodac.diurnal.config.AppConfig;
  * @param basePath the URL prefix the deployment is mounted under, or empty for the origin root
  */
 public record StubAppConfig(String repositoryUrl, String buildTimestamp, Optional<String> basePath) implements AppConfig {
+
+    private static final long DEFAULT_MAX_REQUEST_BODY_BYTES = 1_048_576L;
 
     /**
      * A stub with blank strings, for tests that do not care about any {@code app.*} value.
@@ -58,5 +62,10 @@ public record StubAppConfig(String repositoryUrl, String buildTimestamp, Optiona
     @Override
     public boolean trustForwardedHeaders() {
         return false;
+    }
+
+    @Override
+    public MemorySize maxRequestBody() {
+        return new MemorySize(BigInteger.valueOf(DEFAULT_MAX_REQUEST_BODY_BYTES));
     }
 }

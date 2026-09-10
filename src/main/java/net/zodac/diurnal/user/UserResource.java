@@ -31,6 +31,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.EntityTag;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
@@ -188,7 +189,7 @@ public class UserResource {
     @APIResponse(responseCode = "403", description = "The account holds no password to change (OIDC-only sign-in).")
     public Response changePassword(
         final @Nullable ChangePasswordRequest request,
-        @Parameter(hidden = true) @HeaderParam("Authorization") @Nullable final String authorization,
+        @Parameter(hidden = true) @HeaderParam(HttpHeaders.AUTHORIZATION) @Nullable final String authorization,
         @Parameter(hidden = true) @CookieParam("diurnal_session") @Nullable final String sessionCookie,
         @Context final RoutingContext routingContext) {
         final String currentPassword = request == null ? null : request.currentPassword();

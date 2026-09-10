@@ -25,6 +25,7 @@ import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 import net.zodac.diurnal.http.AppPaths;
 import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
@@ -67,7 +68,7 @@ public class NotFoundExceptionMapper {
                 return Response.seeOther(appPaths.loginUri()).build();
             }
             return ErrorPages.render(errorTemplate, Response.Status.NOT_FOUND, identity,
-                routingContext.request().getHeader("Accept-Language"));
+                routingContext.request().getHeader(HttpHeaders.ACCEPT_LANGUAGE));
         });
     }
 
@@ -76,7 +77,7 @@ public class NotFoundExceptionMapper {
         if (path.startsWith("/api") || path.startsWith("/q/")) {
             return false;
         }
-        final String accept = routingContext.request().getHeader("Accept");
+        final String accept = routingContext.request().getHeader(HttpHeaders.ACCEPT);
         return accept != null && accept.contains("text/html");
     }
 }

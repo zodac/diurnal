@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.config;
 
+import io.quarkus.runtime.configuration.MemorySize;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
@@ -87,4 +88,26 @@ public interface AppConfig {    /**
     @WithName("build.timestamp")
     @WithDefault("")
     String buildTimestamp();
+
+    /**
+     * The largest request body accepted on any endpoint EXCEPT the data-import endpoints (which need the larger
+     * {@code quarkus.http.limits.max-body-size} ceiling). Enforced by {@code net.zodac.diurnal.http.RequestBodyLimitFilter}, which rejects an
+     * over-sized body with {@code 413} before it is read - so an unauthenticated caller cannot make the server buffer a large body (e.g. a
+     * multi-megabyte login payload) as a cheap memory-exhaustion lever. Driven by {@code MAX_REQUEST_BODY} (default {@code 1M}); a value of zero or
+     * less disables the cap.
+     *
+     * @return the maximum accepted request body for non-import endpoints
+     */
+    @WithName("http.max-request-body")
+    @WithDefault("1M")
+    MemorySize maxRequestBody();
+
+    /**
+     * {@link #maxRequestBody()} as a raw byte count, for the filter's numeric comparison against a request's {@code Content-Length}.
+     *
+     * @return the maximum accepted request body in bytes
+     */
+    default long maxRequestBodyBytes() {
+        return maxRequestBody().asLongValue();
+    }
 }

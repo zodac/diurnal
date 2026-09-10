@@ -18,6 +18,7 @@
 package net.zodac.diurnal.web;
 
 import jakarta.ws.rs.core.Response;
+import net.zodac.diurnal.http.HttpHeader;
 
 /**
  * Factory for the HTMX error responses shared by the web resources, so the banner markup and the {@code HX-Retarget}/{@code HX-Reswap} routing are
@@ -46,8 +47,8 @@ public final class HtmxResponses {
         final String html = "<div class=\"banner banner-error js-digits js-phrase\">" + message + "</div>";
         return Response.status(Response.Status.CONFLICT)
                 .entity(html)
-                .header("HX-Retarget", targetSelector)
-                .header("HX-Reswap", "innerHTML")
+                .header(HttpHeader.HX_RETARGET.headerName(), targetSelector)
+                .header(HttpHeader.HX_RESWAP.headerName(), "innerHTML")
                 .build();
     }
 }

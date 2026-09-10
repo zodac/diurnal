@@ -34,6 +34,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
@@ -53,6 +54,7 @@ import net.zodac.diurnal.auth.session.SessionCookies;
 import net.zodac.diurnal.auth.session.SessionStore;
 import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.http.ClientAddress;
+import net.zodac.diurnal.http.HttpHeader;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.Font;
 import net.zodac.diurnal.user.Language;
@@ -75,7 +77,6 @@ public class AuthWebResource {
     // Carries the exact seconds left on a lockout to the AJAX form handlers (app.js), which post via fetch
     // and so never render the server-side banner — they run a live mm:ss countdown from this value instead.
     // Shared by both the login (GET /login render) and registration (POST /register 429) surfaces.
-    private static final String LOCKOUT_RETRY_AFTER_HEADER = "X-Lockout-Retry-After";
 
     // Short-lived cookie signalling that a just-rejected form login was a lockout (not a bad password).
     // Its value is the seconds left; the GET /login render reads it to show the banner and seed the
@@ -168,7 +169,7 @@ public class AuthWebResource {
         @QueryParam("registered") @DefaultValue("false") final boolean registered,
         @CookieParam(LOCKOUT_COOKIE) final String lockoutCookie,
         @CookieParam(OidcUserProvisioner.ERROR_COOKIE) final String oidcErrorCookie,
-        @HeaderParam("Accept-Language") final String acceptLanguage) {
+        @HeaderParam(HttpHeaders.ACCEPT_LANGUAGE) final String acceptLanguage) {
         // First run: no users exist yet. Send the deployer to the initial user landing page to create the
         // initial local account, and short-circuit any OIDC auto-redirect below — the first account
         // must ALWAYS be local, even in a pure-OIDC deployment (PASSWORD_AUTH_ENABLED=false): that
@@ -241,7 +242,7 @@ public class AuthWebResource {
                 .value("").path(appPaths.getCookiePath()).maxAge(0).build());
             // The login form posts via fetch (data-ajax-submit) and never renders this HTML, so app.js
             // reads the seconds left from this header and runs a live countdown in the banner.
-            builder.header(LOCKOUT_RETRY_AFTER_HEADER, Math.max(1L, lockoutRemaining.toSeconds()));
+            builder.header(HttpHeader.X_LOCKOUT_RETRY_AFTER.headerName(), Math.max(1L, lockoutRemaining.toSeconds()));
         }
         return builder.build();
     }
@@ -276,8 +277,8 @@ public class AuthWebResource {
         @Context @Nullable final RoutingContext routingContext) {
         final String clientIp = ClientAddress.of(routingContext);
         final Instant now = clock.now();
-        final LoginResult result = authenticationService.authenticate(
-            email == null ? "" : email, password == null ? "" : password, clientIp, now);
+        LOGGER.debug("Web login attempt from {} - forwarded headers: {}", clientIp, ClientAddress.forwardedSummary(routingContext));
+        final LoginResult result = authenticationService.authenticate(email == null ? "" : email, password == null ? "" : password, clientIp, now);
 
         return switch (result) {
             case final LoginResult.Success success -> {
@@ -314,7 +315,7 @@ public class AuthWebResource {
     @GET
     @Path("welcome")
     @Produces(MediaType.TEXT_HTML)
-    public Response welcomePage(@HeaderParam("Accept-Language") final String acceptLanguage) {
+    public Response welcomePage(@HeaderParam(HttpHeaders.ACCEPT_LANGUAGE) final String acceptLanguage) {
         if (!setupRequired()) {
             return Response.seeOther(appPaths.loginUri()).build();
         }
@@ -337,7 +338,7 @@ public class AuthWebResource {
     @GET
     @Path("register")
     @Produces(MediaType.TEXT_HTML)
-    public Response registerPage(@HeaderParam("Accept-Language") final String acceptLanguage) {
+    public Response registerPage(@HeaderParam(HttpHeaders.ACCEPT_LANGUAGE) final String acceptLanguage) {
         // During the initial run the page must render even with password auth disabled — the initial (break-glass) account is always created locally.
         if (!passwordAuthConfig.enabled() && !setupRequired()) {
             return Response.status(Response.Status.NOT_FOUND).build();
@@ -362,7 +363,7 @@ public class AuthWebResource {
         @FormParam("password")        final String password,
         @FormParam("confirmPassword") final String confirmPassword,
         @Context @Nullable final RoutingContext routingContext,
-        @HeaderParam("Accept-Language") final String acceptLanguage) {
+        @HeaderParam(HttpHeaders.ACCEPT_LANGUAGE) final String acceptLanguage) {
 
         // Mirrors registerPage: setup always permits creating the initial (break-glass) account locally.
         if (!passwordAuthConfig.enabled() && !setupRequired()) {
@@ -396,7 +397,7 @@ public class AuthWebResource {
                 // header and runs a live mm:ss countdown; the rendered banner (exact-seconds message) is
                 // the no-JS fallback shown by a native form submit.
                 Response.status(Response.Status.TOO_MANY_REQUESTS)
-                        .header(LOCKOUT_RETRY_AFTER_HEADER, LockoutMessages.retrySeconds(locked.remaining()))
+                        .header(HttpHeader.X_LOCKOUT_RETRY_AFTER.headerName(), LockoutMessages.retrySeconds(locked.remaining()))
                         .entity(renderRegister(emailValue, displayNameValue, List.of(), List.of(),
                         false, LockoutMessages.retrySeconds(locked.remaining()), acceptLanguage))
                         .build();

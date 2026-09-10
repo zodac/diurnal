@@ -23,11 +23,13 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.Priorities;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerRequestFilter;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
 import java.util.Set;
 import net.zodac.diurnal.config.AppConfig;
+import net.zodac.diurnal.http.HttpHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -69,10 +71,6 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
     private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
     private static final String SESSION_COOKIE = "diurnal_session";
     private static final String OIDC_COOKIE = "q_session";
-    private static final String FORWARDED_HOST_HEADER = "X-Forwarded-Host";
-    private static final String HOST_HEADER = "Host";
-    private static final String ORIGIN_HEADER = "Origin";
-    private static final String REFERER_HEADER = "Referer";
 
     private final Instance<AppConfig> appConfig;
 
@@ -98,23 +96,23 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
         final boolean cookieAuthenticated = requestContext.getCookies().containsKey(SESSION_COOKIE)
             || requestContext.getCookies().containsKey(OIDC_COOKIE);
         final String expectedAuthority = expectedAuthority(
-            requestContext.getHeaderString(FORWARDED_HOST_HEADER),
-            requestContext.getHeaderString(HOST_HEADER),
+            requestContext.getHeaderString(HttpHeader.X_FORWARDED_HOST.headerName()),
+            requestContext.getHeaderString(HttpHeaders.HOST),
             appConfig.get().trustForwardedHeaders());
 
         if (isCsrfViolation(
             requestContext.getMethod(),
             cookieAuthenticated,
-            requestContext.getHeaderString(ORIGIN_HEADER),
-            requestContext.getHeaderString(REFERER_HEADER),
+            requestContext.getHeaderString(HttpHeader.ORIGIN.headerName()),
+            requestContext.getHeaderString(HttpHeader.REFERER.headerName()),
             expectedAuthority)) {
             // A genuine CSRF attempt or a misconfigured reverse proxy sending the wrong X-Forwarded-Host both trip this - log the
             // request origin against the addressed host so either can be told apart. Kept to a single line as it is security-relevant.
             LOGGER.warn("Rejected cross-site {} /{} - origin '{}' (referer '{}') does not match this site '{}'",
                 requestContext.getMethod(),
                 requestContext.getUriInfo().getPath(),
-                requestContext.getHeaderString(ORIGIN_HEADER),
-                requestContext.getHeaderString(REFERER_HEADER),
+                requestContext.getHeaderString(HttpHeader.ORIGIN.headerName()),
+                requestContext.getHeaderString(HttpHeader.REFERER.headerName()),
                 expectedAuthority);
             requestContext.abortWith(Response
                 .status(Response.Status.FORBIDDEN)

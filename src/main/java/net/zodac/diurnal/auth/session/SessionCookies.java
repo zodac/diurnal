@@ -20,6 +20,7 @@ package net.zodac.diurnal.auth.session;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.NewCookie;
 import net.zodac.diurnal.http.AppPaths;
 import org.jspecify.annotations.Nullable;
@@ -106,7 +107,7 @@ public class SessionCookies {
      */
     @Nullable
     public static String userAgent(final @Nullable RoutingContext routingContext) {
-        return routingContext == null ? null : routingContext.request().getHeader("User-Agent");
+        return routingContext == null ? null : routingContext.request().getHeader(HttpHeaders.USER_AGENT);
     }
 
     private static boolean isSecureRequest(final @Nullable RoutingContext routingContext) {
