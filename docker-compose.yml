@@ -2,6 +2,11 @@ networks:
   diurnal-network:
     name: diurnal-network
     driver: bridge
+  # Backend network for app<->database traffic only, no egress
+  diurnal-internal:
+    name: diurnal-internal
+    driver: bridge
+    internal: true
 
 services:
 
@@ -37,7 +42,7 @@ services:
       NOTE_ENCRYPTION_KEY: "${NOTE_ENCRYPTION_KEY:?NOTE_ENCRYPTION_KEY must be set}"
       TZ: "Pacific/Auckland"
       # Authentication config
-      ENABLE_REGISTRATION: "false"
+      ENABLE_REGISTRATION: "true"
       PASSWORD_AUTH_ENABLED: "true"
       # OIDC config
       OIDC_AUTO_REDIRECT: "false"
@@ -62,9 +67,12 @@ services:
         max-size: "10m"
         max-file: "3"
     networks:
-      - diurnal-network
+      - diurnal-internal  # reaches the database, which lives only on this internal network
+      - diurnal-network   # egress for OIDC discovery + the GitHub update-check
     ports:
-      - "8080:8080"
+      - "${DIURNAL_BIND_IP:-127.0.0.1}:8080:8080"
+    # Immutable root filesystem - the app writes nothing outside /tmp
+    read_only: true
     restart: unless-stopped
     security_opt:
       - no-new-privileges=true
@@ -109,7 +117,7 @@ services:
         max-size: "10m"
         max-file: "3"
     networks:
-      - diurnal-network
+      - diurnal-internal
     restart: unless-stopped
     security_opt:
       - no-new-privileges=true
