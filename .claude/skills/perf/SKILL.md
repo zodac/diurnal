@@ -28,7 +28,7 @@ it, and do not start from scratch.
 | Class data sharing / AppCDS for faster boot         | **Built, measured, REMOVED** — 0.05s of user-visible gain                | [startup](references/startup.md)   |
 | Moving startup work off the boot thread             | **Done** — the admin update check, ~0.3s of readiness                    | [startup](references/startup.md)   |
 | Converting `Pages.slice` to `LIMIT`/`OFFSET`        | **Rejected** — measurably SLOWER at these sizes (two round trips)        | [caching](references/caching.md)   |
-| Caching the Stats page's computed figures           | **Done** — `V43`'s `subject_stats_cache`, O(subjects) not O(history)     | [caching](references/caching.md)   |
+| Caching the Stats page's computed figures           | **Done** — `subject_stats_cache`, O(subjects) not O(history)             | [caching](references/caching.md)   |
 | An in-JVM cache in front of the stats cache         | **Rejected** — saves 0.15 ms, breaks in the deployment that motivates it | [caching](references/caching.md)   |
 | A self-validating cache keyed on a change-signature | **Rejected** — the signature costs 4.3-13.5 ms, more than it saves       | [caching](references/caching.md)   |
 | A session-token cache                               | **Rejected** — trigger is a SECOND instance, and the answer is Redis     | [database](references/database.md) |
@@ -36,9 +36,9 @@ it, and do not start from scratch.
 | A GIN index for action filtering                    | **Rejected** — done in Java over ~30 rows, already index-only            | [database](references/database.md) |
 | `INCLUDE (updated_at)` on the ETag indexes          | **Rejected** — all four already sub-millisecond                          | [database](references/database.md) |
 | `INCLUDE (action_id, count)` on the dashboard index | **Rejected** — 0.77→0.55 ms for +11 MB                                   | [database](references/database.md) |
-| An index on `users.created_at`                      | **Done at 50,000 accounts** (`V42`) after being right to defer twice     | [database](references/database.md) |
+| An index on `users.created_at`                      | **Done at 50,000 accounts**, after being right to defer twice            | [database](references/database.md) |
 | An index on `ip_lockouts.ip_address`                | **Not needed** — the table is pruned weekly and does not grow            | [database](references/database.md) |
-| A natural primary key for `notes` (as `V39` did)    | **Rejected** — the ciphertext payload dominates; 20 MB either way        | [database](references/database.md) |
+| A natural primary key for `notes`                   | **Rejected** — the ciphertext payload dominates; 20 MB either way        | [database](references/database.md) |
 | A denormalised "first logged" column                | **Rejected** — saves ~0.3 ms, six write paths, fails silently            | [database](references/database.md) |
 | Hunting an N+1                                      | **None left** — the one that existed is fixed; here is how to check      | [database](references/database.md) |
 | Speeding up notes search                            | **The one path that grows and no index can reach** — `suggest` is 70-80% | [database](references/database.md) |

@@ -140,7 +140,7 @@ public class StatsService {
     // therefore treated as one, which is deliberate: the only user it affects is one with no actions and no notes, for whom recomputing is two
     // trivial queries over no rows, and the alternative would be a tombstone row keyed on a subject that does not exist.
     //
-    // The subjects themselves are rebuilt live rather than read back, because nothing about a name or a colour is stored (see SubjectStatsCache);
+    // The subjects themselves are rebuilt live rather than read back, because nothing about a name or a colour is stored, like SubjectStatsCache,
     // that is what keeps a rename, a recolour and the note-colour preference off the invalidation surface. Rebuilding here also reproduces
     // the computeAllSubjects ordering exactly - notes first, then the actions name-ascending - since a cached row whose subject no longer resolves is
     // simply skipped.
@@ -187,8 +187,8 @@ public class StatsService {
         return List.copyOf(subjects);
     }
 
-    // Every action that has at least one logged entry, name-ascending. Split out of forAllSubjects only so the notes subject can be prepended to it;
-    // nothing outside this class wants the actions alone (the Stats page and GET /api/v1/stats both show every subject). Takes `today` rather than
+    // Every action that has at least one logged entry, name-ascending. Split out of forAllSubjects only so the notes subject can be prepended to it,
+    // so nothing outside this class wants the actions alone (the Stats page and GET /api/v1/stats both show every subject). Takes `today` rather than
     // resolving it, so answering one request never reads the user twice.
     private static List<SubjectStats> activeActions(final UUID userId, final LocalDate today) {
         final List<Action> actions = Action.findByUser(userId);   // name-ascending

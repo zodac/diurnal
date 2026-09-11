@@ -34,7 +34,7 @@ public interface NotesConfig {
      *
      * <p>
      * <strong>There is no database limit to match this to.</strong> A note is stored sealed in an unbounded {@code bytea} (the plaintext
-     * {@code notes.content} column was dropped in {@code V28}), so this bound exists only in
+     * {@code notes.content} column does not exist), so this bound exists only in
      * {@link net.zodac.diurnal.text.TextValidation} and changing it needs no migration. What it really governs is the size of the responses and the
      * work the notes feature does: the dashboard warms a three-month window of note CONTENT in one request, the public range feed returns 31 notes
      * at a time, and every search opens the account's whole journal to match on the plaintext - so each of those scales directly with this value.

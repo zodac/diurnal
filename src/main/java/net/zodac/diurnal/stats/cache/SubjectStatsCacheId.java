@@ -31,7 +31,7 @@ import org.jspecify.annotations.Nullable;
  * {@code computedForDate} is deliberately <strong>not</strong> part of this key. The cached figures depend on the user's "today" as well as on their
  * logged entries, so the row goes stale when the date rolls over - but carrying the date as a plain column and treating a mismatch as a miss lets the
  * row be overwritten in place, where putting it in the key would accumulate a fresh row set for every day any user opened the Stats page. See
- * {@link SubjectStatsCache} and {@code V43__subject_stats_cache.sql}.
+ * {@link SubjectStatsCache} and the {@code subject_stats_cache} section of {@code V1__initial_schema.sql}.
  *
  * <p>
  * This is a plain class rather than one of the project's records because the JPA id-class contract requires a {@link Serializable} type with a public

@@ -1,1 +1,0 @@
-ALTER TABLE users ADD COLUMN calendar_view VARCHAR(10) NOT NULL DEFAULT 'full';

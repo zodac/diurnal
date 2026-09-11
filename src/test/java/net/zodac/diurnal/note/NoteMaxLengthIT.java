@@ -41,7 +41,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>
  * The retention half is the part worth pinning. A note's bound is enforced only when one is written, and there is no column width behind it (the
- * plaintext column was dropped in {@code V28}), so an over-long note simply keeps working: it reads back in full, and the note box - which carries no
+ * plaintext column does not exist), so an over-long note simply keeps working: it reads back in full, and the note box - which carries no
  * {@code maxlength} - shows all of it rather than silently cutting it. What such a note cannot do is be saved again unedited, which is the deliberate
  * cost of the retention.
  */

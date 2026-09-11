@@ -75,8 +75,8 @@ public final class TextFields {
      * carry, and as the compile-time value a test can bound itself by.
      *
      * <p>
-     * <strong>It is not pinned to a column, and cannot be.</strong> The plaintext {@code notes.content} column was dropped in {@code V28}; a note is
-     * now stored sealed in an unbounded {@code bytea}, whose length depends on the value rather than on this bound. That is what makes the bound
+     * <strong>It is not pinned to a column, and cannot be.</strong> There is no plaintext {@code notes.content} column; a note is stored sealed in
+     * an unbounded {@code bytea}, whose length depends on the value rather than on this bound. That is what makes the bound
      * configurable at all - there is no width for a migration to keep in step. {@code TextFieldsSchemaIT} asserts the absence of that column instead.
      */
     public static final int NOTE_MAX_LENGTH = 10_000;

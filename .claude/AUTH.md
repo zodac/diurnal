@@ -53,7 +53,7 @@ OIDC variant, whose specific reason rides the `diurnal_oidc_error` cookie (see b
   `AuthWebResource.doLogin`; unauthenticated → `/login`. `@RolesAllowed("user")` at the method level.
 - **REST API (`/api/v1/*`)** — the **same** opaque session token sent as `Authorization: Bearer` (from `POST /api/v1/auth/login`).
 
-Both surfaces share ONE server-side session store (`SessionStore` → `PostgresSessionStore`, the `sessions` table; migration `V20`). There is **no JWT
+Both surfaces share ONE server-side session store (`SessionStore` → `PostgresSessionStore`, the `sessions` table). There is **no JWT
 and no encrypted-cookie key** — a login mints a 32-byte random token (`SessionTokens.generate()`) and persists only its SHA-256 hash (`token_hash`),
 so a
 DB read leak yields no usable sessions. `SessionAuthMechanism` (a custom `HttpAuthenticationMechanism`, priority above the built-ins) is the single
@@ -86,7 +86,7 @@ handler has no CDI request context at all, so with no transaction either, Hibern
 **Revocation = deleting rows:** logout (`revoke`, this device only), password change (`revokeOthersForUser`, all *but* the current), "Log out from
 everywhere" (`revokeAllForUser`, incl. current — `POST /internal/settings/sessions/revoke-all` from Settings, or its API twin
 `POST /api/v1/auth/revoke`), and **account deletion** (`AdminUserService.deleteUser` calls `revokeAllForUser` and logs it at `DEBUG` before deleting).
-That last one is redundant against the `sessions.user_id` `ON DELETE CASCADE` in `V20` — deliberately so: it keeps "a deleted account can no longer
+That last one is redundant against the `sessions.user_id` `ON DELETE CASCADE` — deliberately so: it keeps "a deleted account can no longer
 authenticate" stated in the code and visible in the log, rather than being a property of the schema that nothing in Java mentions, and it is the
 prerequisite for any future caching of session lookups (a cascade is invisible to a cache). OIDC folds in: `OidcWebResource.oidcCallback` mints a
 Diurnal session
@@ -151,7 +151,7 @@ freeze/advance the clock; keep the branching in `AttemptThrottle`/`IpThrottle` (
 
 **Admin lockout view + history (`IpLockoutService`).** When the lockout is enabled, administrators get a management surface for it, on the
 `/admin/users` page under User Management and gated on `AUTH_IP_THROTTLE_ENABLED` (disabled → the section is hidden and every endpoint `404`s, the
-`register`-when-off precedent). The web UI shows a **single table** of every lockout within the one-week retention window (`IpLockout` entity + `V23`
+`register`-when-off precedent). The web UI shows a **single table** of every lockout within the one-week retention window (`IpLockout` entity + the `ip_lockouts`
 migration), most recent first — active, expired and manually-unlocked alike — paginated by the viewer's page-size preference, with an **Unlock**
 button on the active rows only; the whole section (heading included) is omitted when there are no lockouts to show. The live in-memory
 `AttemptThrottle` snapshot (`IpThrottle.currentLockouts`) is no longer surfaced as its own table — it is exposed only via the public API's
@@ -172,7 +172,7 @@ UI's HTMX endpoints (`/internal/admin/ip-lockouts/*`, `AdminIpLockoutsInternalRe
 attributes; there is no JWT/`JsonWebToken` in play.
 
 OIDC users store `oidcSubject` + `oidcIssuer` and **no password** — connecting an identity provider is a one-way conversion that removes the
-password in the same step (`AccountLinkService.link`; migration `V22` normalised pre-existing rows), so there is no hybrid state and no disconnect
+password in the same step (`AccountLinkService.link`), so there is no hybrid state and no disconnect
 (`User.authSource()`: `local`/`oidc` — the `local+oidc` label survives only as a defensive fallback — shown in the admin users table and
 `AdminUserDto`); composite unique index
 `(oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL`. OIDC is disabled by default (`OIDC_ENABLED=false`); `OIDC_SCOPES` (default

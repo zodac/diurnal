@@ -87,14 +87,29 @@ allows_edit() {
 
 # An existing migration and a name no migration uses, both resolved from the real tree so the tests keep
 # testing something after the next migration lands.
+#
+# `git ls-files` lists the INDEX, which keeps naming a migration that has been deleted in the working tree until
+# that deletion is staged - and the guard tests the working tree (`-f`), so an unstaged deletion would otherwise
+# leave this pointing at a file the guard correctly ALLOWS, failing every block assertion below for a reason that
+# has nothing to do with the guard. Take the highest-versioned tracked script that is actually still on disk.
 MIGRATION_DIR="src/main/resources/db/migration/postgresql"
 readonly MIGRATION_DIR
-EXISTING_MIGRATION="$(cd -- "${PROJECT_DIR}" && git ls-files "${MIGRATION_DIR}/*.sql" | sort -V | tail -1)"
-readonly EXISTING_MIGRATION
 readonly NEW_MIGRATION="${MIGRATION_DIR}/V9999__not_yet_written.sql"
 
+TRACKED_MIGRATIONS="$(cd -- "${PROJECT_DIR}" && git ls-files "${MIGRATION_DIR}/*.sql" | sort -V)"
+readonly TRACKED_MIGRATIONS
+
+EXISTING_MIGRATION=""
+while IFS= read -r tracked_migration; do
+    [[ -n "${tracked_migration}" ]] || continue
+    if [[ -f "${PROJECT_DIR}/${tracked_migration}" ]]; then
+        EXISTING_MIGRATION="${tracked_migration}"
+    fi
+done <<<"${TRACKED_MIGRATIONS}"
+readonly EXISTING_MIGRATION
+
 if [[ -z "${EXISTING_MIGRATION}" ]]; then
-    echo "Cannot run: no migrations found under ${MIGRATION_DIR}" >&2
+    echo "Cannot run: no tracked migration under ${MIGRATION_DIR} exists in the working tree" >&2
     exit 1
 fi
 

@@ -56,13 +56,13 @@ class TextFieldsSchemaIT extends IntegrationTestBase {
      * would need a migration to move. A plaintext column reappearing would quietly take that away as well as undoing the encryption.
      *
      * <p>
-     * What this asserts instead is that the plaintext column has not come back: it was dropped in {@code V28}, and a note reappearing in a readable
+     * What this asserts instead is that the plaintext column has not come back: notes are encrypted at rest, and one reappearing in a readable
      * column is the one regression in this area that would matter.
      */
     @Test
     void note_hasNoPlaintextColumnToBound() {
         assertThat(columnExists("content"))
-            .as("notes.content was dropped in V28 - a note must not be storable in readable form by any path")
+            .as("there is no plaintext notes.content column - a note must not be storable in readable form by any path")
             .isFalse();
         assertThat(columnExists("content_encrypted"))
             .as("the sealed column must be the one a note is stored in")

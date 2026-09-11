@@ -145,7 +145,7 @@ public class NoteService {
      */
     public Map<LocalDate, String> readContents(final UUID userId, final List<SealedNote> notes) {
         // Nothing selected needs no key, which is the common case for a date window the user has not written in - and it keeps an account that
-        // legitimately has no key (one predating V28, so with no notes at all) off the key path entirely.
+        // legitimately has no key (one predating note encryption, so with no notes at all) off the key path entirely.
         if (notes.isEmpty()) {
             return Map.of();
         }
@@ -323,8 +323,8 @@ public class NoteService {
             return clear(user, day);
         }
 
-        // Minted here if the account has none - an account created before notes were encrypted, which V28 guarantees holds no
-        // notes. This is the write path, so it is transactional and can create one. It REFUSES to mint for an account whose
+        // Minted here if the account has none - an account created before notes were encrypted, which provably holds no notes.
+        // This is the write path, so it is transactional and can create one. It REFUSES to mint for an account whose
         // notes are still stored, since a fresh key would orphan them permanently; see NoteKeys.forUserCreatingIfAbsent.
         final byte[] dataKey = noteKeys.forUserCreatingIfAbsent(user.id)
             .orElseThrow(() -> new IllegalStateException("Unable to open the notes data key - check NOTE_ENCRYPTION_KEY"));

@@ -82,10 +82,10 @@ public class NoteKeys {
      * Opens the user's data key, or reports empty when there is none.
      *
      * <p>
-     * An empty result means the account has no key, which is only possible for one created before this feature existed: {@code V28} created
-     * {@code user_notes_keys} without backfilling it, and no migration since adds a row. <strong>Such an account provably has no notes</strong> —
-     * the same migration emptied the table — so "no key" and "no notes" are the same state, and every account created since has had a key minted
-     * with it ({@code NotesKeyAssignmentTest} fails any new user-creation path that does not).
+     * An empty result means the account has no key, which is only possible for one created before notes were encrypted: the migration that added
+     * {@code user_notes_keys} back-filled no row, and none since adds one. <strong>Such an account provably has no notes</strong> — that same
+     * migration emptied the table — so "no key" and "no notes" are the same state, and every account created since has had a key minted with it
+     * ({@code NotesKeyAssignmentTest} fails any new user-creation path that does not).
      *
      * <p>
      * <strong>An account holding notes with no key is therefore not a legacy account - it is data loss</strong>, and the only thing that can produce
@@ -129,7 +129,7 @@ public class NoteKeys {
             return open(existing);
         }
 
-        // Minting is correct for exactly one population - an account predating V28, which that migration guarantees holds no notes (see forUser).
+        // Minting is correct for exactly one population - an account predating note encryption, which provably holds no notes (see forUser).
         // An account that HAS notes and no key is data loss, and minting over it is what turns a recoverable incident (restore the row, every note
         // opens again) into a permanent one, silently: the new key is well-formed, unwraps perfectly, and opens not one existing note. The count
         // costs a query only here, where the key is already missing, so no ordinary save pays for it.

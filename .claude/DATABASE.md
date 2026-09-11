@@ -1,10 +1,10 @@
 # Database: Schema, Migrations, Queries & the Vendor Seam
 
-> **This file is ~20 KB. Read only the section you need** - `grep -n '^#' .claude/DATABASE.md` for its
+> **This file is ~21 KB. Read only the section you need** - `grep -n '^#' .claude/DATABASE.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Schema at a glance**
-> - **Migrations** — Migrations are immutable, Conventions a new migration follows, Which migration records which decision
+> - **Migrations** — Migrations are immutable, Conventions a new migration follows, Which section records which decision
 > - **Writing a query** — 1. Decide where the statement lives, 2. Bind every named parameter through a typed token, 3. Give a multi-column read a
 >   projection record, 4. Invalidate the stats cache if you wrote anything, 5. Which test will fail if you skip a step
 > - **The vendor seam**
@@ -30,8 +30,8 @@ extend `PanacheEntityBase` directly.
 |-----------------------|---------------------|----------------|---------------------------------------------------------------|
 | `users`               | `User`              | `user`         | Two jsonb columns (`stats_fields`, `page_sizes`)              |
 | `actions`             | `Action`            | `action`       | `actions_user_name_unique (user_id, name)` answers every read |
-| `action_logs`         | `ActionLog`         | `log`          | Natural PK `(user_id, action_id, log_date)` since `V39`       |
-| `notes`               | `Note`              | `note`         | `content_encrypted bytea`; no plaintext column since `V28`    |
+| `action_logs`         | `ActionLog`         | `log`          | Natural PK `(user_id, action_id, log_date)`; no surrogate id  |
+| `notes`               | `Note`              | `note`         | `content_encrypted bytea`; there is no plaintext column       |
 | `user_notes_keys`     | `UserNotesKey`      | `note`         | Per-account data key, wrapped under the configured master key |
 | `sessions`            | `Session`           | `auth.session` | The app's ONLY `@ManyToOne` — see "Known traps"               |
 | `ip_lockouts`         | `IpLockout`         | `auth.lockout` | Pruned to a week; deliberately unindexed on `ip_address`      |
@@ -39,7 +39,7 @@ extend `PanacheEntityBase` directly.
 
 The app has essentially **no JPA relations** (`Session.user` is the only one), which is what keeps the query layer
 free of N+1s. Account deletion is carried by `ON DELETE CASCADE` from `users(id)` — six such clauses across the
-migrations, one per table that hangs off an account — not by application code walking the tables. (The seventh
+schema, one per table that hangs off an account — not by application code walking the tables. (The seventh
 cascade in the schema is `action_logs.action_id` → `actions(id)`, which is what makes an action delete take its
 logs with it.)
 
@@ -48,9 +48,15 @@ logs with it.)
 Flyway scripts live in `src/main/resources/db/migration/postgresql/`, sequential (`V1__`, `V2__`, …).
 `quarkus.flyway.locations` is `classpath:db/migration/${quarkus.datasource.db-kind}`, so the datasource and the
 migrations can never disagree, and a second vendor adds a **sibling directory** rather than branching inside these.
-Flyway records a script by its name relative to the location root and matches on version + checksum, **not** on path
-— verified by pointing the app at a database whose history was written under the old flat `db/migration/` path: all
-42 migrations validated and the app booted clean, so that move was transparent to existing deployments.
+Flyway records a script by its name relative to the location root and matches on version + checksum, **not** on path.
+
+**There is currently one script: `V1__initial_schema.sql`, the whole schema in a single pass.** It is a COLLAPSE, done
+once, for the 1.0.0 release: the 44 incremental migrations that had built the schema were replaced by the state they
+produced, and the rationale their headers carried was moved into this one's section comments. That was free at exactly
+that moment and only then — every database those 44 scripts had built belonged to a pre-1.0.0 version whose image was
+never published (the publish workflow gated the push on `major >= 1`), so the set of deployments needing an upgrade
+path was empty. **It does not set a precedent.** From 1.0.0 the set is never empty again, the rule below applies
+unchanged, and there will be no second collapse.
 
 `quarkus.hibernate-orm.schema-management.strategy=none` — Hibernate generates and validates nothing. **Flyway owns
 the schema outright.**
@@ -72,60 +78,68 @@ the schema outright.**
 blocks an `Edit`/`Write` against any file that already exists under `src/main/resources/db/migration/`. Creating a
 new `V{n+1}` script is allowed and is the only sanctioned way to express a change.
 
-**`V40` is the worked example, and it is worth reading before arguing with the rule.** It changes no schema at all:
-it exists only to correct two statements `V39` made in its own header comment. Amending `V39` in place would have
-been the smaller diff and the wrong move — Flyway checksums the bytes, so an edit after the file has run anywhere
-turns the next startup into a `Migration checksum mismatch`. The correction went into a new file beside the thing
-it corrects, and `V39` stays exactly as it was applied. **The rule covers a comment exactly as it covers a
-statement.**
+**The rule covers a comment exactly as it covers a statement**, and the pre-1.0.0 history contains the worked
+example: a migration that changed no schema at all and existed only to correct two sentences an earlier one had
+written about itself in its own header. Amending the earlier file would have been the smaller diff and the wrong
+move — Flyway checksums the bytes, so an edit after the file has run anywhere turns the next startup into a
+`Migration checksum mismatch`. The correction went into a new file beside the thing it corrected.
+
+**`V1__initial_schema.sql` is not an exception to any of this — it is bound by it.** It was collapsed once, before
+1.0.0, while no deployment existed to break (see above); 1.0.0 ships it, so from that release it is as immutable as
+every script that follows it.
 
 ### Conventions a new migration follows
 
-Every one of these is followed consistently across the 43 existing scripts, so a new one that departs from them
-looks wrong on sight:
+`V1__initial_schema.sql` follows every one of these, so a new script that departs from them looks wrong on sight:
 
-- **File name**: `V{n}__snake_case_summary.sql`, describing the effect (`V42__users_created_at_index.sql`), not the
+- **File name**: `V{n}__snake_case_summary.sql`, describing the effect (`V2__users_last_seen_index.sql`), not the
   ticket or the date.
-- **A header comment carries the reasoning, and it is expected to be long.** The shape the recent migrations use:
+- **A header comment carries the reasoning, and it is expected to be long.** The shape to follow:
   a one-line summary of what the script does; then *what it replaces* and why the previous shape was wrong; then
   the **measurements** that justify it, as a small table where there is more than one figure; then the **failure
-  mode** — what goes wrong if the change is subtly incorrect, and which test covers it. `V43` is the fullest worked
-  example, `V37`/`V39`/`V41`/`V42` the next fullest. **Write this comment for the person who will ask "why is it
-  like this?" two years from now** — it is the only place that answer will exist.
+  mode** — what goes wrong if the change is subtly incorrect, and which test covers it. The section comments in
+  `V1__initial_schema.sql` are the worked examples; the `subject_stats_cache` and `action_logs` ones are the
+  fullest. **Write this comment for the person who will ask "why is it like this?" two years from now** — it is the
+  only place that answer will exist.
 - **Index naming**: `idx_<table>_<columns>` (`idx_action_logs_user_date`, `idx_users_created_at`).
 - **Constraint naming**: `<table>_<columns>_unique`, `<table>_pkey`, and `<table>_<column>_<rule>` for a `CHECK`
-  (`action_logs_count_range`, `notes_content_not_blank`).
-- **Do not add an index the primary key already answers.** Both `notes` (`V26`) and `subject_stats_cache` (`V43`)
-  record this explicitly: every access leads with `user_id`, which the key's own index already serves. `V37` exists
-  precisely because `V19` added an index that duplicated a unique constraint's backing index.
+  (`action_logs_count_range`, `notes_content_encrypted_not_empty`).
+- **Do not add an index the primary key already answers.** `V1` records this for both `notes` and
+  `subject_stats_cache`: every access leads with `user_id`, which the key's own index already serves. The
+  pre-1.0.0 history contains the mistake this guards against — an index added over exactly the columns a unique
+  constraint's backing index already covered, and dropped again two releases later.
 - **Types**: `DATE` for a user-facing day boundary (a note's date, a log's date, `computed_for_date`), `TIMESTAMPTZ`
   for an audit stamp, and `TIMESTAMPTZ NOT NULL DEFAULT NOW()` for `created_at`/`updated_at`.
-- **Store numbers and dates, never rendered text.** `V43` stores `best_year` as an `INTEGER` rather than the
-  `"2025"`/`"—"` label the page shows, and stores no action name or colour at all, so a rename or a colour change
-  touches no cached row. A stored presentation string is a stored translation bug.
+- **Store numbers and dates, never rendered text.** `subject_stats_cache.best_year` is an `INTEGER` rather than the
+  `"2025"`/`"—"` label the page shows, and the table stores no action name or colour at all, so a rename or a colour
+  change touches no cached row. A stored presentation string is a stored translation bug.
 - **A half-open day span is two columns**, `_start` and `_end` (exclusive) — never a day count. See the `DaySpan`
   rule in [`CLAUDE.md`](CLAUDE.md)'s invariants.
 - **No vendor type name in a `columnDefinition`.** The two jsonb columns map through `@JdbcTypeCode(SqlTypes.JSON)`;
   the `columnDefinition = "jsonb"` they used to carry was DDL-only dead weight (Hibernate generates nothing here)
   and filed an entity under "rewrite this per vendor".
 
-### Which migration records which decision
+### Which section records which decision
 
-The reasoning behind the schema lives in the migration headers. This is the index into them, so a question that has
-already been answered is not re-litigated from scratch:
+The reasoning behind the schema lives in `V1__initial_schema.sql`'s section comments, each sitting beside the table
+or index it explains. This is the index into them, so a question that has already been answered is not re-litigated
+from scratch:
 
-| Migration | The decision it records                                                                                      |
-|-----------|--------------------------------------------------------------------------------------------------------------|
-| `V26`     | Why `notes` gets no second index — the primary key already leads with `user_id`                              |
-| `V28`     | Dropping `notes.content`: note content is encrypted at rest, so there is no plaintext column to index        |
-| `V37`     | `V19`'s index duplicated `action_logs_unique`'s backing index; dropping it made the Stats rollup index-only  |
-| `V38`     | `action_logs.action_id`: the one FK whose child side had no index, so an action delete scanned the table     |
-| `V39`     | Dropping `action_logs.id` for the natural key — no code path ever looked a log up by id                      |
-| `V40`     | A comment-only migration correcting `V39`'s own header — the worked example of the immutability rule         |
-| `V41`     | `actions.user_id`: turned the Stats rollup's disk-spilling sort into an Incremental Sort (~105 ms → ~59 ms)  |
-| `V42`     | `users.created_at`: deferred twice at 1,000 accounts, warranted at 50,000 (127 ms → 6.5 ms on the last page) |
-| `V43`     | `subject_stats_cache`: why `computed_for_date` is a column and not part of the key; why no second index      |
-| `V44`     | `subject_stats_cache.best_day`: why a cache gaining a column is EMPTIED rather than back-filled              |
+| Section                     | The decision it records                                                                                       |
+|-----------------------------|---------------------------------------------------------------------------------------------------------------|
+| `users` (table)             | Why preferences sit on the account row; why `timezone`/`week_start` are NULL-means-derived; the jsonb columns |
+| `idx_users_created_at`      | Deferred twice at 1,000 accounts, warranted at 50,000 (127 ms → 6.0-6.7 ms on the last page)                  |
+| `idx_actions_user_id`       | Turned the Stats rollup's disk-spilling sort into an Incremental Sort (105 ms → 53 ms)                        |
+| `action_logs` (table)       | Why it alone has no surrogate id, and why `INCLUDE (count)` makes the Stats rollups index-only                |
+| `idx_action_logs_action_id` | The one FK whose child side would otherwise have no index, so an action delete scanned the whole table        |
+| `notes` (table)             | Encryption at rest and the envelope scheme; why there is no plaintext column and no length column             |
+| `user_notes_keys`           | Why the key material is a separate table, and why the data key is per-user rather than per-application        |
+| `sessions`                  | Why only the token's SHA-256 hash is stored, and why the table holds no role state                            |
+| `ip_lockouts`               | Why enforcement stays in memory and this table is audit-only; why `ip_address` is unindexed                   |
+| `subject_stats_cache`       | Why `computed_for_date` is a column, not part of the key; why nothing rendered is stored; why no second index |
+
+The pre-1.0.0 migrations that originally recorded these are gone (see [Migrations](#migrations)); their measurements
+were carried across verbatim, at the sizes they were taken.
 
 ## Writing a query
 

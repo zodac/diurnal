@@ -43,8 +43,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * The row is identified by its own natural key - the {@code (user, action, day)} it tallies, carried in an {@link ActionLogId} - and holds no
- * surrogate id. It is the one table here with no use for one: nothing ever looks a log entry up by id, so the column was 16 bytes of every row plus
- * a never-read index to maintain on each increment. {@code V39} removed it; see that migration for the measurements.
+ * surrogate id. It is the one table here with no use for one: nothing ever looks a log entry up by id, so a column would be 16 bytes of every row
+ * plus a never-read index to maintain on each increment. See the {@code action_logs} section of {@code V1__initial_schema.sql} for the measurements.
  *
  * <p>
  * {@link IdClass} rather than an {@code @EmbeddedId} so the three key columns stay flat fields on the entity, which is what lets every query keep
