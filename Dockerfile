@@ -365,4 +365,21 @@ COPY --from=build /build/target/quarkus-app/app/ ./app/
 COPY --from=build /build/target/quarkus-app/*.jar ./
 
 COPY scripts/start.sh ./start.sh
+
+# ── Image metadata (OCI annotations) ─────────────────────────────────────────
+ARG BUILD_DATE="unknown"
+ARG GIT_REVISION="unknown"
+ARG VERSION="unknown"
+LABEL org.opencontainers.image.authors="zodac <arouge110@msn.com>" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.description="A self-hosted web application for tracking daily habits, with calendar views, statistics and encrypted daily notes" \
+      org.opencontainers.image.documentation="https://github.com/zodac/diurnal/blob/master/README.md" \
+      org.opencontainers.image.licenses="0BSD" \
+      org.opencontainers.image.revision="${GIT_REVISION}" \
+      org.opencontainers.image.source="https://github.com/zodac/diurnal" \
+      org.opencontainers.image.title="Diurnal" \
+      org.opencontainers.image.url="https://hub.docker.com/r/zodac/diurnal" \
+      org.opencontainers.image.vendor="zodac" \
+      org.opencontainers.image.version="${VERSION}"
+
 ENTRYPOINT ["/bin/busybox", "sh", "/app/start.sh"]

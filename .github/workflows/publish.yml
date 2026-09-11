@@ -274,6 +274,18 @@ jobs:
           build-args: GENERATE_PREVIEWS=true
           cache-from: type=registry,ref=zodac/diurnal:cache
 
+      # org.opencontainers.image.created must be RFC 3339, and must be resolved here rather than inside
+      # the build - a Dockerfile cannot read the clock.
+      - name: Resolve the image build date
+        id: build_date
+        if: needs.version.outputs.should_publish == 'true'
+        run: echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${GITHUB_OUTPUT}"
+
+      # The three build-args feed the OCI labels on the runtime stage (see the end of the Dockerfile) and
+      # nothing else. They are consumed by a LABEL, which writes no filesystem layer, so a new revision
+      # and build date every release changes only the image config - the registry cache above is still a
+      # full hit and no layer is re-pushed. Only THIS build passes them: the verification build above is
+      # thrown away, and leaving it unlabelled keeps its (identical) layers reusable here.
       - name: Build and push Docker image
         if: needs.version.outputs.should_publish == 'true'
         uses: docker/build-push-action@v7.3.0
@@ -281,6 +293,10 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          build-args: |
+            BUILD_DATE=${{ steps.build_date.outputs.build_date }}
+            GIT_REVISION=${{ github.sha }}
+            VERSION=${{ env.VERSION }}
           cache-from: type=registry,ref=zodac/diurnal:cache
           cache-to: type=registry,ref=zodac/diurnal:cache,mode=max
           tags: |
