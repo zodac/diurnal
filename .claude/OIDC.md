@@ -31,7 +31,7 @@
 ## Decisions taken (2026-07-18)
 
 - **6. Connecting is a ONE-WAY conversion to OIDC-only sign-in.** `AccountLinkService.link` removes the password in the same step; there is no
-  disconnect, no standalone "remove password", and no hybrid password+OIDC state (migration `V22` normalised pre-existing linked rows). The
+  disconnect, no standalone "remove password", and no hybrid password+OIDC state. The
   Settings Connect confirm warns "Your password will be removed". Rationale: two permanently-live credentials double the account's attack surface
   and make the login rules ambiguous; the IdP is the stronger authority once trusted. The `DELETE /api/v1/users/me/oidc|password` endpoints were
   removed from the public contract before ever shipping in a release.

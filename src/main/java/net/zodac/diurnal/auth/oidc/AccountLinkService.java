@@ -30,7 +30,7 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>
  * Connecting is a one-way conversion: the account's password is removed in the same step, so a linked account signs in through the identity
- * provider ONLY (there is no hybrid state and no disconnect — migration {@code V22} normalises pre-existing rows the same way). The password
+ * provider ONLY (there is no hybrid state and no disconnect). The password
  * removal is deliberate: two permanently-live credentials would double the account's attack surface and make "which login rules apply?" ambiguous,
  * and the IdP is the stronger authority once trusted.
  *

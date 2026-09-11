@@ -341,7 +341,7 @@ kanji + kana" cutoff (~1.1 MB per weight) rather than the full >20,000-glyph CJK
 Neither script offers a real italic in this family, so there is no oblique `@font-face` pair for either (unlike Nova/OpenDyslexic).
 
 Font family is indirect via `--font-body`/`--font-display` CSS variables. The **Font setting** is the `Font` enum (`nova`|`standard`|`dyslexic`,
-default `nova`; column `users.font` is `VARCHAR(16)`, no CHECK, migration V13, so new values need no migration) — the single source of truth for the
+default `nova`; column `users.font` is `VARCHAR(16)` with no CHECK, so new values need no migration) — the single source of truth for the
 picker, each constant carrying its value + label + preview metadata (see the picker-enum note below). `ProfileService.updateFont` REJECTS a value
 that is not one of them (`Font.isValid`, answering `ProfileRejection.InvalidFont` with the allowed set) rather than coercing it. `layout.html`
 renders the class on `<html>` server-side

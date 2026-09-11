@@ -15,13 +15,17 @@ comment-only corrections, and it covers uncommitted migrations too (your local d
 Flyway checksums the bytes and revalidates at every startup, so an edit breaks the boot of every database that ran
 the original.
 
-A `PreToolUse` hook blocks the edit, so you will find out immediately rather than at the next boot. `V40` is the
-worked precedent: it changes no schema and exists only to correct two sentences in `V39`'s header comment.
+A `PreToolUse` hook blocks the edit, so you will find out immediately rather than at the next boot. The rule covers
+a COMMENT exactly as it covers a statement: the pre-1.0.0 history includes a migration that changed no schema and
+existed only to correct two sentences in an earlier one's header.
+
+`V1__initial_schema.sql` is the whole schema in one script - collapsed once, before 1.0.0, while no deployment
+existed to break. That was a one-off and is not a precedent: it is as immutable as anything after it.
 
 ## Step 2 — Write the migration
 
 `src/main/resources/db/migration/postgresql/V{n}__snake_case_summary.sql`, named for the effect
-(`V42__users_created_at_index.sql`), not the ticket.
+(`V2__users_last_seen_index.sql`), not the ticket.
 
 **The header comment is the deliverable as much as the DDL.** The shape the recent scripts use, and the one to
 follow:
@@ -31,8 +35,9 @@ follow:
 3. The measurements that justify it — a small table if there is more than one figure.
 4. The failure mode: what goes subtly wrong if this is incorrect, and which test covers it.
 
-`V43` is the fullest example; `V37`/`V39`/`V41`/`V42` are the next fullest. This comment is the only place the
-"why" will exist in two years, so write it for the person who asks then.
+The section comments in `V1__initial_schema.sql` are the worked examples - `subject_stats_cache` and `action_logs`
+are the fullest. This comment is the only place the "why" will exist in two years, so write it for the person who
+asks then.
 
 Conventions the DDL follows — `idx_<table>_<columns>`, `<table>_<columns>_unique`, `<table>_pkey`, `DATE` for a
 user-facing day boundary and `TIMESTAMPTZ` for an audit stamp, `ON DELETE CASCADE` from `users(id)` for account

@@ -45,8 +45,8 @@ import org.junit.jupiter.api.Test;
  * to leave the whole suite green.
  *
  * <p>
- * It also pins the boundary of that on-demand mint: it is correct only for an account holding NO notes (one predating {@code V28}), and must refuse
- * for an account whose notes are still there, since minting over them makes their loss permanent and silent.
+ * It also pins the boundary of that on-demand mint: it is correct only for an account holding NO notes (one predating note encryption), and
+ * must refuse for an account whose notes are still there, since minting over them makes their loss permanent and silent.
  */
 @QuarkusTest
 class NoteKeysIT extends IntegrationTestBase {
@@ -109,7 +109,7 @@ class NoteKeysIT extends IntegrationTestBase {
 
     @Test
     void openingTheKeyOfAnAccountWithNeitherKeyNorNotes_mintsOne() {
-        // The legitimate keyless account: one created before V28, which emptied the notes table as it added the key table. Nothing to orphan.
+        // The legitimate keyless account: one created before the migration that emptied the notes table as it added the key table. Nothing to orphan.
         final UUID[] owner = new UUID[1];
         runInTx(() -> owner[0] = newUser("note-keys-it-legacy@lt.test", "Legacy").id);
         runInTx(() -> UserNotesKey.delete("userId = ?1", owner[0]));

@@ -9,12 +9,12 @@
   two round trips where there is currently one, at ~4 ms each — and so would be measurably SLOWER at these sizes.
 - **The Stats page is the path that actually degrades with time**, not either of the above: 89.8 ms, because
   streaks, gaps and days-with-multiples are defined over all history, so `ALL_DAILY_TOTALS_JPQL` rolls up every row
-  on each view. `V37`'s `INCLUDE (count)` already made that query index-only, so the remaining cost is transferring
+  on each view. The primary key's `INCLUDE (count)` already makes that query index-only, so the remaining cost is transferring
   and aggregating the rows in Java. It grows roughly 30 ms per year of history. The only real lever left is caching
   computed stats per user with invalidation on write; that is a large change for 90 ms, so the trigger is a user
   reporting the page feels slow, not a number in a profile.
   **Most of that figure has since been removed** and the remainder re-measured at a deliberately worse size
-  (4.78M rows, 1,000 accounts, a 50-action x 10-year account = 182,600 rows): `V41` turned the query's `ORDER BY`
+  (4.78M rows, 1,000 accounts, a 50-action x 10-year account = 182,600 rows): `idx_actions_user_id` turned the query's `ORDER BY`
   from a disk-spilling sort into an Incremental Sort (~105 ms -> ~59 ms warm), and `LOGGED_ACTION_IDS_JPQL` went from
   scanning the whole history to probing per action (23.2 ms -> 0.25 ms).
   **`MONTHLY_TOTALS_JPQL` then left the Stats page altogether**, which is worth recording as a caution: it looked like
@@ -25,7 +25,7 @@
   (verified identical against the database: 6,050 rows each way, zero differing in either direction). **The lesson is
   that "no index helps" is not the same as "this cost is inherent"** - the fix was to stop issuing the query.
   What remains is the single daily rollup, which IS inherent: streaks, gaps and days-with-multiples are defined over
-  all history. **That last lever has now been taken** - `V43` adds `subject_stats_cache`, one row per
+  all history. **That last lever has now been taken** - `subject_stats_cache` holds one row per
   `(user, subject)` holding the computed figures, so the rollup and the Java assembly run once per user per day
   rather than once per view. Re-measured on PostgreSQL 18.6 at 485,450 `action_logs` rows across 302 accounts, warm:
   a 30-action x 3-year account (32,850 rows) is 9.3 ms of query plus 3.7 ms of `assemble()` = ~14 ms, and a

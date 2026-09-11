@@ -1,7 +1,8 @@
 # Indexes, queries and N+1
 
-**From the schema review that produced `V38`/`V39`** — measured with `EXPLAIN (ANALYZE, BUFFERS)` on PostgreSQL 18.6
-at 323,154 `action_logs` rows (one 30-action, 3-year account among 199 lighter ones) and 12,182 notes:
+**From the schema review that produced `action_logs`' natural key and its `action_id` index** — measured with
+`EXPLAIN (ANALYZE, BUFFERS)` on PostgreSQL 18.6 at 323,154 `action_logs` rows (one 30-action, 3-year account among
+199 lighter ones) and 12,182 notes:
 
 - **A GIN index for the notes search is not possible, and would target the wrong 6% if it were.** `content_encrypted`
   is ciphertext, so a GIN needs either plaintext or deterministic per-word tokens — the frequency-analysis exposure
@@ -43,13 +44,13 @@ at 323,154 `action_logs` rows (one 30-action, 3-year account among 199 lighter o
   revisiting: a SECOND application instance, at which point the answer is a Redis `SessionStore` (the interface
   exists for precisely that), not a cache in front of `CurrentUser`, because an in-JVM cache makes revocation stop
   working in the very deployment that motivated it.
-- **`users.created_at` was the deferred index whose trigger actually fired** - `V42` adds it. It was correctly not
+- **`users.created_at` was the deferred index whose trigger actually fired** - it is in the schema now. It was correctly not
   worth it at 200 and at 1,000 accounts (1.17 ms); at 50,000 the admin list's first page was 13-15 ms and its last
   page 127 ms, because the page was `Seq Scan` + top-N heapsort over every account. With the index: 0.2 ms and
   6.5 ms. **The lesson is the deferral note's own advice - re-measure at the size that matters rather than assuming
   the earlier figure still holds.** `ip_lockouts.ip_address` remains unindexed and remains fine: that table is pruned
   to a week of lockouts, so it does not grow with usage at all.
-- **`notes` was measured for the same natural-key change `V39` made to `action_logs` and deliberately left alone**:
+- **`notes` was measured for the same natural-key change `action_logs` took and deliberately left alone**:
   its ~1.5 KB ciphertext payload dominates, and the table came out at 20 MB with or without the surrogate id.
 - **The frequency chart now reads only the window it draws.** Its monthly rollup used to cover the subject's whole
   history so the caller could keep the anchor year's twelve months out of it, and its navigation bound
@@ -79,5 +80,5 @@ at 323,154 `action_logs` rows (one 30-action, 3-year account among 199 lighter o
   session lookup (1.24 ms) and all four ETag signatures. **The admin user list at 1,000 accounts is 1.17 ms**, so at
   that size the `users.created_at` index was not warranted - re-measure before adding an index rather than assuming
   the row count alone is the trigger. **SUPERSEDED for that one index**: the bullet above records the trigger firing
-  at 50,000 accounts, where the same page was 127 ms, and `V42` added it. The 1.17 ms figure and the advice to
+  at 50,000 accounts, where the same page was 127 ms, and the index was added. The 1.17 ms figure and the advice to
   re-measure both still stand; only the "not warranted" conclusion was overtaken.

@@ -346,8 +346,8 @@ class LanguageTest {
         assertThat(Language.isValid(value))
             .as("expected an unrecognised language value to be rejected, never coerced - including every bare macro-language code (no longer "
                 + "offered now that every language is region-qualified) and es-419 specifically, once an offered value in its own right and "
-                + "deliberately removed again (see .claude/I18N.md's Phase 5 notes) - an account stuck on the old value is migrated away by "
-                + "V35__remove_spanish_latin_america.sql, but this proves a submission of it is rejected outright, never silently accepted")
+                + "deliberately removed again (see .claude/I18N.md's Phase 5 notes) - a pre-1.0.0 account stuck on the old value was migrated "
+                + "away, but this proves a submission of it is rejected outright, never silently accepted")
             .isFalse();
     }
 

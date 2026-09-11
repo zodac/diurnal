@@ -199,7 +199,7 @@ the two cannot disagree.
 > `note/NoteField` — so `TextFields.NOTE` is the DEFAULT instance rather than the one in force, and
 > `TextFields.note(int)` is the factory both go through. Only the note can do this, and only because it has no column:
 > every other bound is pinned to a `VARCHAR(n)` by `TextFieldsSchemaIT`, whereas a note is stored sealed in an unbounded
-> `bytea` (`notes.content` was dropped in `V28`), so its bound lives purely in `TextValidation`. `AppLifecycle` refuses
+> `bytea` (there is no plaintext `notes.content` column), so its bound lives purely in `TextValidation`. `AppLifecycle` refuses
 > to boot outside `[NOTE_MAX_LENGTH_FLOOR, NOTE_MAX_LENGTH_CEILING]`. The full reasoning — why the ceiling is where it
 > is, and what happens to notes already stored above a lowered bound — is in [`NOTES.md`](NOTES.md).
 
@@ -396,11 +396,12 @@ check in `layout.html`. Only the length bounds are published: the client evaluat
   no data-fixing migration for it. The 255 -> 100 column narrowing needed none either: no row could exceed 100,
   because the old validator already capped it there.
 
-- **The 100 -> 50 display-name change is the one migration that DOES rewrite stored data.** A name of 51-100
-  characters was legal when it was saved, so `V25` cuts any such name to 50 characters before narrowing the column
-  (the `ALTER` would fail on the row otherwise). Affected users see their name shortened and can set a new one in
-  Settings. Nothing else in the app truncates a value a user typed - this is a one-off consequence of tightening a
-  bound after the fact, not a change to the reject-never-truncate rule.
+- **The 100 -> 50 display-name change was the one migration that DID rewrite stored data**, and it is the precedent
+  to follow if a bound is ever tightened again. A name of 51-100 characters was legal when it was saved, so the
+  migration cut any such name to 50 characters before narrowing the column (the `ALTER` would fail on the row
+  otherwise). Affected users saw their name shortened and could set a new one in Settings. Nothing else in the app
+  truncates a value a user typed - that was a one-off consequence of tightening a bound after the fact, not a change
+  to the reject-never-truncate rule.
 - Email validation stays at its current strength (shape only, no deliverability check); it moved into the
   catalogue without becoming stricter.
 - Mixed-script/confusable detection (a Cyrillic `a` in an otherwise Latin name) is **out of scope** - see the

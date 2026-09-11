@@ -134,7 +134,7 @@ public class AdminUserService {
             return new AdminUserResult.LastAdmin();
         }
 
-        // The sessions.user_id FK is ON DELETE CASCADE (V20), so the rows would go either way - but revoking
+        // The sessions.user_id FK is ON DELETE CASCADE, so the rows would go either way - but revoking
         // explicitly keeps the security-relevant step visible in the code and in the log, rather than leaving
         // "a deleted account can no longer authenticate" as a property of the schema that nothing here states.
         sessionStore.revokeAllForUser(target.id);
