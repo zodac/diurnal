@@ -1,6 +1,6 @@
 # Database: Schema, Migrations, Queries & the Vendor Seam
 
-> **This file is ~19 KB. Read only the section you need** - `grep -n '^#' .claude/DATABASE.md` for its
+> **This file is ~20 KB. Read only the section you need** - `grep -n '^#' .claude/DATABASE.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Schema at a glance**
@@ -21,8 +21,10 @@ index or a query change.
 
 ## Schema at a glance
 
-Eight entities, all Panache, all in the package that owns the feature — there is no `entity` package and no shared
-base class beyond `PanacheEntityBase`.
+Eight entities, all Panache, all in the package that owns the feature — there is no `entity` package. The four
+that carry audit columns (`User`, `Action`, `ActionLog`, `Note`) extend `persistence.AuditedEntity`, a
+`@MappedSuperclass` holding `created_at`/`updated_at` and the `@PreUpdate` that stamps the latter; the other four
+extend `PanacheEntityBase` directly.
 
 | Table                 | Entity              | Package        | Notes                                                         |
 |-----------------------|---------------------|----------------|---------------------------------------------------------------|
@@ -36,8 +38,10 @@ base class beyond `PanacheEntityBase`.
 | `subject_stats_cache` | `SubjectStatsCache` | `stats.cache`  | One row per `(user, subject)`; a sink, depends on nothing     |
 
 The app has essentially **no JPA relations** (`Session.user` is the only one), which is what keeps the query layer
-free of N+1s. Account deletion is carried by `ON DELETE CASCADE` from `users(id)` — eight such clauses across the
-migrations — not by application code walking the tables.
+free of N+1s. Account deletion is carried by `ON DELETE CASCADE` from `users(id)` — six such clauses across the
+migrations, one per table that hangs off an account — not by application code walking the tables. (The seventh
+cascade in the schema is `action_logs.action_id` → `actions(id)`, which is what makes an action delete take its
+logs with it.)
 
 ## Migrations
 
@@ -162,7 +166,7 @@ its statement must declare.
 > — NEVER a positional `Object[]` tuple** (no `(Object[]) …getSingleResult()` / `.getResultList()` then
 > `row[0]`/`row[1]` casting). The `Object[]` form is untyped, re-orders silently, and needs manual casts; it was
 > deliberately removed project-wide. Add a top-level record next to the query (see `MonthlyActionTotal`,
-> `ActionPerformedDate`, `http.ChangeSignature`), pass its class to `createQuery(jpql, X.class)`, and let a nullable
+> `DatedActionCount`, `http.ChangeSignature`), pass its class to `createQuery(jpql, X.class)`, and let a nullable
 > component (`@Nullable Instant`) carry a possibly-absent aggregate (`MAX(...)` over an empty set). Single-column
 > scalar reads (a lone `COUNT`/id column) stay as-is — this rule is about **multi-column** rows only.
 

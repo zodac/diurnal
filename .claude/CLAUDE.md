@@ -125,9 +125,13 @@ Those tests run in **two places, covering different failures**, because a guard 
   half the gate cannot reach: an unregistered `settings.json`, a missing `jq`, a lost `+x` bit. A guard that is
   never invoked blocks nothing and says nothing.
 
-**The guards are conservative by design.** A command that carries a protected path as *data* (a heredoc writing
-documentation that mentions `VERSION`, a test fixture quoting `rm VERSION`) is blocked even though it writes
-nothing. That is the intended direction for a guard; use the `Write`/`Edit` tools for that file instead.
+**The guards judge a command SEGMENT, not the whole line.** A bare mention is not enough to block on — `cat
+VERSION`, `grep -n 2.0 RELEASE_NOTES.md` and `sed -i 's|VERSION|x|' Foo.java` all pass, and so does reading or
+globbing an applied migration. What blocks is a protected path sharing a segment (split on `;`, `&&`, `||`,
+newline) with something that WRITES: one of `sed -i`/`tee`/`cp`/`mv`/`rm`/`truncate`/`dd`/`patch`/`shred`/
+`sponge`/`install`/`ln`/`chmod`/`touch`, or a `>`/`>>` onto the path itself. That still over-blocks when the
+path is only *data* — a test fixture quoting `rm VERSION` is refused even though it writes nothing — which is
+the intended direction for a guard; use the `Write`/`Edit` tools for that file instead.
 
 ### Directory-scoped `CLAUDE.md`
 
@@ -213,27 +217,34 @@ locals/params are `final`, unit-test assertions carry messages.
 Under `src/main/java/net/zodac/diurnal/`. **This is the map; the class-by-class inventory is in**
 **[`ARCHITECTURE.md`](ARCHITECTURE.md) — read it before adding a class, to see what is already there.**
 
-| Package        | What lives there                                                                                                          |
-|----------------|---------------------------------------------------------------------------------------------------------------------------|
-| `action`       | The `Action` entity, its three resources (page/internal/API), validation and the colour palette                           |
-| `log`          | `ActionLog` (composite key, no surrogate id), the day panel, the calendar feeds, log guards                               |
-| `stats`        | `StatsService`, the `StatSubject`-keyed figures, the tile catalogue and the frequency graph                               |
-| `auth`         | **The credentials core only** - register/login/logout, the hashing services, `Passwords`, roles                           |
-| `auth.session` | The session substrate: entity, store, tokens, mechanism, sweeper. **A sink - depends on nothing else in `auth`**          |
-| `auth.lockout` | Per-IP auth throttling and the admin lockout console. Also a sink                                                         |
-| `auth.oidc`    | The whole OIDC sign-in flow and its pure policy core. See [`OIDC.md`](OIDC.md)                                            |
-| `note`         | The `Note` entity, `NoteService` (the single owner of every note write and search), keys, search, pages                   |
-| `note.crypto`  | The encryption primitives: AEAD seal/open, HKDF, key envelope, master key. Pure statics, imports nothing from `note`      |
-| `user`         | `User`, `/api/v1/users/me`, settings, the pagination preference trio, the picker enums                                    |
-| `web`          | The app shell only: dashboard route, `AppInfo`, error pages, request logging, assets config                               |
-| `web.admin`    | The admin console - a leaf nothing else in `web` references                                                               |
-| `page`         | `Pages` + `PageWindow` - the one place a page number is resolved against a total and sliced                               |
-| `http`         | Request-level plumbing owned by no feature: rollback-on-4xx, `NotUiFacing`, client address, ETags, `AppPaths`             |
-| `colour`       | `Colours` - the rules every user-chosen colour obeys. Shared by `action` and `user`                                       |
-| `persistence`  | Typed query binding (`QueryParameter`/`JpqlQuery`/`SqlQuery`) and the vendor seam. See [`DATABASE.md`](DATABASE.md)       |
-| `stats.cache`  | The Stats page's cached figures, one row per `(user, subject)`. **A sink**, which is what lets every writer invalidate it |
-| `transfer`     | The per-user export/import. See [`TRANSFER.md`](TRANSFER.md)                                                              |
-| `update`       | The admin-only "newer version available" check and its outbound lookup seam                                               |
+| Package                | What lives there                                                                                                                                                                         |
+|------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`               | The `Action` entity, its three resources (page/internal/API), validation and the colour palette                                                                                          |
+| `log`                  | `ActionLog` (composite key, no surrogate id), the day panel, the calendar feeds, log guards                                                                                              |
+| `stats`                | `StatsService`, the `StatSubject`-keyed figures, the tile catalogue and the frequency graph                                                                                              |
+| `auth`                 | **The credentials core only** - register/login/logout, the hashing services, `Passwords`, roles                                                                                          |
+| `auth.session`         | The session substrate: entity, store, tokens, mechanism, sweeper. **A sink - depends on nothing else in `auth`**                                                                         |
+| `auth.lockout`         | Per-IP auth throttling and the admin lockout console. Also a sink                                                                                                                        |
+| `auth.oidc`            | The whole OIDC sign-in flow and its pure policy core. See [`OIDC.md`](OIDC.md)                                                                                                           |
+| `auth.security`        | The response-hardening filters: `SecurityHeadersFilter` (CSP + the static headers) and `CsrfProtectionFilter` (request-origin validation). A sink                                        |
+| `note`                 | The `Note` entity, `NoteService` (the single owner of every note write and search), keys, search, pages                                                                                  |
+| `note.crypto`          | The encryption primitives: AEAD seal/open, HKDF, key envelope, master key. Pure statics, imports nothing from `note`                                                                     |
+| `user`                 | `User`, `/api/v1/users/me`, settings, the pagination preference trio, the picker enums                                                                                                   |
+| `web`                  | The app shell only: dashboard route, `AppInfo`, error pages, request logging, assets config                                                                                              |
+| `web.admin`            | The admin console - a leaf nothing else in `web` references                                                                                                                              |
+| `page`                 | `Pages` + `PageWindow` - the one place a page number is resolved against a total and sliced                                                                                              |
+| `http`                 | Request-level plumbing owned by no feature: rollback-on-4xx, `NotUiFacing`, client address, ETags, `AppPaths`                                                                            |
+| `colour`               | `Colours` - the rules every user-chosen colour obeys. Shared by `action` and `user`                                                                                                      |
+| `persistence`          | Typed query binding (`QueryParameter`/`JpqlQuery`/`SqlQuery`) and the vendor seam. See [`DATABASE.md`](DATABASE.md)                                                                      |
+| `persistence.postgres` | The vendor half of the seam - the two `*Statements` implementations holding every statement JPQL cannot express                                                                          |
+| `stats.cache`          | The Stats page's cached figures, one row per `(user, subject)`. **A sink**, which is what lets every writer invalidate it                                                                |
+| `transfer`             | The per-user export/import. See [`TRANSFER.md`](TRANSFER.md)                                                                                                                             |
+| `update`               | The admin-only "newer version available" check and its outbound lookup seam                                                                                                              |
+| `config`               | `AppConfig` (the `app.*` settings) and the version trio - `ReleaseVersion`/`ApplicationVersion`/`QuarkusApplicationConfig`                                                               |
+| `openapi`              | The API document's shape: `DiurnalApiDefinition`, `PublicApiFilter` (strips everything outside `/api/v1`), the Swagger-docs admin gate, `ApiErrorResponse`/`ApiPages`                    |
+| `status`               | `/api/v1/status` - liveness/readiness, version and uptime. The Dockerfile's `HEALTHCHECK` probes it; anonymous by design                                                                 |
+| `text`                 | The shared free-text validation pipeline - `TextFields` (the ONE catalogue of every length bound and content rule), the rules, outcomes and banner. See [`TEXT_INPUT.md`](TEXT_INPUT.md) |
+| `time`                 | `AppClock` (the single source of every date-boundary "now"), `DaySpan`, and the calendar/label/duration formatting helpers                                                               |
 
 **A cross-cutting helper belongs in `http`, not in the feature package that happened to need it first.** The three
 sinks (`auth.session`, `stats.cache`, `note.crypto`) depend on nothing above them, which is what lets the rest of
@@ -319,9 +330,10 @@ document it needs, not so the rule can be applied from this page.
   CLAMPED for a UI surface and REJECTED by a public API resource. → [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - **`ActionLog.MAX_DAILY_COUNT = 999`** — a `SMALLINT` column; the web surface silently caps, the API rejects. →
   the `endpoint` skill
-- **`password.auth.enabled=false`** disables register (404, except during first-run setup) and skips
-  `PasswordIdentityProvider`; `AppLifecycle` enforces at least one auth mechanism at startup. Password MANAGEMENT
-  stays available regardless, keyed on holding a password rather than on the flag. → [`AUTH.md`](AUTH.md)
+- **`password.auth.enabled=false`** disables register (404, except during first-run setup) and makes
+  `AuthenticationService` refuse every password login; `AppLifecycle` enforces at least one auth mechanism at
+  startup. Password MANAGEMENT stays available regardless, keyed on holding a password rather than on the flag. →
+  [`AUTH.md`](AUTH.md)
 - **Every URL the app EMITS is built by `http/AppPaths`, never written out at the call site** - a template takes it from
   `{inject:paths...}`, a script from `Diurnal.url(path)`, Java from the injected bean. That is what lets `BASE_PATH` mount the app under a URL prefix
   at runtime: the app always ROUTES at the root (`@Path`, auth permission paths and header-filter regexes never carry the prefix, and the reverse

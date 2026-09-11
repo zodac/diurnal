@@ -1,0 +1,78 @@
+name: Bug report
+description: Something in Diurnal does not behave the way it should
+labels: [ "bug" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. If this is a **security** problem, please close this and use
+        [private vulnerability reporting](https://github.com/zodac/diurnal/security/advisories/new) instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Shown in the page footer, and by `GET /api/v1/status`.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Container logs
+      description: >-
+        Output from `docker compose logs app` around the time of the problem. Setting `LOG_LEVEL=DEBUG` gives more
+        detail, but note that DEBUG logs account email addresses - redact them if you would rather not share them.
+      render: text
+
+  - type: checkboxes
+    id: auth
+    attributes:
+      label: Sign-in methods enabled
+      options:
+        - label: Password (`PASSWORD_AUTH_ENABLED`)
+        - label: OIDC (`OIDC_ENABLED`)
+
+  - type: dropdown
+    id: proxy
+    attributes:
+      label: Reverse proxy
+      description: Is the container behind a TLS-terminating reverse proxy?
+      options:
+        - "Yes, with TRUST_X_FORWARDED_HEADERS=true"
+        - "Yes, with TRUST_X_FORWARDED_HEADERS=false"
+        - "No, reached directly"
+        - "Not sure"
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      description: Only needed for a problem with the UI.
+      placeholder: "Firefox 145, desktop / Chrome on Android"
+
+  - type: textarea
+    id: anything-else
+    attributes:
+      label: Anything else
+      description: Language setting, theme, timezone, `BASE_PATH`, or anything else that might matter.

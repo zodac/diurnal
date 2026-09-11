@@ -24,7 +24,8 @@ production jar for exactly that reason — no `src/main` caller, only test ones.
 guards span more than one feature package. Nothing catches this automatically: Qodana's dead-code check sees the test callers and stays quiet, so it
 is a review habit, not a gate.
 
-Integration tests extend `IntegrationTestBase` (truncates `action_logs → actions → users` before each test). Helpers: `newUser()`, `newAction()`,
+Integration tests extend `IntegrationTestBase` (clears `subject_stats_cache → notes → user_notes_keys → action_logs → actions →
+users` before each test, in that FK order). Helpers: `newUser()`, `newAction()`,
 `newLog()`, `runInTx()`. Tests use `@TestSecurity`. The `test` profile forces `app.timezone=UTC`. Password hashing runs at minimal cost in tests:
 seeded users (`newUser()`) get a cheap Argon2id hash whose parameters mirror the `test` profile's pinned `password.hash.argon2.*` values (so a seeded
 login does not trigger a re-hash).

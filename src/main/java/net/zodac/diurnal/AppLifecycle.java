@@ -37,6 +37,7 @@ import net.zodac.diurnal.auth.PasswordAuthConfig;
 import net.zodac.diurnal.auth.oidc.OidcConfig;
 import net.zodac.diurnal.auth.oidc.OidcDiscovery;
 import net.zodac.diurnal.auth.oidc.QuarkusOidcConfig;
+import net.zodac.diurnal.config.ApplicationVersion;
 import net.zodac.diurnal.note.KeyReconciliation;
 import net.zodac.diurnal.note.NoteKeys;
 import net.zodac.diurnal.note.NotesConfig;
@@ -70,6 +71,7 @@ public class AppLifecycle {
     private final NotesEncryptionConfig notesEncryptionConfig;
     private final NotesConfig notesConfig;
     private final NoteKeys noteKeys;
+    private final ApplicationVersion applicationVersion;
 
     /**
      * Injects the authentication configuration views validated and logged at startup.
@@ -80,16 +82,19 @@ public class AppLifecycle {
      * @param notesEncryptionConfig the notes encryption settings, whose key is validated at startup
      * @param notesConfig the notes settings, whose configured maximum note length is range-checked at startup
      * @param noteKeys the notes key service, used to prove the configured key opens the stored data
+     * @param applicationVersion the running release version, announced in the startup banner
      */
     @Inject
     public AppLifecycle(final PasswordAuthConfig passwordAuthConfig, final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig,
-        final NotesEncryptionConfig notesEncryptionConfig, final NotesConfig notesConfig, final NoteKeys noteKeys) {
+        final NotesEncryptionConfig notesEncryptionConfig, final NotesConfig notesConfig, final NoteKeys noteKeys,
+        final ApplicationVersion applicationVersion) {
         this.passwordAuthConfig = passwordAuthConfig;
         this.quarkusOidcConfig = quarkusOidcConfig;
         this.oidcConfig = oidcConfig;
         this.notesEncryptionConfig = notesEncryptionConfig;
         this.notesConfig = notesConfig;
         this.noteKeys = noteKeys;
+        this.applicationVersion = applicationVersion;
     }
 
     /**
@@ -113,7 +118,7 @@ public class AppLifecycle {
         LOGGER.debug("System cold start: {} (JVM launch -> ready)", ElapsedTime.format(uptime()));
 
         LOGGER.info("=================================================");
-        LOGGER.info("  Diurnal started");
+        LOGGER.info("  Diurnal {} started", applicationVersion.release());
         LOGGER.debug("  Password auth : {}", passwordAuthConfig.enabled() ? "enabled" : "disabled");
         if (quarkusOidcConfig.tenantEnabled()) {
             LOGGER.debug("  OIDC          : enabled  (issuer: {}, provider: {}, auto-redirect: {})",

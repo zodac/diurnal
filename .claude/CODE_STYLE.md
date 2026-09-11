@@ -191,13 +191,13 @@ A `private record` with no content must be written with a **blank line between i
 ❌ **Wrong:**
 
 ```java
-private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages, int currentPage, List<Integer> fillerRows) {}
+private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages, int currentPage, List<String> fillerRows) {}
 ```
 
 ✅ **Right:**
 
 ```java
-private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages, int currentPage, List<Integer> fillerRows) {
+private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages, int currentPage, List<String> fillerRows) {
 
 }
 ```
@@ -679,9 +679,9 @@ extracting the inner call/arguments to a local variable at statement level.
 ### Configuration is read through typed `@ConfigMapping`, never scattered property lookups
 
 **Every configuration value is read through a typed SmallRye `@ConfigMapping` interface**, and each one lives with the feature that owns its keys
-(`SessionConfig` in `auth.session`, `AssetsConfig` in `web`, `NotesConfig` in `note`, …); only genuinely app-wide settings stay in
-`net.zodac.diurnal.config` (see `AppConfig`,
-`SessionConfig`, `OidcConfig`, …). A `@ConfigMapping` groups related keys under one `prefix`, gives each a `@WithName`/`@WithDefault`, is injected as
+(`SessionConfig` in `auth.session`, `OidcConfig` in `auth.oidc`, `IpThrottleConfig` in `auth.lockout`, `AssetsConfig` in `web`,
+`NotesConfig` in `note`, …); only genuinely app-wide settings stay in `net.zodac.diurnal.config` (`AppConfig` and the version
+trio). A `@ConfigMapping` groups related keys under one `prefix`, gives each a `@WithName`/`@WithDefault`, is injected as
 a normal CDI bean, and is trivially stubbed in a unit test (it is an interface). **Never** read config with a raw `@ConfigProperty` field,
 `ConfigProvider.getConfig()`, `config.getValue(...)`, `System.getProperty(...)`, or `System.getenv(...)` in application code.
 

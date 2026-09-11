@@ -1,6 +1,6 @@
 # Authentication & Security
 
-> **This file is ~24 KB. Read only the section you need** - `grep -n '^#' .claude/AUTH.md` for its
+> **This file is ~25 KB. Read only the section you need** - `grep -n '^#' .claude/AUTH.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Package layout (`auth` and its four subpackages)**
@@ -110,19 +110,24 @@ Vert.x glue is NO_COVERAGE like the rest of the auth mechanism.
 
 **Auth throttling (one global per-IP lockout)** — `AttemptThrottle` is a plain, key-agnostic fixed-window throttle (config
 snapshot + a `ConcurrentHashMap`; counters **decay** after a quiet window so shared keys don't accumulate). `IpThrottle`
-(`@ApplicationScoped`, `auth`) runs **one** instance keyed by client IP (`IpThrottleConfig`, env
+(`@ApplicationScoped`, `auth.lockout`) runs **one** instance keyed by client IP (`IpThrottleConfig`, env
 `AUTH_IP_THROTTLE_{ENABLED,MAX_ATTEMPTS,LOCKOUT_DURATION}`, default 15/`PT15M`). This is the **only** auth lockout — there is
 **deliberately no per-account (email) dimension**, because keying on the email would let an attacker deny service to a chosen
 victim by failing their logins. **One shared counter tallies both failed logins and failed registrations**; once it trips, that IP
 is blocked from **both** logging in and registering. `isLocked`/`recordFailure`/`lockoutRemaining` all key on the IP; there is **no
 `recordSuccess`/reset** — a valid login or registration must not launder an IP's brute-force budget, so the counter only clears by
 decaying (the distributed many-IP brute-force this trades away is mitigated by Argon2id + uniform timing, not account lockouts).
-The client IP comes from `ClientAddress.of(routingContext)` → Vert.x `remoteAddress()` (honours `TRUST_X_FORWARDED_HEADERS`), so
-this is only meaningful behind a trusted proxy. **Login** verifies credentials through the **same** `AuthenticationService` (which
+The client IP comes from `ClientAddress.of(routingContext)`, which prefers Cloudflare's `CF-Connecting-IP` header and falls back to
+Vert.x `remoteAddress()` (which honours `TRUST_X_FORWARDED_HEADERS`) when it is absent — so this is only meaningful behind a trusted
+proxy. `CF-Connecting-IP` is preferred because Cloudflare OVERWRITES whatever the caller sent, where the leftmost `X-Forwarded-For`
+entry is only APPENDED to and so is spoofable; that is safe only while the origin is reachable solely through Cloudflare, which is a
+containment the network edge owns, not this code. `ClientAddress.forwardedSummary` renders the same headers (`cf=… xff=… xfh=…`),
+reduced to length-bounded printable ASCII, for the security log. **Login** verifies credentials through the **same** `AuthenticationService` (which
 owns the `IpThrottle` check + Argon2id verification and returns a `LoginResult`) — `AuthResource.login` (JSON API → `429` +
 `Retry-After`) and `AuthWebResource.doLogin` (web form). **Registration** likewise runs through one shared `RegistrationService`
-(which owns the `IpThrottle` entry-check + failure recording, the unified field validation — email `@`, display name 2–100 chars,
-password ≤128 — the duplicate-email check and account creation, returning a sealed `RegistrationResult`) — `AuthResource.register`
+(which owns the `IpThrottle` entry-check + failure recording, the unified field validation — every field checked against its
+`text/TextFields` entry, so email `@` + 3–254, display name 2–50 and password 1–128 all come from the one catalogue — the
+duplicate-email check and account creation, returning a sealed `RegistrationResult`) — `AuthResource.register`
 (JSON API → `429` + `Retry-After`; the deliberately-API-only first-user refusal stays in the resource) and `AuthWebResource.register`
 (web form → `429`, carrying the seconds-left `X-Lockout-Retry-After` header + a `[data-form-errors]` banner; the web-only
 confirm-password rule is expressed by passing `confirmPassword` to the service). The locked-out message states the **exact** whole seconds remaining
@@ -171,7 +176,7 @@ password in the same step (`AccountLinkService.link`; migration `V22` normalised
 (`User.authSource()`: `local`/`oidc` — the `local+oidc` label survives only as a defensive fallback — shown in the admin users table and
 `AdminUserDto`); composite unique index
 `(oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL`. OIDC is disabled by default (`OIDC_ENABLED=false`); `OIDC_SCOPES` (default
-`email,profile,groups` — set `email,profile` for providers like Google that reject the non-standard `groups` scope) and `OIDC_PKCE_ENABLED`
+`email,groups,profile` — set `email,profile` for providers like Google that reject the non-standard `groups` scope) and `OIDC_PKCE_ENABLED`
 (default `true`) tune the handshake.
 
 ### OIDC sign-in

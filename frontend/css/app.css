@@ -13,7 +13,7 @@
  *
  * Two faces drive the Nova theme, both served locally as woff2 from
  * /fonts (src/main/resources/META-INF/resources/fonts/, generated from the curated .ttf masters
- * kept in assets/Nova/ — see CLAUDE.md "Typography & the per-user Font setting"):
+ * kept in assets/Nova/ — see .claude/FRONTEND.md "Typography & Font setting"):
  *   - "Nova Flat"  — the brand font; the body/UI face under the Nova theme.
  *                    Book = 400, Bold = 700, each with an oblique (italic) variant.
  *   - "Nova Round" — a softer, rounded sibling used as the DISPLAY face for headings and

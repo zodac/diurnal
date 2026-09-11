@@ -147,7 +147,7 @@ class AppMessagesIT extends IntegrationTestBase {
     @Test
     void duration_everyComponent_isFullyComposed() {
         assertThat(appMessages.duration(1, 1, 17))
-            .as("the documented worked example from CLAUDE.md's day-span notes")
+            .as("every component composed, the full shape FRONTEND.md's duration tiles describe")
             .isEqualTo("1 year, 1 month, 17 days");
     }
 
@@ -251,7 +251,7 @@ class AppMessagesIT extends IntegrationTestBase {
             .render();
 
         assertThat(rendered)
-            .as("the worked example from CLAUDE.md's day-span notes, in Spanish")
+            .as("every component composed, in Spanish")
             .isEqualTo("1 año, 1 mes, 17 días");
     }
 
@@ -282,7 +282,7 @@ class AppMessagesIT extends IntegrationTestBase {
 
     @Test
     void messageNamespace_resolvesThePluralisedDurationChainInArabic() {
-        // The worked CLAUDE.md example, in Arabic: years=1/months=1 hit CLDR "one" (a bare word, no digit),
+        // The fully-composed duration, in Arabic: years=1/months=1 hit CLDR "one" (a bare word, no digit),
         // days=17 hits CLDR "many" (17 % 100 == 17, in 11..99) - a category the English/Spanish two-way {#if}
         // could never express on its own, which is exactly what this phase's CLDR grammar exists for.
         final String rendered = engine.parse("{msg:duration(years, months, days)}")
@@ -293,7 +293,7 @@ class AppMessagesIT extends IntegrationTestBase {
             .render();
 
         assertThat(rendered)
-            .as("the worked example from CLAUDE.md's day-span notes, in Arabic, exercising the 'one' and 'many' CLDR categories")
+            .as("every component composed, in Arabic, exercising the 'one' and 'many' CLDR categories")
             .isEqualTo("سنة واحدة، شهر واحد، 17 يومًا");
     }
 
@@ -357,7 +357,7 @@ class AppMessagesIT extends IntegrationTestBase {
             .render();
 
         assertThat(rendered)
-            .as("the worked example from CLAUDE.md's day-span notes, in Japanese")
+            .as("every component composed, in Japanese")
             .isEqualTo("1年1か月17日");
     }
 

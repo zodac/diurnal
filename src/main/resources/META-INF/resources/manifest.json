@@ -1,8 +1,7 @@
 {
-  "name": "diurnal",
-  "short_name": "diurnal",
-  "lang": "en-GB",
-  "dir": "ltr",
+  "name": "Diurnal",
+  "short_name": "Diurnal",
+  "dir": "auto",
   "start_url": ".",
   "display": "browser",
   "theme_color": "#6366f1",

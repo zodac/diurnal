@@ -34,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.Optional;
 import net.zodac.diurnal.note.NoteKeys;
+import net.zodac.diurnal.stub.StubApplicationVersion;
 import net.zodac.diurnal.stub.StubNotesConfig;
 import net.zodac.diurnal.stub.StubNotesEncryptionConfig;
 import net.zodac.diurnal.stub.StubOidcConfig;
@@ -166,7 +167,7 @@ class AppLifecycleIT extends IntegrationTestBase {
         final StubNotesEncryptionConfig encryptionConfig = StubNotesEncryptionConfig.of(NOTES_MASTER_KEY);
         final StubOidcConfig oidcConfig = new StubOidcConfig("stub", false, verifyOnStartup, Optional.empty(), Optional.empty(), Optional.empty());
         return new AppLifecycle(new StubPasswordAuthConfig(true, true), quarkusOidcConfig, oidcConfig, encryptionConfig,
-            new StubNotesConfig(TextFields.NOTE_MAX_LENGTH), new NoteKeys(encryptionConfig));
+            new StubNotesConfig(TextFields.NOTE_MAX_LENGTH), new NoteKeys(encryptionConfig), StubApplicationVersion.of("dev"));
     }
 
     private static String issuerUrlOf(final HttpServer provider) {

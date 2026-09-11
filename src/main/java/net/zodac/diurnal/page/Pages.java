@@ -23,11 +23,11 @@ import java.util.List;
  * The one place a page number is resolved against a total, and the one place a fetched list is sliced into the page it produced.
  *
  * <p>
- * Every list view in the app pages the same way - fetch all, filter, slice (see the pagination section of {@code CLAUDE.md}) - so the arithmetic
- * behind it (how many pages a total spans, and which page a requested number actually lands on) was previously written out at each list. Repeating it
- * is what lets two lists disagree about an edge that has no obvious right answer until it is settled once: an empty list still has a page 1, and a
- * page number past the end is <strong>clamped</strong> to the last real page rather than answered as empty. Settling it here also means the paging
- * arithmetic is unit-testable on its own, without a list or a container to hold it.
+ * Every list view in the app pages the same way - fetch all, filter, slice (see the pagination section of {@code .claude/ARCHITECTURE.md}) - so the
+ * arithmetic behind it (how many pages a total spans, and which page a requested number actually lands on) was previously written out at each list.
+ * Repeating it is what lets two lists disagree about an edge that has no obvious right answer until it is settled once: an empty list still has a
+ * page 1, and a page number past the end is <strong>clamped</strong> to the last real page rather than answered as empty. Settling it here also
+ * means the paging arithmetic is unit-testable on its own, without a list or a container to hold it.
  *
  * <p>
  * Clamping is the <strong>web</strong> surface's policy. The public API rejects an out-of-range page instead (surface policy, marked as such at each

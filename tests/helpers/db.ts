@@ -25,8 +25,9 @@ const ROLE_USER = "user"
  * DB) — and a stray second admin (e.g. the bootstrap first-user) would break the "last administrator"
  * guard tests. Forcing exactly one admin makes those tests deterministic regardless of prior state.
  *
- * Must be called BEFORE the user logs in: roles are baked into the session at authentication time
- * (PasswordIdentityProvider), so a role change only takes effect on the next login.
+ * Called BEFORE the user logs in, so the sequence is deterministic. Roles themselves are read LIVE:
+ * SessionIdentityProvider rebuilds the identity from the users.role column on every authenticated
+ * request (UserIdentities.of), so a change lands on the next request rather than the next login.
  */
 export async function ensureSoleAdmin(email: string): Promise<void> {
     const client = new Client(DB_CONFIG)
@@ -50,8 +51,9 @@ export async function ensureSoleAdmin(email: string): Promise<void> {
  * up an admin depending on which worker registered first. The admin access-control tests need a
  * guaranteed non-admin, so they demote explicitly before login.
  *
- * Must be called BEFORE the user logs in: roles are baked into the session at authentication time
- * (PasswordIdentityProvider), so a role change only takes effect on the next login.
+ * Called BEFORE the user logs in, so the sequence is deterministic. Roles themselves are read LIVE:
+ * SessionIdentityProvider rebuilds the identity from the users.role column on every authenticated
+ * request (UserIdentities.of), so a change lands on the next request rather than the next login.
  */
 export async function ensureNotAdmin(email: string): Promise<void> {
     const client = new Client(DB_CONFIG)

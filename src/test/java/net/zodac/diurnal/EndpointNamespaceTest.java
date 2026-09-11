@@ -32,8 +32,9 @@ import org.junit.jupiter.api.Test;
  * sanctioned namespaces — {@code /api/v1/*} (the public REST API), {@code /internal/*} (web-UI plumbing), or the fixed allowlist of page/operational
  * routes. This is the companion to {@code OpenApiSurfaceIT}: that guard pins what is <em>documented</em>, but the OpenAPI filter prunes everything
  * outside {@code /api} from the document, so an endpoint added outside the namespaces would otherwise fail nothing. Together they enforce the
- * conventions in {@code .claude/APIS.md} §2 / CLAUDE.md "API namespaces": a new endpoint must consciously be public (and join the OpenAPI contract),
- * internal, or a deliberate new page route added to {@link #PAGE_AND_OPERATIONAL_ROUTES} here.
+ * conventions in {@code .claude/CLAUDE.md}'s "The three rules every endpoint obeys" (step 3 of the {@code endpoint} skill): a new endpoint must
+ * consciously be public (and join the OpenAPI contract), internal, or a deliberate new page route added to {@link #PAGE_AND_OPERATIONAL_ROUTES}
+ * here.
  */
 class EndpointNamespaceTest {
 
@@ -76,7 +77,7 @@ class EndpointNamespaceTest {
 
         assertThat(offenders)
             .as("Every endpoint must be public (/api/v1/... + the OpenApiSurfaceIT contract), internal (/internal/...), or a page/operational "
-                + "route consciously added to PAGE_AND_OPERATIONAL_ROUTES — see CLAUDE.md 'API namespaces'")
+                + "route consciously added to PAGE_AND_OPERATIONAL_ROUTES — see CLAUDE.md 'The three rules every endpoint obeys'")
             .isEmpty();
     }
 

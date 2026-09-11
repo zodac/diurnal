@@ -93,7 +93,7 @@
 
 ### Interop
 
-- `OIDC_SCOPES` (default `email,profile,groups`): Google rejects the non-standard `groups` scope with `invalid_scope`, so it's now overridable
+- `OIDC_SCOPES` (default `email,groups,profile`): Google rejects the non-standard `groups` scope with `invalid_scope`, so it's now overridable
   (`OIDC_SCOPES=email,profile` for Google). Group→role mapping simply sees no groups then.
 - `OIDC_PKCE_ENABLED` (default `true`): PKCE on the code flow alongside the client secret (OAuth 2.1 direction; Authelia/Keycloak/Google all
   support it).

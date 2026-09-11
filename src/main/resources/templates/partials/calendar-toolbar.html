@@ -7,7 +7,7 @@
    themselves stay STATIC regardless of direction (product decision — see `.cal-chevron` in app.css):
    the button each sits in still moves to the opposite visual edge under dir="rtl" like every other
    toolbar element, but the «/‹/›/» character itself is never mirrored.
-   dashboard.html wires the stable button ids to the shared grid engine (buildGridCalendar) that draws
+   dashboard.js wires the stable button ids to the shared grid engine (buildGridCalendar) that draws
    every style — full, minimal and stacked. The "Today" action lives at the bottom of
    the month/year picker popup (#cal-pop), NOT in the toolbar row. The popup is positioned absolutely
    against the enclosing `#calendar-wrap` (which is `position: relative`). !}

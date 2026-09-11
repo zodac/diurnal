@@ -37,6 +37,9 @@
     - [Application Memory](#application-memory)
     - [Password Hashing Cost](#password-hashing-cost)
     - [PostgreSQL](#postgresql)
+- [Backups](#backups)
+    - [Backing Up the Database](#backing-up-the-database)
+    - [Import/Export](#importexport)
 - [User Settings](#user-settings)
     - [Account](#account)
     - [Preferences](#preferences)
@@ -51,6 +54,7 @@
 - [Administrator Users](#administrator-users)
 - [REST API](#rest-api)
 - [Versioning](#versioning)
+- [Contributing](#contributing)
 - [License](#license)
 
 ## Introduction
@@ -94,6 +98,8 @@ set an exact count, or erase the day entirely.
 Alongside the daily log, each day can carry a note, a free-text entry of up to 10,000 characters by default - whoever runs your Diurnal can set a
 different limit with [`NOTE_MAX_LENGTH`](#note-configuration). Unlike logging an action, a note can be written for any date, including ones in the
 future. The **Notes** page lists everything you have written, (most recent first) with the ability to search your notes.
+
+Notes are encrypted at rest, so a database dump, backup or replica carries only sealed text - see [Note Configuration](#note-configuration).
 
 <!-- markdownlint-disable MD013 MD033 -- centered note-box screenshot: intentional inline HTML -->
 <p align="center">
@@ -163,7 +169,8 @@ Arabic, mirror the layout to match.
 
 #### Contributing a Translation
 
-Diurnal's translations are managed on [Crowdin](https://crowdin.com/project/diurnal>).
+Diurnal's translations are managed on [Crowdin](https://crowdin.com/project/diurnal), not in this repository - Crowdin opens a pull request here
+automatically once strings are translated. [CONTRIBUTING.md](CONTRIBUTING.md) covers the other ways to contribute.
 
 ## Quick Start
 
@@ -180,6 +187,9 @@ curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/maste
 
 Edit `docker-compose.yml` and update the values marked as **TODO**. Other settings are documented in [Environment Variables](#environment-variables)
 below.
+
+The example pins an explicit image tag rather than `:latest`, so upgrading is something you choose: bump the tag when you want the newer release, and
+check [Versioning](#versioning) first if it is a MAJOR one.
 
 **2. Start the application:**
 
@@ -222,8 +232,13 @@ The Compose files also tune PostgreSQL itself; those knobs live in [Performance 
 | `DB_LOG_LEVEL`             | `WARN`  | Set to `TRACE` to log every SQL statement + bound parameters (verbose; may expose parameter values)         |
 | `EXPORT_CSV_BOM`           | `true`  | Lead each exported CSV with a UTF-8 byte-order mark (Excel-friendly); `false` for plain UTF-8 (LibreOffice) |
 | `LOG_LEVEL`                | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                            |
-| `MAX_UPLOAD_SIZE`          | `100M`  | Largest request body accepted, in binary units (`100M`, `512K`, `1G`), also for import/export               |
+| `MAX_REQUEST_BODY`         | `1M`    | Largest body accepted on every endpoint *except* data import; `0` removes the cap                           |
+| `MAX_UPLOAD_SIZE`          | `100M`  | Hard ceiling on any request body, in binary units (`100M`, `512K`, `1G`); used by import/export             |
 | `TZ`                       | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                                                |
+
+`MAX_UPLOAD_SIZE` has to stay large enough for a re-imported export, but that same size on every other endpoint is a cheap memory-exhaustion lever
+(an unauthenticated caller making the server buffer a multi-megabyte body on a hot path like `POST /api/v1/auth/login`). `MAX_REQUEST_BODY` is the
+lower cap that applies everywhere else; keep it comfortably above the largest legitimate form post (a maximum-length note is ~10 KB).
 
 ### Note Configuration
 
@@ -361,7 +376,8 @@ identity_providers:
 
 Failed login and registration attempts are rate-limited per client IP address. Once an IP exceeds
 `AUTH_IP_THROTTLE_MAX_ATTEMPTS` failures within the `AUTH_IP_THROTTLE_LOCKOUT_DURATION` window, it is locked out of **both** logging in and
-registering. When blocked, the API returns `429` (with a `Retry-After` header). The IP comes from [`TRUST_X_FORWARDED_HEADERS`](#reverse-proxy).
+registering. When blocked, the API returns `429` (with a `Retry-After` header). The client IP is read from Cloudflare's
+`CF-Connecting-IP` header when present, otherwise from the connection (which honours [`TRUST_X_FORWARDED_HEADERS`](#reverse-proxy)).
 Durations are [ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations) (e.g. `PT5M` = 5 minutes, `PT1H` = 1 hour, `PT30S` = 30 seconds).
 
 | Variable                            | Default | Description                                  |
@@ -405,9 +421,21 @@ possible for the password hashing, seen below.
 
 ### Application Memory
 
+The container's memory budget is set on the `diurnal` service in the Compose file itself, rather than through the environment:
+
+```yaml
+deploy:
+  resources:
+    limits:
+      memory: "2G"
+memswap_limit: "2G"
+```
+
+The JVM sizes its heap at 65% of whatever that limit is; the remaining 35% is metaspace, the code cache, thread stacks and the collector's own
+structures. If no limit is set at all, the entrypoint caps the heap at `1330m` (the same heap a `2G` limit produces) and says so in the log.
+
 | Variable             | Default | Description                                                                                                     |
 |----------------------|---------|-----------------------------------------------------------------------------------------------------------------|
-| `APP_MEM_LIMIT`      | `2g`    | Total container memory (the JVM heap is 65% of this)                                                            |
 | `JDK_JAVA_OPTIONS`   |         | Standard JDK variable; a heap flag (for example `-Xms256m -Xmx1g`) replaces the docker ENTRYPOINT configuration |
 | `WORKER_MAX_THREADS` | `32`    | Concurrent blocking requests                                                                                    |
 
@@ -430,14 +458,61 @@ Increasing any value is safe to do at any time (each account is re-hashed on nex
 The bundled Compose files start PostgreSQL with a tuned configuration rather than the stock defaults, which are sized for a much smaller machine. The
 values below are the only ones that depend on your machine. The defaults are safe from roughly 1GB of RAM, but on a larger host, you can raise them.
 
-| Variable                  | Default | Description                                                                                |
-|---------------------------|---------|--------------------------------------------------------------------------------------------|
-| `DB_EFFECTIVE_CACHE_SIZE` | `768MB` | What the planner assumes is cached overall. Around 50-75% of RAM; reserves nothing         |
-| `DB_MAINTENANCE_WORK_MEM` | `128MB` | Working memory for `VACUUM` and index builds                                               |
-| `DB_MAX_CONNECTIONS`      | `25`    | Not a user limit - Diurnal's pool maxes out at 10. It is what makes `DB_WORK_MEM` safe     |
-| `DB_RANDOM_PAGE_COST`     | `1.1`   | Planner's cost for a random read. `1.1` assumes SSD/NVMe; set to `4` for a spinning disk   |
-| `DB_SHARED_BUFFERS`       | `256MB` | PostgreSQL's own page cache. Around 25% of the host's RAM                                  |
-| `DB_WORK_MEM`             | `8MB`   | Per-sort working memory. Applies per sort node, so raise it alongside `DB_MAX_CONNECTIONS` |
+These are `command:` flags on the `diurnal-db` service, edited in the Compose file directly rather than through the environment:
+
+```yaml
+command:
+  - -cshared_buffers=256MB
+  - -cwork_mem=8MB
+```
+
+| Setting                | Default | Description                                                                               |
+|------------------------|---------|-------------------------------------------------------------------------------------------|
+| `effective_cache_size` | `768MB` | What the planner assumes is cached overall. Around 50-75% of RAM; reserves nothing        |
+| `maintenance_work_mem` | `128MB` | Working memory for `VACUUM` and index builds                                              |
+| `max_connections`      | `25`    | Not a user limit - Diurnal's pool maxes out at 10. It is what makes `work_mem` safe       |
+| `random_page_cost`     | `1.1`   | Planner's cost for a random read. `1.1` assumes SSD/NVMe; set to `4` for a spinning disk  |
+| `shared_buffers`       | `256MB` | PostgreSQL's own page cache. Around 25% of the host's RAM                                 |
+| `work_mem`             | `8MB`   | Per-sort working memory. Applies per sort node, so raise it alongside `max_connections`   |
+
+## Backups
+
+An application backup must make sure to cover two things:
+
+1. The database (every account, action, log and note)
+2. `NOTE_ENCRYPTION_KEY` (the only way to read the notes)
+
+> **Losing `NOTE_ENCRYPTION_KEY` loses every note, permanently.** There is no second copy and no recovery - not from the database, not from a backup,
+> not by an administrator. Keep it wherever you keep `DB_PASSWORD`, and make sure it survives a container rebuild.
+
+### Backing Up the Database
+
+`pg_dump` in the custom format, which `pg_restore` can verify and stops on error (a plain SQL dump does not):
+
+```bash
+docker compose exec -T diurnal-db pg_dump -U diurnal_user -d diurnal_db -Fc > diurnal-backup.dump
+```
+
+Restoring replaces every table in the database with the contents of the dump:
+
+```bash
+docker compose exec -T diurnal-db pg_restore -U diurnal_user -d diurnal_db --clean --if-exists --exit-on-error < diurnal-backup.dump
+```
+
+The repository wraps both commands in [`scripts/db-backup.sh`](scripts/db-backup.sh) and
+[`scripts/db-restore.sh`](scripts/db-restore.sh), which add the checks the raw commands leave to you - that the database container is actually
+running, that the dump file exists, and a confirmation prompt before a restore overwrites your data (`--yes` skips it):
+
+```bash
+scripts/db-backup.sh                       # writes backup_diurnal_<UTC timestamp>.dump
+scripts/db-restore.sh diurnal-backup.dump  # prompts before replacing every table
+```
+
+### Import/Export
+
+Separately from the whole-instance backup above, each user can export their own actions, logs and notes from **Settings → Data**, and import them
+back. That export holds note content **in the clear**, so treat the file as you would the notes themselves. It is the right tool for moving one
+account between deployments; it is not a substitute for a database backup.
 
 ## User Settings
 
@@ -534,7 +609,7 @@ A value is rejected, with a message, if it contains:
 - **Unicode noncharacters** (U+FDD0-U+FDEF and the last two code points of each plane), which are permanently reserved and display as a fallback box.
 - **Text-direction characters** - the bidirectional overrides, isolates and marks. These reverse the text that follows them, so a name could be made
   to display as something other than what it actually is.
-- **More than four stacked combining marks** on a single character (the "zalgo" effect), which renders as a column of glyphs that overflows the row it
+- **More than eight stacked combining marks** on a single character (the "zalgo" effect), which renders as a column of glyphs that overflows the row it
   is shown in. Ordinary accented text, and scripts that legitimately stack marks, are unaffected.
 
 A value made up **entirely of spaces or invisible whitespace** is rejected as empty, rather than being stored as a name that cannot be seen.
@@ -594,6 +669,13 @@ update, if they *can* use something new it's a **MINOR**, else it's a **PATCH**.
     - Codebase refactoring
     - Dependency bumps
     - Minor visual/styling updates and behaviours, like better resizing for mobile views, etc.
+
+## Contributing
+
+Bug reports and feature requests go to the [issue tracker](https://github.com/zodac/diurnal/issues); [CONTRIBUTING.md](CONTRIBUTING.md) covers
+building locally, the quality gate and the commit-message format.
+
+Found a security problem? Please **do not** open an issue - follow [SECURITY.md](SECURITY.md) and report it privately.
 
 ## License
 

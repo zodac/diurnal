@@ -20,7 +20,9 @@ package net.zodac.diurnal.openapi;
 import jakarta.ws.rs.core.Application;
 import org.eclipse.microprofile.openapi.annotations.OpenAPIDefinition;
 import org.eclipse.microprofile.openapi.annotations.enums.SecuritySchemeType;
+import org.eclipse.microprofile.openapi.annotations.info.Contact;
 import org.eclipse.microprofile.openapi.annotations.info.Info;
+import org.eclipse.microprofile.openapi.annotations.info.License;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
 
 /**
@@ -54,12 +56,19 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
  * The {@code version} declared below is only a build-time fallback: {@code PublicApiFilter} overwrites {@code info.version} with the authoritative
  * release version from the packaged {@code VERSION} file (the same source the footer uses), so it stays in step with the running release
  * automatically.
+ *
+ * <p>
+ * The {@code license} and {@code contact} entries are the document's own metadata, and are deliberately a URL rather than an email address: a
+ * generated API document is a public artefact, and a contact link pointing at the issue tracker routes a consumer to the same place the README does.
+ * Security problems go through {@code SECURITY.md} instead, never the issue tracker.
  */
 @OpenAPIDefinition(
     info = @Info(
     title = "Diurnal API",
     version = "0.0.1",
-    description = "The public REST API for Diurnal, a self-hosted daily habit tracker."
+    description = "The public REST API for Diurnal, a self-hosted daily habit tracker.",
+    license = @License(name = "BSD Zero Clause License", url = "https://github.com/zodac/diurnal/blob/master/LICENSE"),
+    contact = @Contact(name = "zodac", url = "https://github.com/zodac/diurnal/issues")
     )
 )
 @SecurityScheme(
