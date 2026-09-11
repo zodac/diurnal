@@ -21,6 +21,19 @@ services:
         # The in-app preview thumbnails are generated inside the image build and the perf suite doesn't
         # use them — skip the heavy generation (Postgres + Chromium + an extra app build).
         GENERATE_PREVIEWS: "false"
+    # Mirror the production docker-compose.yml runtime hardening so the load suite measures the image
+    # exactly as it ships: immutable root filesystem (the app writes only to the /tmp tmpfs below), all
+    # capabilities dropped, no privilege escalation, non-root image UID stated explicitly. These do not
+    # affect throughput/latency (nothing writes to disk in the hot path) - they keep this tier at parity
+    # with prod. Heap is pinned via JDK_JAVA_OPTIONS below and there is deliberately NO mem_limit.
+    cap_drop:
+      - ALL
+    read_only: true
+    security_opt:
+      - no-new-privileges=true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    user: "65532:65532"
     ports:
       # Host 8083 (!= 8080 production, != 8081 dev / IT / E2E, != 8082 smoke) so perf coexists with all.
       # Overridden by run-perf.sh via PERF_PORT.

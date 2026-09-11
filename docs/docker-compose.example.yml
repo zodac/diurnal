@@ -2,6 +2,11 @@ networks:
   diurnal-network:
     name: diurnal-network
     driver: bridge
+  # Backend network for app<->database traffic only, no egress
+  diurnal-internal:
+    name: diurnal-internal
+    driver: bridge
+    internal: true
 
 services:
 
@@ -52,9 +57,13 @@ services:
         max-size: "10m"
         max-file: "3"
     networks:
-      - diurnal-network
+      - diurnal-internal  # reaches the database, which lives only on this internal network
+      - diurnal-network   # egress for OIDC discovery + the GitHub update-check
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
+    # Immutable root filesystem - the app writes nothing outside /tmp (session state is in Postgres,
+    # logs go to stdout), so the rootfs is read-only and /tmp stays writable via the tmpfs mount below.
+    read_only: true
     restart: unless-stopped
     security_opt:
       - no-new-privileges=true
@@ -99,7 +108,7 @@ services:
         max-size: "10m"
         max-file: "3"
     networks:
-      - diurnal-network
+      - diurnal-internal
     restart: unless-stopped
     security_opt:
       - no-new-privileges=true

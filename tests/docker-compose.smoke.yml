@@ -20,6 +20,19 @@ services:
         # The in-app preview thumbnails are generated inside the image build and the smoke suite doesn't
         # use them — skip the heavy generation (Postgres + Chromium + an extra app build).
         GENERATE_PREVIEWS: "false"
+    # Mirror the production docker-compose.yml runtime hardening so this tier VALIDATES it against the
+    # real image: an immutable root filesystem (the app writes only to the /tmp tmpfs below), all
+    # capabilities dropped, no privilege escalation, and the non-root image UID stated explicitly. If a
+    # future change makes the app write outside /tmp, the `up --wait` in run-smoke.sh fails because the
+    # health endpoint never turns green. Deliberately NO mem_limit still - see the environment note below.
+    cap_drop:
+      - ALL
+    read_only: true
+    security_opt:
+      - no-new-privileges=true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    user: "65532:65532"
     ports:
       # Host 8082 (!= 8080 production, != 8081 dev / IT / E2E) so smoke coexists with both.
       # Overridden by run-smoke.sh via SMOKE_PORT (Maven ${smoke.http.port}).
