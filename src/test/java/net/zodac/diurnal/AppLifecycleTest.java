@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import net.zodac.diurnal.note.NoteKeys;
+import net.zodac.diurnal.stub.StubApplicationVersion;
 import net.zodac.diurnal.stub.StubNotesConfig;
 import net.zodac.diurnal.stub.StubNotesEncryptionConfig;
 import net.zodac.diurnal.stub.StubOidcConfig;
@@ -184,7 +185,8 @@ class AppLifecycleTest {
     private static AppLifecycle lifecycleWithRetiredKeys(final List<String> retiredKeys) {
         final StubNotesEncryptionConfig encryptionConfig = new StubNotesEncryptionConfig(VALID_NOTES_KEY, retiredKeys);
         return new AppLifecycle(new StubPasswordAuthConfig(true, true), new StubQuarkusOidcConfig(false, "", true, "/oauth2/callback/oidc"),
-            StubOidcConfig.inert(), encryptionConfig, new StubNotesConfig(TextFields.NOTE_MAX_LENGTH), new NoteKeys(encryptionConfig));
+            StubOidcConfig.inert(), encryptionConfig, new StubNotesConfig(TextFields.NOTE_MAX_LENGTH), new NoteKeys(encryptionConfig),
+            StubApplicationVersion.of("dev"));
     }
 
     private static AppLifecycle lifecycle(final boolean passwordEnabled, final boolean oidcEnabled, final String issuerUrl) {
@@ -208,6 +210,6 @@ class AppLifecycleTest {
         final StubNotesEncryptionConfig encryptionConfig = StubNotesEncryptionConfig.of(notesKey);
         return new AppLifecycle(new StubPasswordAuthConfig(passwordEnabled, true),
             new StubQuarkusOidcConfig(oidcEnabled, issuerUrl, true, "/oauth2/callback/oidc"), StubOidcConfig.inert(), encryptionConfig,
-            new StubNotesConfig(noteMaxLength), new NoteKeys(encryptionConfig));
+            new StubNotesConfig(noteMaxLength), new NoteKeys(encryptionConfig), StubApplicationVersion.of("dev"));
     }
 }

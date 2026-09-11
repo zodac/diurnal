@@ -3,12 +3,12 @@
 #
 # Container entrypoint: decides how the JVM heap is sized, then hands over to the application.
 #
-# The heap FOLLOWS THE CONTAINER'S MEMORY LIMIT (-XX:MaxRAMPercentage), so docker-compose.yml's
-# mem_limit is the single knob and nothing has to be kept in sync with it. This script exists for the
+# The heap FOLLOWS THE CONTAINER'S MEMORY LIMIT (-XX:MaxRAMPercentage), so the limit docker-compose.yml
+# sets is the single knob and nothing has to be kept in sync with it. This script exists for the
 # one case a percentage cannot express: no limit at all. The JVM then resolves that percentage against
 # TOTAL HOST RAM, which on the reference host meant a 15.7 GB max heap, a 9.4 GB max young gen, and G1
 # growing eden to 1.7 GB and committing 2.8 GB to hold a 433 MB live set - 3.1 GB of RSS that never
-# came back. An unlimited container is therefore capped to the same ~1.33 GB heap the default mem_limit
+# came back. An unlimited container is therefore capped to the same ~1.33 GB heap the default memory limit
 # produces.
 #
 # There is NO JVM flag for "cap only when unlimited", which is the whole reason a shell runs here, and
@@ -30,9 +30,10 @@ UNLIMITED_ABOVE='1099511627776'
 # Fraction of the container's memory given to the heap when there IS a limit. The remaining 35% is not
 # spare: it is metaspace, the code cache, thread stacks and the collector's own structures.
 HEAP_PERCENT='65'
-# Absolute heap used when there is NOT. The maximum is HEAP_PERCENT of docker-compose.yml's
-# APP_MEM_LIMIT default (65% of 2g), so an unlimited deployment tops out at the same heap the documented
-# limited one does.
+# Absolute heap used when there is NOT. The maximum is HEAP_PERCENT of the memory limit the compose files
+# set on the `diurnal` service (deploy.resources.limits.memory, 2G - so 65% of 2g), which is where that
+# budget is configured; there is no environment variable for it. An unlimited deployment therefore tops
+# out at the same heap the documented limited one does.
 #
 # Unlike the limited branch this is a RANGE, and the asymmetry is deliberate: with a cgroup limit the
 # budget is known and guaranteed, so committing all of it up front costs nothing, whereas here the
@@ -81,7 +82,7 @@ esac
 # only selects G1 (and a 25% heap) when it considers itself "server class", i.e. >= ~1792 MB and
 # >= 2 CPUs. ADDING a memory limit can therefore silently downgrade a deployment to SerialGC with a
 # 256 MB heap, which against Argon2id's allocation bursts would be pathological. Pinning it makes the
-# collector independent of how small mem_limit is set.
+# collector independent of how small that memory limit is.
 #
 # On the limited branch the initial heap matches the maximum, so it starts at its final size and RSS is
 # stable from the outset. What that does NOT do is prevent the runaway a JFR recording caught (an 8 MB
@@ -139,7 +140,7 @@ if [ "${unlimited}" = 'yes' ]; then
         set -- "$@" "-Xmx${FALLBACK_HEAP_MAX}"
         # Said out loud because an under-provisioned heap is otherwise invisible until the app is slow.
         echo "INFO  [diurnal] no container memory limit detected - capping the JVM heap at ${FALLBACK_HEAP_MAX}." \
-            "Set one (mem_limit in docker-compose.yml) to size the heap from it; see Performance Tuning in README.md"
+            "Set one (deploy.resources.limits.memory in docker-compose.yml) to size the heap from it; see Performance Tuning in README.md"
     fi
 else
     if [ "${heap_min_set}" = 'no' ]; then

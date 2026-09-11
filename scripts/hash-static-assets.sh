@@ -13,7 +13,8 @@
 #
 # Assets deliberately NOT hashed (stable URLs, served with a bounded ceiling): the woff2 fonts (referenced
 # by @font-face inside the compiled CSS), the raster app-icons (icon-192/512, apple-touch — the first two
-# are pinned by manifest.json), /favicon.ico (browsers probe that fixed root path) and manifest.json.
+# are pinned by manifest.json), /favicon.ico and /robots.txt (both fixed root paths a browser or crawler
+# probes directly, so a hashed name would simply never be requested) and manifest.json.
 #
 # Usage: hash-static-assets.sh <resources-root> <config-file>
 #   <resources-root>  path to src/main/resources/META-INF/resources

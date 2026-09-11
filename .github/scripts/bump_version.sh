@@ -21,6 +21,8 @@
 #   - Stages the updated files (`VERSION`, all `pom.xml` files)
 #   - Clears the value of RELEASE_NOTES.md, since the Github release has been generated
 #   - Commits the changes if any were made, along with any updates to README.md and RELEASE_NOTES.md
+#   - Commits the WHOLE index, so anything the calling workflow staged rides along - notably the
+#     docs/docker-compose.example.yml image pin that publish.yml rewrites to the released version
 #   - Outputs a GitHub Actions environment variable (`has_changes=true`) if changes were committed
 #
 # Exit Codes:

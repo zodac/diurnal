@@ -197,7 +197,7 @@ public class StatsInternalResource {
      * <p>
      * Deliberately has NO {@code /api/v1} twin (surface policy): it is a picker affordance, not a capability of its own. The data behind it - which
      * actions have been logged at least once - is already the exact set {@code GET /api/v1/stats} returns, and the comparison itself is available
-     * through the {@code compare} parameter on {@code GET /api/v1/stats/{actionId}/frequency}.
+     * through the {@code compare} parameter on {@code GET /api/v1/stats/{subjectId}/frequency}.
      *
      * @param subjectId the subject the graph was opened from
      * @param compareIds the actions already being compared, which are never offered again

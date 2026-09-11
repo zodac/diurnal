@@ -11,7 +11,7 @@ networks:
 services:
 
   diurnal:
-    image: zodac/diurnal:latest
+    image: zodac/diurnal:1.0.0
     container_name: diurnal
     hostname: diurnal
     cap_drop:
@@ -25,8 +25,6 @@ services:
           memory: "2G"
           pids: "256"
     memswap_limit: "2G"
-    env_file:
-      - .env
     environment:
       # Database configuration
       DB_HOST: "diurnal-db"
@@ -35,7 +33,7 @@ services:
       DB_USER: "diurnal_user"
       DB_PASSWORD: "change-me-strong-password"  # <--- TODO: Change this
       # Application configuration
-      LOG_LEVEL: "DEBUG"
+      LOG_LEVEL: "INFO"
       NOTE_ENCRYPTION_KEY: "change-me-strong-password"  # <--- TODO: Change this, generate using `openssl rand -base64 32`
       TZ: "UTC"
       # Authentication config

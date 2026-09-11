@@ -25,6 +25,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {!
+        Diurnal is a private, self-hosted app - nothing in it is meant to be indexed. This covers every page
+        (every template includes this layout), and unlike /robots.txt it survives a sub-path deployment, where
+        a crawler reads robots.txt from the origin root and never sees the app's copy. See robots.txt.
+    !}
+    <meta name="robots" content="noindex, nofollow">
+    {!
         Declares that this app ships its own light/dark themes. Browsers use it to
         theme native form controls/scrollbars, and dark-mode extensions (e.g. Dark
         Reader) read it as the standard signal that the page is already dark-aware,

@@ -53,7 +53,7 @@ single-use markup speculatively — note it as a candidate and extract on the se
   becoming `partials/note-card.html`. Extract it if a second caller ever appears.
 - A partial rendered BOTH inline and as a swap target is one partial, not two. `stats-chart-candidates`
   is embedded by `stats-chart` for its unfiltered first render and returned on its own by
-  `/internal/stats/chart/{actionId}/candidates` as the search box filters, so the filtered and unfiltered
+  `/internal/stats/chart/{subjectId}/candidates` as the search box filters, so the filtered and unfiltered
   lists cannot drift. Reach for that shape before writing a second copy of a list's markup in Java or JS.
 
 ### When to extract a component class

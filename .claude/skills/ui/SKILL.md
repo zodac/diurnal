@@ -12,7 +12,7 @@ formatting, fonts). **This skill is the order to do things in, and the traps tha
 
 ## 1. Do not hand-roll it
 
-There are **62 partials and 200+ component classes**. Nearly every visual element you might build already exists.
+There are **64 partials and ~190 component classes**. Nearly every visual element you might build already exists.
 Check here before writing markup:
 
 | You want                         | Use                                                                             |

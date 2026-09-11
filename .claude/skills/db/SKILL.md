@@ -44,9 +44,11 @@ onto the invalidation surface.
 
 ## Step 3 — Update the entity
 
-Panache entity in the package that owns the feature — there is no `entity` package. `schema-management.strategy` is
-`none`, so Hibernate validates nothing: **the entity and the migration agreeing is on you**, and an `*IT` is what
-proves it.
+Panache entity in the package that owns the feature — there is no `entity` package. A table carrying the usual
+`created_at`/`updated_at` pair extends `persistence.AuditedEntity` (the `@MappedSuperclass` that maps both and
+stamps `updated_at` on `@PreUpdate`) rather than restating them; everything else extends `PanacheEntityBase`.
+`schema-management.strategy` is `none`, so Hibernate validates nothing: **the entity and the migration agreeing is
+on you**, and an `*IT` is what proves it.
 
 If the column is a **user preference**, it is not finished at the entity — see the `endpoint` skill for the rest of
 the chain (`@Preference` → `UserDto.Preferences` → Settings row → message bundle → `UserPreferencesExposureTest`).

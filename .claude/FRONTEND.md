@@ -1,6 +1,6 @@
 # Front-end: Build, Assets, CSS & Calendar
 
-> **This file is ~73 KB. Read only the section you need** - `grep -n '^#' .claude/FRONTEND.md` for its
+> **This file is ~74 KB. Read only the section you need** - `grep -n '^#' .claude/FRONTEND.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **CSS build & colour tokens**
@@ -191,7 +191,7 @@ surgical HTMX count updates.
 > tiers, and what each costs, are in [`I18N.md`](I18N.md)'s "Calendar systems".
 
 All three calendar styles (`full`/`minimal`/`stacked`, the `CalendarView` enum, default `full`) are drawn by **one** vanilla-JS engine,
-`buildGridCalendar()` in `dashboard.html` — a shared 7×6 / 42-cell month grid with its own month cache, LRU eviction and idle prefetch (
+`buildGridCalendar()` in `dashboard.js` — a shared 7×6 / 42-cell month grid with its own month cache, LRU eviction and idle prefetch (
 `±2` months). There is no FullCalendar (or any) calendar library. `calendarView` only changes (a) which feed `fetchMonth` reads — `full` →
 `/api/v1/logs/events`, others → `/internal/logs/minimal-events`, both normalised into a uniform `dayData[date] = [{colour, label}]` — and (b) how
 `renderGrid` paints each cell: `full` = bordered cell with top-right day number + an uncapped event list (`.d-full-*`); `minimal` = centred date
@@ -342,12 +342,13 @@ Neither script offers a real italic in this family, so there is no oblique `@fon
 
 Font family is indirect via `--font-body`/`--font-display` CSS variables. The **Font setting** is the `Font` enum (`nova`|`standard`|`dyslexic`,
 default `nova`; column `users.font` is `VARCHAR(16)`, no CHECK, migration V13, so new values need no migration) — the single source of truth for the
-picker, each constant carrying its value + label + preview metadata (see the picker-enum note below). `SettingsWebResource.updateFont` coerces the
-submitted
-value via `Font.from(raw).value()`. `layout.html` renders the class on `<html>` server-side
+picker, each constant carrying its value + label + preview metadata (see the picker-enum note below). `ProfileService.updateFont` REJECTS a value
+that is not one of them (`Font.isValid`, answering `ProfileRejection.InvalidFont` with the allowed set) rather than coercing it. `layout.html`
+renders the class on `<html>` server-side
 (`{#if font == 'dyslexic'}font-dyslexic{#else if font != 'standard'}font-nova{/if}`), no FOUC, and preloads that theme's primary face; `standard`
-renders no class (system sans). The settings picker toggles the same classes live (`settings.js`). **`font` must be passed to every full-page
-template** (mirror `theme` 1:1; HTMX day-panel partials need neither).
+renders no class (system sans). The settings picker toggles the same classes live (`settings.js`). **`font` is one of the values `web/PageShell`
+puts on every full-page render** (with `theme`, `language` and the bundle locale), so a page built through `PageShell.forUser`/`PageShell.anonymous`
+cannot forget it; HTMX day-panel partials need none of them.
 
 **Settings preview-tile pickers (Theme / Font / Calendar style) are enum-driven.** Each is a Java enum (`Theme`, `Font`, `CalendarView`) implementing
 `PreviewOption` (`value`/`label`/`title`/`alt`/`previewImage`), following the `StatField` "single source of truth" pattern. `SettingsWebResource`
@@ -495,7 +496,7 @@ note above) exactly like the `/css/`+`/js/` assets: each is renamed `<base>.<has
 `<base>.webp` when the map is empty — a non-Docker `mvn package`/dev run); `preview-thumb.html` emits
 `/img/settings/{inject:appInfo.settingsImage(imgBase)}`. Because the enum-driven `imgBase` (`PreviewOption.previewImage`) can't
 carry a per-file config key like the fixed CSS/JS names, the map is the indirection (the top-level `/img/` vector marks use the
-same trick — `AssetsConfig.hashedImages()` / `AppInfo.image('wordmark.svg')`). See "Static-asset caching" below for how the served
+same trick — `AssetsConfig.hashedImages()` / `AppInfo.imageUrl('wordmark.svg')`). See "Static-asset caching" below for how the served
 URLs are cached.
 
 ## Static-asset caching
@@ -549,7 +550,7 @@ first, `scripts/dev-teardown.sh` after). There are **two independent sets**, spl
 ```bash
 scripts/dev-up.sh
 node scripts/generate-screenshots.cjs app             # the 8 in-app thumbnails (img/settings/, UNCOMMITTED)
-node scripts/generate-screenshots.cjs documentation   # the 13 README shots (docs/screenshots/, COMMITTED)
+node scripts/generate-screenshots.cjs documentation   # the 17 README shots (docs/screenshots/, COMMITTED)
 node scripts/generate-screenshots.cjs all             # both (default)
 scripts/dev-teardown.sh
 ```
@@ -560,10 +561,11 @@ scripts/dev-teardown.sh
 >   These are **uncommitted build artifacts** — you rarely run this by hand; the Docker build's `screenshots` stage runs
 >   `generate-screenshots.cjs app` for you (see the note under "Settings preview thumbnails"), so every image has current
 >   previews. Running it manually just writes them into the (gitignored) `img/settings/` for a local eyeball.
-> - **`documentation`** → the **13** committed README screenshots in `docs/screenshots/`: `dashboard-{system,dark,light}`,
->   `dashboard-mobile`, `cal-{full,minimal,stacked}-dark`, `{actions,stats,admin,settings}-dark`, `stats-graph-dark` (the
->   frequency-graph modal with three actions compared) and `login-dark`. These are allowed to **lag**; regenerate and
->   commit them manually when a README-visible page changes.
+> - **`documentation`** → the **17** committed README screenshots in `docs/screenshots/`: `dashboard-{system,dark,light}`,
+>   `dashboard-mobile`, `dashboard-arabic-dark` (the RTL demonstration), `cal-{full,minimal,stacked}-dark`,
+>   `{actions,stats,admin,settings}-dark`, `stats-graph-dark` (the frequency-graph modal with three actions compared),
+>   `stats-notes-dark`, `note-box-dark`, `language-dropdown-dark` and `login-dark`. These are allowed to **lag**;
+>   regenerate and commit them manually when a README-visible page changes.
 >
 > So when asked to "regenerate the in-app previews" run `app`; to "update the README screenshots" run `documentation`; only
 > "regenerate everything" means `all`. Only the `documentation` (or `all`) output is committed — the `app` output is gitignored.
@@ -590,7 +592,9 @@ into the error element.
 > **Qute parses `{` everywhere in a template — including inside `<script>` blocks, JS comments, and HTML comments.** A
 `{` immediately followed by a non-whitespace char (e.g. `{date}`, `{view}`, `{foo.bar}`) is read as an expression and will throw
 `TemplateException: Key "date" not found …` at render time — even when it only appears in a code comment like
-`// fetch /logs/day/{date}`. This bites repeatedly in `dashboard.html`'s inline JS. To write a literal brace in template text: put a space after it (
+`// fetch /logs/day/{date}`. It bit repeatedly in the dashboard's inline JS, which is part of why that engine now lives in `dashboard.js` — a
+plain served file, not a template, so it is not parsed at all. What is left in templates is Qute comments and markup. To write a literal brace in
+template text: put a space after it (
 `{ foo`), use a different placeholder (`<date>`, `:date`), or wrap the whole region in a Qute comment `{! … !}` (which is NOT parsed — that's why
 `d-cal-{view}` survives inside one). Only `{` + whitespace or `{!` is safe; everything else is an expression.
 
@@ -607,7 +611,8 @@ statistic regardless, and a rename changes only the caption.
 
 `net.zodac.diurnal.stats.StatField` is the **single source of truth** for the tile catalogue (declaration order = default
 order); each constant also carries a `description()` shown as the picker tooltip. `SubjectStatsExtensions.tiles(stats, fields,
-decimalPlaces)` (a `@TemplateExtension`) maps each displayed stat to a `StatTile`, reusing the existing derived-label methods.
+decimalPlaces, language)` (a `@TemplateExtension`) maps each displayed stat to a `StatTile`, reusing the existing derived-label
+methods.
 `LAST_PERFORMED` is `mandatory` (always rendered, only reorderable). Helpers all take `List<StatFieldPref>`:
 `displayFields(stored)` → the `DisplayStat`s (field + resolved caption) to render; `choices(stored)` → every field
 (key/label/defaultLabel/customLabel/description/selected/mandatory) in arranged order for the picker; `encode(order, enabledKeys,
@@ -669,8 +674,9 @@ change is swallowed, so an abandoned edit never saves.
 > `LONGEST_GAP` still keying on `biggest-gap` and `WEEKLY_DAY_AVERAGE` on `weekly-average`. Changing a key drops that stat from
 > every stored arrangement (it re-appears appended at the end), silently reshuffling everyone's page.
 
-Four tile shapes come out of `tiles(...)`: the locale-grouped `numeric` tile (counts, averages), the `labelTile` (a date or a
-month/year high score), the `trendTile` (a signed figure in a trend colour), and the `durationTile` (the four streak/gap runs — see
+Six tile shapes come out of `tiles(...)`: the locale-grouped `numeric` tile (counts, averages), the `sinceTile` (a date plus how
+long ago it was), the `peakTile` (a figure over a bare date), the `recordTile` (a figure with one count beneath it, for a month/year
+high score), the `trendTile` (a signed figure in a trend colour), and the `durationTile` (the four streak/gap runs — see
 `time/DaySpan` + `time/Durations`). A duration **always** leads with its figure AND unit, whatever its length ("1 day", "5 days",
 "1 year, 2 months, 3 days"), so the four runs read alike instead of a short one showing a bare number; its sub-caption carries the
 run's own dates — `"since <start>"` while the run is still going (current streak/gap), `"<start> – <end>"` once it is closed, and
@@ -726,7 +732,7 @@ compare picker's search box arrives inside the fragment and would otherwise neve
   term; `FrequencyChartExtensions.candidatesUrl` bakes the current comparisons into its `hx-get` so a charted action
   is never re-offered.
 - **Validation is in the service, not the surfaces** (`StatsService.frequency` → sealed `FrequencyResult`), so the
-  page and `GET /api/v1/stats/{actionId}/frequency?compare=…` accept exactly the same selections. Nothing is
+  page and `GET /api/v1/stats/{subjectId}/frequency?compare=…` accept exactly the same selections. Nothing is
   coerced: an unrecognised `period`, a malformed `at` key, >3 actions, a repeated action, and a never-logged
   *comparison* each get their own 4xx. The **primary** action is exempt from the "must have been logged" rule — its
   card is reachable with no logs, and an empty chart is the honest answer there.

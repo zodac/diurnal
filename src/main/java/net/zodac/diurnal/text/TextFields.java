@@ -27,7 +27,7 @@ import java.util.List;
  * compile-time constant and cannot read it off the {@link TextField}. The constant is the value the field is built from, so the two cannot disagree.
  *
  * <p>
- * A maximum must match the width of the column the value is stored in; {@code TextFieldsTest} fails if a bound is changed without its column.
+ * A maximum must match the width of the column the value is stored in; {@code TextFieldsSchemaIT} fails if a bound is changed without its column.
  */
 public final class TextFields {
 

@@ -13,9 +13,9 @@ const ADMIN: TestUser = {
     displayName: "E2E Admin User",
 }
 
-// Register → promote to admin in the DB → log in → widen the Users page size. The promotion must
-// precede login because roles are baked into the session at authentication time
-// (PasswordIdentityProvider).
+// Register → promote to admin in the DB → log in → widen the Users page size. The promotion runs
+// before login so the sequence is deterministic; roles themselves are read live off users.role on
+// every request (SessionIdentityProvider → UserIdentities.of).
 //
 // The page size is not a detail: /admin/users page 1 shows the OLDEST rows by created_at, and the
 // default size is 5. Every spec in the run registers its own fixture user against one shared database,
@@ -47,8 +47,9 @@ const NON_ADMIN: TestUser = {
     displayName: "E2E Non Admin",
 }
 
-// Register → force to plain 'user' in the DB → log in. The demotion must precede login because
-// roles are baked into the session at authentication time (PasswordIdentityProvider).
+// Register → force to plain 'user' in the DB → log in. The demotion runs before login so the
+// sequence is deterministic; roles themselves are read live off users.role on every request
+// (SessionIdentityProvider → UserIdentities.of).
 async function loginAsNonAdmin(page: Page): Promise<void> {
     await registerUser(NON_ADMIN)
     await ensureNotAdmin(NON_ADMIN.email)

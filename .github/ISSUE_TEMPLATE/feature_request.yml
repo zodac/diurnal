@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest a capability or a change to an existing one
+labels: [ "enhancement" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Diurnal is deliberately a small application, so not every suggestion will fit. Describing the problem you
+        are trying to solve, rather than only the solution you have in mind, makes it much easier to judge.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that Diurnal makes hard or impossible today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have considered
+      description: Including anything you tried in the current version that did not work out.

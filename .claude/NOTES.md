@@ -212,10 +212,10 @@ monthly)`, so notes plug straight in with no new aggregation.
   the API JSON for actions is unchanged.
 - **`StatSubject.NOTES_ID` is the nil UUID** (`00000000-0000-0000-0000-000000000000`). Action ids are random v4, so it
   can never collide, and the notes branch is resolved **before** the `Action` lookup so it can never be shadowed. This
-  is what lets `/internal/stats/chart/{actionId}`, `?compare=` and `GET /api/v1/stats/{actionId}/frequency` carry notes
+  is what lets `/internal/stats/chart/{subjectId}`, `?compare=` and `GET /api/v1/stats/{subjectId}/frequency` carry notes
   with **no route or path-type change**. (The alternative — a `String` subject token — ripples through `compare` and
   both surfaces for no gain.)
-- `Note` projects into the **existing** `MonthlyActionTotal` / `ActionPerformedDate` / `DailyActionTotal` records via
+- `Note` projects into the **existing** `MonthlyActionTotal` / `DailyActionTotal` records via
   `SELECT new …(:notesId, …)` constructor expressions. `note` depending on `log` is a clean one-way dependency, and the
   notes rows then flow through `assemble` and the chart's `countsByAction` maps with zero new plumbing.
 - **`forAllSubjects` prepends the notes subject before pagination**, so "sorted first" means page 1, not "first on
@@ -245,7 +245,7 @@ monthly)`, so notes plug straight in with no new aggregation.
 
 > **`GET /api/v1/stats` is a MAJOR-version event.** `SubjectStatsDto` gains a non-nullable `kind` field
 > (`"action"` | `"notes"`) as its FIRST component, and a `kind="notes"` item now appears first in the list with
-> `actionId` set to the nil UUID. `GET /api/v1/stats/{actionId}/frequency` also now accepts the nil ID (and accepts it
+> `actionId` set to the nil UUID. `GET /api/v1/stats/{subjectId}/frequency` also now accepts the nil ID (and accepts it
 > in `compare`), so notes can be charted and compared against actions — that part is purely additive.
 > The *schema* stays backward-compatible (nothing becomes nullable, nothing is removed), but the response's meaning
 > changes for anyone iterating it. **`RELEASE_NOTES.md` and `VERSION` are hand-authored by the maintainer and must NOT

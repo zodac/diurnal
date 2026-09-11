@@ -325,6 +325,19 @@ jobs:
       - name: Tag the released version
         run: git tag "${VERSION}"
 
+      # The Quick Start tells a user to download this file and run it, so the tag it names has to be a release
+      # that actually exists - it is pinned rather than :latest so an upgrade is deliberate (a MAJOR bump can
+      # break a deployment; see README.md's Versioning section). Rewritten here, after the push above has put
+      # that tag on Docker Hub, so the file on master never names a version nobody can pull. Only rewritten for
+      # a version that was actually published; a pre-release (< 1.0.0) pushes no image and must leave the pin on
+      # the last real release. Staged, not committed: bump_version.sh below commits the whole index.
+      - name: Pin the example Compose file to the released version
+        if: needs.version.outputs.should_publish == 'true'
+        run: |
+          sed -i -E "s|^(\s*image: zodac/diurnal:).*|\1${VERSION}|" docs/docker-compose.example.yml
+          git add -- docs/docker-compose.example.yml
+          grep -n 'image: zodac/diurnal:' docs/docker-compose.example.yml
+
       - name: Bump patch version in VERSION file for the next cycle
         run: .github/scripts/bump_version.sh "${VERSION}"
 

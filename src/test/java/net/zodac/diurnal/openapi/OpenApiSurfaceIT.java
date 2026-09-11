@@ -42,8 +42,8 @@ import org.junit.jupiter.api.Test;
 /**
  * The public-API surface guard: pins the generated OpenAPI document (served at {@code /q/openapi}) to the exact, deliberate set of public endpoints.
  * A new endpoint must be consciously added to {@link #PUBLIC_API_CONTRACT} to ship in the public docs, and an internal endpoint (a page route, an
- * {@code /internal/*} HTMX fragment) leaking into the document fails CI — the outlier-prevention rule from {@code .claude/APIS.md}: everything
- * documented lives under {@code /api/v1/}, and nothing else is documented.
+ * {@code /internal/*} HTMX fragment) leaking into the document fails CI — the outlier-prevention rule from {@code .claude/CLAUDE.md}'s endpoint
+ * rules: everything documented lives under {@code /api/v1/}, and nothing else is documented.
  *
  * <p>
  * The document is admin-gated by {@code OpenApiDocsAuthFilter}, so the request authenticates as an administrator via a real session token.

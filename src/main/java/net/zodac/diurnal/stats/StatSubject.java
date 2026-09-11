@@ -28,7 +28,7 @@ import net.zodac.diurnal.action.Action;
  * <p>
  * The notes subject carries the fixed {@link #NOTES_ID} rather than a row id, because notes are not rows in a table of subjects - there is exactly
  * one notes subject per user. Using the <strong>nil UUID</strong> for it is what lets every id-keyed path stay typed and unchanged:
- * {@code /internal/stats/chart/{actionId}}, its {@code compare} parameter and {@code GET /api/v1/stats/{actionId}/frequency} all keep taking a
+ * {@code /internal/stats/chart/{subjectId}}, its {@code compare} parameter and {@code GET /api/v1/stats/{subjectId}/frequency} all keep taking a
  * {@code UUID}, where a string token like {@code "notes"} would have forced a wider type through both surfaces. An {@link Action} id is a random
  * version-4 UUID, so it can never collide with the nil one; the notes branch is nonetheless resolved BEFORE any action lookup, so a collision could
  * not shadow it even in principle.

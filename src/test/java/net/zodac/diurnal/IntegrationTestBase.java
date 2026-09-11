@@ -61,7 +61,8 @@ import org.junit.jupiter.api.BeforeEach;
  * Base for all {@link io.quarkus.test.junit.QuarkusTest} integration tests.
  *
  * <p>
- * Truncates the four data tables before every test (FK order: notes → logs → actions → users) and re-creates any DB state needed by the subclass.
+ * Clears the six per-account data tables before every test (FK order: subject_stats_cache → notes → user_notes_keys → action_logs → actions →
+ * users) and re-creates any DB state needed by the subclass.
  *
  * <p>
  * NOTE: {@link io.quarkus.test.junit.QuarkusTest} must be on each concrete subclass, NOT here. Placing it on the abstract base class causes Quarkus's

@@ -153,8 +153,13 @@ sandbox or when something changed, otherwise it's a fast no-op:
    state volume).
 3. `npx playwright install chromium` — only if the project **declares** Playwright (looked for in
    `tests/` then the root, override with `SANDBOX_PW_DIRS`), once per Playwright volume.
+4. `.claude/hooks/tests/run-hook-tests.sh` — only if the project has the guards and `jq` is present.
+   The `PreToolUse` guards fail SILENTLY (an unregistered, non-executable or `jq`-less hook simply
+   never blocks anything and says nothing), so they are proven here, in the environment that will
+   actually run them, before any work happens. The gate's `shellcheck:hooks` tier is the other half:
+   it tests their LOGIC, but cannot see whether they are wired up at all.
 
-Steps 2 and 3 *detect* rather than assume, so this file survives being copy-pasted into a project
+Steps 2, 3 and 4 *detect* rather than assume, so this file survives being copy-pasted into a project
 with no Node side: it reports `(not applicable)` and runs nothing. That guard is load-bearing, not
 cosmetic — `npm --prefix frontend install` against a missing `frontend/` still **writes**
 `frontend/package-lock.json` before it errors, so an unguarded install would litter an unrelated

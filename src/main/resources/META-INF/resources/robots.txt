@@ -1,0 +1,9 @@
+# Diurnal is a private, self-hosted application. Every page behind the login is unreachable to a crawler
+# anyway, but the login, register and first-run setup pages are not - and an indexed /register page is an
+# open invitation to registration spam. Nothing here is meant to be found by a search engine.
+#
+# Served from the origin root, so a sub-path deployment (BASE_PATH) does NOT get this file - a crawler only
+# ever reads /robots.txt from the origin. The <meta name="robots"> tag in templates/layout.html covers that
+# case, and every page, which is why both exist.
+User-agent: *
+Disallow: /

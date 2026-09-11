@@ -30,6 +30,6 @@ like a right one. For building the thing in the first place, the `ui` skill itse
 
 - **`app`** — the 8 in-app Settings preview thumbnails. **Gitignored and generated inside the Docker build**; any
   `docker build` produces fresh ones. You rarely run this by hand.
-- **`documentation`** — the 9 committed README shots in `docs/screenshots/`. Allowed to lag; regenerate and commit
+- **`documentation`** — the 17 committed README shots in `docs/screenshots/`. Allowed to lag; regenerate and commit
   manually when a README-visible page changes: `scripts/dev-up.sh`, then
   `node scripts/generate-screenshots.cjs documentation`, then `scripts/dev-teardown.sh`. Output is WebP.
