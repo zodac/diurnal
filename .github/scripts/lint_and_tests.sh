@@ -106,10 +106,12 @@
 #   - Docker must be installed and available on the system PATH
 #   - The code-quality-config submodule must be checked out
 #     (git submodule update --init) - it holds every linter's CI config
-#   - The `java` step needs the host toolchain the Docker steps don't: a JDK + Maven, Node/npm (the POM
-#     css-build exec) and Playwright browsers (cd tests && npx playwright install --with-deps). It runs
-#     `mvn clean install -Dall` directly on the host (because -Dall drives Docker itself for the managed
-#     IT test DB), then — only if that passed — the E2E suite (tests/run-e2e.sh, reusing the fast-jar the
+#   - The `java` step runs `mvn clean install -Dall` inside MVN_BUILD_IMAGE, a locally-built image pinning
+#     the JDK, Maven, Node and Docker CLI (see that constant), so the gate's JVM is the same on every
+#     machine rather than whatever is on the host's PATH. It needs Docker (the container drives the host
+#     daemon over the mounted socket for the managed IT test DB) and, on the HOST, Playwright browsers
+#     (cd tests && npx playwright install --with-deps) for the E2E tier only. Then — only if the Maven
+#     tier passed — the E2E suite (tests/run-e2e.sh, reusing the fast-jar the
 #     build just produced) and the deployment-smoke suite (tests/run-smoke.sh, which builds the REAL
 #     production image and brings up an isolated app+DB stack). The `mvn` gate itself stays unit + ITs +
 #     linters; the E2E and smoke tiers are deliberately NOT in the Maven build — they are chained into
@@ -160,6 +162,14 @@ DEV_DB_PORT="${DEV_DB_PORT:-5432}"
 # Compose project owning that database. Must match pom.xml, scripts/dev-up.sh, scripts/dev-teardown.sh
 # and tests/run-e2e.sh.
 DEV_DB_PROJECT="diurnal-dev"
+# The compose network the IT database lands on, and the name it answers to there. The Maven tier joins that
+# network and reaches the database as a PEER rather than through its published port, which is what lets the
+# container run on the default bridge instead of --network host (Linux-only, so it would have made the gate
+# unrunnable on Docker Desktop). Compose derives the network name from the project, so these two move
+# together. The published 127.0.0.1:5432 stays exactly as it was, for every host-side caller: a developer's
+# ITs, tests/run-e2e.sh, and the packaged E2E jar.
+DEV_DB_NETWORK="${DEV_DB_PROJECT}_default"
+DEV_DB_SERVICE="diurnal-db-dev"
 
 # This project's own linter configuration - the files that OVERRIDE or extend the shared rules in the
 # code-quality-config submodule, rather than replacing them: grype's project-level ignore list and the
@@ -189,6 +199,29 @@ ESLINT_JS_VERSION="10.0.1"
 TYPESCRIPT_ESLINT_VERSION="8.69.0"
 ESLINT_GLOBALS_VERSION="17.12.0"
 TYPESCRIPT_VERSION="7.0.2"
+# The JVM gate's own toolchain image, built locally like ESLINT_BUILD_IMAGE. The `java` step used to run
+# `mvn` against whatever JDK happened to be on the host's PATH, which meant the same commit could be gated
+# by two different JVMs - and a JDK vendor/build difference between machines is exactly where PITest (which
+# drives javassist into forked minion JVMs) stops agreeing. Pinning the image pins the gate's JVM without
+# touching a contributor's own JDK: only this container's `mvn` is affected, never a hand-run `mvn` or an IDE.
+#
+# The four source images are assembled rather than used directly because no single published tag carries the
+# combination the gate needs: the `maven:` tags pin only the JDK *major*, and -Dall additionally requires
+# Node (the POM's css-build exec) and a Docker CLI (the POM starts the IT database with `docker compose` at
+# pre-integration-test - see the exec plugin in pom.xml). Node is the BASE, so its Debian release fixes the
+# glibc every copied binary must match; the JDK/Maven trees are self-contained and portable onto it, which
+# is the same layering sandbox/Dockerfile uses. All four are bumped by update_dependency_versions.sh.
+MVN_BUILD_IMAGE="local/diurnal-mvn:latest"
+# A FIXED name for the Maven container, so a run that was cancelled can be cleaned up by the next one.
+# `--rm` only reaps a container whose CLIENT exited normally: SIGKILL the gate (or the terminal it runs in)
+# and the daemon keeps the container alive, still attached to DEV_DB_NETWORK - which then blocks the
+# compose teardown ("Resource is still in use") and leaves the next run to fail on a name clash. Observed,
+# not theoretical. Same reasoning as tests/run-smoke.sh's pre-flight sweep of its own stack.
+MVN_CONTAINER_NAME="diurnal-gate-mvn"
+MVN_JDK_IMAGE="eclipse-temurin:26.0.2_10-jdk"
+MVN_MAVEN_IMAGE="maven:3.9.16-eclipse-temurin-26"
+MVN_NODE_IMAGE="node:26.8.1-trixie"
+MVN_DOCKER_CLI_IMAGE="docker:28.5.1-cli"
 GRYPE_DOCKER_IMAGE="anchore/grype:v0.118.0"
 HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.15.1-alpine"
 MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.2"
@@ -533,6 +566,64 @@ sonar_property_args() {
     done < "${SONAR_CONFIG_FILE}"
 }
 
+# Builds the JVM gate's toolchain image (see MVN_BUILD_IMAGE). Cheap after the first run - every layer is
+# content-addressed off the four pinned tags, so this is a no-op until one of them is bumped.
+ensure_mvn_image() {
+    build_output=$(
+        docker build -t "${MVN_BUILD_IMAGE}" - 2>&1 <<EOF
+FROM ${MVN_JDK_IMAGE} AS jdk
+FROM ${MVN_MAVEN_IMAGE} AS maven
+FROM ${MVN_DOCKER_CLI_IMAGE} AS dockercli
+FROM ${MVN_NODE_IMAGE}
+COPY --from=jdk       /opt/java/openjdk /opt/java/openjdk
+COPY --from=maven     /usr/share/maven  /opt/maven
+COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=dockercli /usr/local/libexec/docker/cli-plugins /usr/local/libexec/docker/cli-plugins
+ENV JAVA_HOME=/opt/java/openjdk
+ENV MAVEN_HOME=/opt/maven
+ENV PATH=/opt/java/openjdk/bin:/opt/maven/bin:/usr/local/bin:\${PATH}
+EOF
+    )
+    local rc=$?
+    if [[ "${rc}" -ne 0 ]]; then
+        echo "❌ Maven toolchain image build failed"
+        echo "${build_output}"
+        return 1
+    fi
+}
+
+# The argv that runs `mvn` inside MVN_BUILD_IMAGE, populated into MVN_DOCKER_RUN. Four of these flags are
+# load-bearing and none is decoration:
+#
+#   --network <db>    the container joins the IT database's own compose network and reaches it by SERVICE
+#                     NAME (DB_HOST), rather than through its published port. That is what avoids
+#                     --network host, which is Linux-only and would make the gate unrunnable on Docker
+#                     Desktop. The database's port stays bound to 127.0.0.1 for host-side callers, so no
+#                     hardening is given up to get here. :8081 is now container-internal, which also stops
+#                     the Maven tier contending with the host-side e2e/smoke tiers for it.
+#   docker.sock       the POM runs `docker compose up` for the IT database itself; without the socket (and
+#                     --group-add for its group, since we run as the host UID) that exec fails.
+#   same-path mount   the repo is mounted AT ITS HOST PATH so target/ paths match on both sides - the e2e
+#                     and smoke tiers run on the host and consume the fast-jar this tier packages.
+#   maven.repo.local  an unmapped UID has no passwd entry, so the JVM cannot resolve user.home and Maven
+#                     silently picks the wrong local repository - every artifact then "has not been
+#                     downloaded" and even the parent POM fails to resolve. Naming the path sidesteps it.
+build_mvn_docker_cmd() {
+    local socket_gid host_uid host_gid
+    socket_gid="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || true)"
+    host_uid="$(id -u)"
+    host_gid="$(id -g)"
+
+    MVN_DOCKER_RUN=(docker run --rm --name "${MVN_CONTAINER_NAME}" --network "${DEV_DB_NETWORK}"
+        -v /var/run/docker.sock:/var/run/docker.sock
+        -v "${PWD}:${PWD}" -w "${PWD}"
+        -v "${HOME}:${HOME}" -e "HOME=${HOME}"
+        -e "DB_HOST=${DEV_DB_SERVICE}"
+        -u "${host_uid}:${host_gid}")
+    [[ -n "${socket_gid}" ]] && MVN_DOCKER_RUN+=(--group-add "${socket_gid}")
+    MVN_DOCKER_RUN+=("${MVN_BUILD_IMAGE}" mvn "-Dmaven.repo.local=${HOME}/.m2/repository" -Ddb.lifecycle.skip=true)
+}
+
 # The eslint image is shared by the javascript and typescript steps. It installs eslint plus the
 # TypeScript plugins referenced by code-quality-config/typescript/eslint.config.mjs into the root
 # node_modules so ESM plugin resolution from the config file walks up and finds them.
@@ -801,6 +892,25 @@ stop_tier() {
 # deliberately started inside the lane's own group so a Ctrl-C reaches all of them at once, and giving
 # mvn a group of its own would put it out of reach of that. Maven has no teardown hook to fire either
 # way, so the container is swept here explicitly instead.
+# Stands the IT database up (and creates DEV_DB_NETWORK as a side effect) before the Maven container is
+# launched. The POM can no longer do this itself for the gate: it runs INSIDE that container, so a network
+# it creates at pre-integration-test does not exist when the container needs to join it. Hence
+# -Ddb.lifecycle.skip=true below - a hand-run `mvn -Dall` is unaffected and still manages its own database.
+ensure_test_db() {
+    local output
+    if ! output=$(docker compose -p "${DEV_DB_PROJECT}" -f "${PWD}/docker-compose.dev.yml" \
+            up -d --wait "${DEV_DB_SERVICE}" 2>&1); then
+        echo "❌ Could not start the IT database (${DEV_DB_SERVICE})"
+        echo "${output}"
+        return 1
+    fi
+}
+
+# Removes a Maven container left behind by a cancelled run (see MVN_CONTAINER_NAME). A no-op normally.
+sweep_mvn_container() {
+    docker rm -f "${MVN_CONTAINER_NAME}" >/dev/null 2>&1 || true
+}
+
 sweep_test_db() {
     docker compose -p diurnal-dev -f "${PWD}/docker-compose.dev.yml" rm -sf diurnal-db-dev >/dev/null 2>&1 || true
 }
@@ -1062,6 +1172,7 @@ run_java() {
     # its own; which tier owns those minutes, and which one died, is.
     local failed_at=""
     TIMED_SUBSTEPS=()
+    MVN_DOCKER_RUN=()
 
     # The Maven gate, optionally with SonarQube analysis appended (see SONARQUBE_ANALYSIS above). The
     # label mirrors the exact args so the progress + "re-run …" hints stay copy/paste-accurate.
@@ -1129,14 +1240,41 @@ run_java() {
     fi
 
     if [[ "${run_mvn}" == true ]]; then
+        substep "preparing the Maven toolchain image (${MVN_BUILD_IMAGE})"
+        if ! ensure_mvn_image; then
+            failed_at="${mvn_label}"
+        fi
+    fi
+
+    # Must precede the container: joining DEV_DB_NETWORK is only possible once compose has created it.
+    if [[ "${run_mvn}" == true && -z "${failed_at}" ]]; then
+        substep "starting the IT database (${DEV_DB_SERVICE} on ${DEV_DB_NETWORK})"
+        # Before the database, not after: a stale Maven container holds DEV_DB_NETWORK open, so compose
+        # cannot recreate it while that container is still attached.
+        sweep_mvn_container
+        if ! ensure_test_db; then
+            failed_at="${mvn_label}"
+        fi
+    fi
+
+    if [[ "${run_mvn}" == true && -z "${failed_at}" ]]; then
+        build_mvn_docker_cmd
         run_supervised_tier "mvn" "${mvn_label}" \
-            mvn "${mvn_args[@]}" || failed_at="${mvn_label}"
+            "${MVN_DOCKER_RUN[@]}" "${mvn_args[@]}" || failed_at="${mvn_label}"
         if [[ "${TIER_STOPPED_EARLY}" == true ]]; then
             failed_at="tests/run-smoke.sh"
             # Maven was signalled mid-flight, so its post-integration-test teardown never ran (see
             # sweep_test_db); remove the IT database it may have left standing.
             sweep_test_db
         fi
+    fi
+
+    # The POM's post-integration-test teardown is skipped in the gate (see db.lifecycle.skip), so the
+    # database is torn down here instead - same net behaviour as before, and tests/run-e2e.sh stands its
+    # own back up. Runs whether the tier passed or failed, so a red gate never leaves the DB standing.
+    if [[ "${run_mvn}" == true ]]; then
+        sweep_mvn_container
+        sweep_test_db
     fi
 
     if [[ "${run_e2e}" == true && -z "${failed_at}" ]]; then
@@ -2320,6 +2458,8 @@ detect_changed_steps() {
         grep -qE '^[+-][[:space:]]*SHELLCHECK_DOCKER_IMAGE='                      <<<"${script_diff}" && run_shellcheck=true
         # The scan is a tier of `java`, so its image pin re-triggers that step rather than one of its own.
         grep -qE '^[+-][[:space:]]*QODANA_DOCKER_IMAGE='                          <<<"${script_diff}" && run_java=true
+        # The Maven tier's toolchain image IS the gate's JVM, so bumping any of its four pins re-runs `java`.
+        grep -qE '^[+-][[:space:]]*MVN_(BUILD|JDK|MAVEN|NODE|DOCKER_CLI)_IMAGE='  <<<"${script_diff}" && run_java=true
     fi
 
     # `docker` is emitted SCOPED unless both its tiers were triggered, so a change that touched only one

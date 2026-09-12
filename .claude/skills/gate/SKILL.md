@@ -176,6 +176,21 @@ already tells you your own change is fine.
 
 ## 5. Scoped iteration
 
+- **Checkstyle and PMD in ~2 seconds, BEFORE paying for a 10-minute `java` run.** Both run in the Maven tier's
+  `validate` phase, so a violation in either aborts the whole gate before a single test executes - and both read
+  **test sources** (`includeTestSourceDirectory=true`), which is where they usually bite:
+
+  ```bash
+  mvn -o checkstyle:check -Dlint -Dcss.build.skip=true      # "You have 0 Checkstyle violations."
+  mvn -o pmd:pmd pmd:check -Dlint -Dcss.build.skip=true     # pmd:check alone passes VACUOUSLY - it needs pmd:pmd first
+  ```
+
+  Verified to reproduce the gate exactly (re-introducing a known violation fails it; reverting passes). Run both
+  after writing any new test, and the two rules that actually recur there cost nothing to pre-check by hand:
+  `AbbreviationAsWordInName` (a bare `A` article before a capitalised word reads as two capitals - `dropsADecayedCounter`,
+  `rejectsATrustedHeader`; `An` + lowercase is fine) and `AvoidUsingHardCodedIP` (hoist the literal to a constant with
+  a `// NOPMD: AvoidUsingHardCodedIP - test IP` comment, as `ClientAddressTest` does). Three consecutive ~10-minute
+  gate runs were once spent discovering these one at a time.
 - **Unit tests only** (no DB): `mvn test -Dtests`, or `mvn test -Dtests -Dtest=MyTestClass`.
 - **Test sources do not compile without `-Dtests`** — plain `mvn test-compile` prints "Not compiling test sources".
   Use `mvn test-compile -Dtests -Dcss.build.skip=true`.
