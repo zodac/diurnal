@@ -37,7 +37,12 @@ matter must stay out of it.
    (`executionSuccessful`, `results: []`), an empty `tests/test-results/`, a fresh
    `tests/playwright-report/index.html`.
 
-4. **If it failed, triage before reporting.** Invoke the `gate` skill and work its triage list — it is the
+4. **If it failed, read the cause out of the step's own log rather than scrolling the run.** The wrapper
+   re-prints each failed step's tail at the end under a `──── <step>: last N of M captured lines ────` banner, and
+   leaves the whole thing at `/tmp/lint_and_tests/<step>.log` (only failed steps' logs are kept). `grep` that file
+   for the decisive lines - it is also where the closing ❌ line lands when the live tail lost it.
+
+5. **Then triage before reporting.** Invoke the `gate` skill and work its triage list — it is the
    authority here. In short: several ITs failing at BOOT together means a poisoned dev database, not your change;
    `Port already bound: 8081` usually means orphaned processes from a previous run; a single E2E timeout is often
    sandbox CPU contention (isolate with `--workers=1 --repeat-each=5`); an ErrorProne `NoSuchElementException` is

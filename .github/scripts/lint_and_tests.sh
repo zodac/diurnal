@@ -41,6 +41,17 @@
 #                    Steps still running when the first failure lands are signalled and reported as
 #                    CANCELLED (their result is unknown), separately from the step that actually failed.
 #
+#                  End-of-run failure report (see report_failure_details):
+#                    Every step's output is captured to GATE_LOG_DIR (default /tmp/lint_and_tests) as
+#                    <step>.log, in ADDITION to being printed as it always was. A step that passes has its
+#                    log removed; a step that FAILS keeps its one, and the end of the run re-prints the tail
+#                    of each before the summary. That is there because a failure is reported the moment it
+#                    happens, which is rarely the moment you can read it: during the parallel phase the java
+#                    gate is still streaming over it, the other lanes are replayed after it, and the serial
+#                    tail (a CVE scan, the perf suite) can run for minutes more.
+#                    GATE_FAILURE_TAIL_LINES (default 40) sets how much of each log is re-printed; the whole
+#                    log is left on disk and its path named beside the excerpt either way.
+#
 #                  Execution order (see LANE_STEPS):
 #                    The lane-eligible steps - every linter (`docker` only while it is scoped to its
 #                    hadolint tier) plus `java` - run CONCURRENTLY, so the
@@ -381,6 +392,28 @@ final_exit_code=0
 # must not be named in the "re-run the failures" hint as though it were something to go and fix.
 cancelled_steps=()
 
+# Where each step's output is captured for the run, so the end-of-run report can re-print WHY a step failed
+# (see report_failure_details). A fixed directory rather than a mktemp one, so the path printed in that
+# report is the same every run and can be opened or grepped without hunting for a random suffix. Each
+# selected step's log is cleared before the run starts, and only the FAILING steps' logs survive it.
+GATE_LOG_DIR="${GATE_LOG_DIR:-${TMPDIR:-/tmp}/lint_and_tests}"
+
+# How many trailing lines of a failed step's log that report prints. A tail rather than the whole file:
+# a failing Maven or E2E tier's log runs to thousands of lines and every tool the gate drives puts its
+# verdict at the BOTTOM - the reactor summary, the failed-spec list, then the step's own failure line.
+GATE_FAILURE_TAIL_LINES="${GATE_FAILURE_TAIL_LINES:-40}"
+
+# The captured-output file of each entry in failed_steps, in the same order, so the report can pair the two.
+# A parallel array rather than a lookup keyed on the step name, because failed_steps holds the INVOCATION
+# ("java:qodana"), while a log is per STEP - scoping narrows what a step runs, not which step it is.
+failed_step_logs=()
+
+# Path of the file holding step ${1}'s captured output. Step names come from VALID_STEPS and are plain
+# words, so nothing here needs escaping.
+step_log_path() {
+    printf '%s/%s.log' "${GATE_LOG_DIR}" "${1}"
+}
+
 # Yellow highlight for the copy/paste-ready "re-run …" command in failure messages, so it stands out
 # from the surrounding text. Only emit the ANSI codes when stdout is a real terminal — piped/redirected
 # output (e.g. CI logs) stays plain so the escape sequences don't leak into it.
@@ -529,6 +562,44 @@ substep_breakdown() {
     local joined
     joined="$(printf ' | %s' "${TIMED_SUBSTEPS[@]}")"
     printf '  [%s]' "${joined# | }"
+}
+
+# Re-print the tail of every failed step's captured output, once the whole run is over.
+#
+# A failure is printed the moment it is known, which is rarely the moment you can read it: during the
+# parallel phase the java gate is still streaming over it, the other lanes are replayed only once every one
+# of them has finished, and the serial tail (a CVE scan, the perf suite) can run for minutes after that. By
+# the end of a red run the reason it went red is thousands of lines back, and with two failures you are
+# hunting for both. This puts each of them in front of the summary instead.
+#
+# An excerpt rather than the whole log, because a failing Maven or E2E tier's output is thousands of lines
+# on its own and re-printing it would recreate the problem this exists to solve. The TAIL is the useful end
+# of it: every tool the gate drives reports its verdict at the bottom, and the step's own failure line -
+# which names the tier that died and the scoped command to re-run - is the last line of all. The full log
+# stays on disk and is named beside each excerpt, for the cases where the tail is not enough.
+report_failure_details() {
+    local i name log total shown printed=false
+    for i in "${!failed_steps[@]}"; do
+        name="${failed_steps[i]}"
+        log="${failed_step_logs[i]}"
+        # Empty or missing only if the step failed before it printed anything at all; the summary line
+        # above has already named it, so there is nothing to add.
+        [[ -s "${log}" ]] || continue
+
+        total="$(wc -l < "${log}")"
+        shown="${GATE_FAILURE_TAIL_LINES}"
+        [[ "${total}" -lt "${shown}" ]] && shown="${total}"
+
+        echo
+        echo "──── ${RED}${name}${RESET}: last ${shown} of ${total} captured lines (full log: ${YELLOW}${log}${RESET}) ────"
+        tail -n "${GATE_FAILURE_TAIL_LINES}" "${log}"
+        echo "──── end of ${RED}${name}${RESET} ────"
+        printed=true
+    done
+    # Separate the last excerpt from the summary lines that follow, but only when there was one - a run
+    # whose failures printed nothing must not leave a stray blank line in the middle of the summary.
+    [[ "${printed}" == true ]] && echo
+    return 0
 }
 
 # Pre-flight reachability check for the SonarQube server, hit with the SAME host/token the
@@ -2157,8 +2228,12 @@ lane_abort_all() {
 # back to the parent - so the subshell re-emits it as its own exit status, which is what the reaper reads.
 lane_start() {
     local step="${1}"
+    # The step's own log rather than a mktemp one, so a failed lane's output is still addressable by step
+    # name at the end of the run (see report_failure_details); the replay below removes it again when the
+    # lane passed.
     local log
-    log="$(mktemp)"
+    log="$(step_log_path "${step}")"
+    : > "${log}"
     (
         set +m
         overall_exit_code=0
@@ -2251,10 +2326,13 @@ run_lanes() {
         if [[ "${name}" != "java" && -s "${LANE_LOGS[i]}" ]]; then
             cat "${LANE_LOGS[i]}"
         fi
-        rm -f "${LANE_LOGS[i]}"
         case "${rc}" in
-        0) ;;
+        # A passing lane's log is of no use to anyone, and a cancelled one's is worse than none - it holds
+        # however far the step happened to get before it was signalled, which says nothing about its result.
+        # Only a failure's is kept, for the end-of-run report.
+        0) rm -f "${LANE_LOGS[i]}" ;;
         cancelled)
+            rm -f "${LANE_LOGS[i]}"
             echo
             echo "⏹  [${name}] cancelled - another step failed first (-e/--exit-on-failure)"
             cancelled_steps+=("${name}")
@@ -2263,6 +2341,7 @@ run_lanes() {
             # The invocation rather than the bare name, so a scoped lane's failure re-runs scoped (see the
             # serial loop's copy of this).
             failed_steps+=("$(step_invocation "${name}")")
+            failed_step_logs+=("${LANE_LOGS[i]}")
             final_exit_code=1
             ;;
         esac
@@ -2632,6 +2711,18 @@ fi
 overall_start=""
 overall_start="$(date +%s%N)"
 
+# One log per step, for the end-of-run failure report. A log left by a PREVIOUS run must not survive into
+# this one - it would be re-printed as though it were this run's failure - so each SELECTED step's log is
+# cleared here. Only the selected ones, and only the exact filenames this script writes: the directory comes
+# from GATE_LOG_DIR, so a wildcard sweep would both obey a mistyped override and pull the log out from under
+# a `… markdown` run happening alongside a long `… java` one.
+mkdir -p "${GATE_LOG_DIR}"
+step_log=""
+for step in "${steps[@]}"; do
+    step_log="$(step_log_path "${step}")"
+    rm -f "${step_log}"
+done
+
 # Split the selected steps into the parallel lane set and the serial tail, keeping the order they were
 # selected in. See LANE_STEPS and lane_eligible for why perf, and a `docker` step including its scan, are
 # excluded from the lanes; running them after the parallel phase is also what makes the scan's image build
@@ -2674,22 +2765,48 @@ for idx in "${!serial_selected[@]}"; do
     # Reset the per-step signal so we can tell whether THIS step failed (each run_* sets it to 1 on
     # failure); the real cumulative result is kept in final_exit_code / failed_steps below.
     overall_exit_code=0
-    case "${step}" in
-    docker) run_docker ;;
-    java) run_java ;;
-    javascript) run_javascript ;;
-    markdown) run_markdown ;;
-    perf) run_perf ;;
-    shellcheck) run_shellcheck ;;
-    typescript) run_typescript ;;
-    *) ;; # unreachable: steps are validated against VALID_STEPS above
-    esac
+    # A serial step prints LIVE, so its output is TEED rather than captured: the terminal sees it exactly as
+    # it always did, and a copy lands in the step's log for the end-of-run failure report. Three details are
+    # load-bearing:
+    #   - the tee's pid is read immediately after the `exec`, because anything the step backgrounds (the
+    #     smoke and Qodana tiers, a verbose tail) overwrites $! long before the redirection ends;
+    #   - `{step_out_fd}>&-` closes the spare descriptor INSIDE the step, so only its stdout/stderr hold the
+    #     pipe open and the tee sees EOF as soon as the step and every child it joins are done;
+    #   - the wait is what makes the log complete before the report reads it.
+    # The step's stdout is now a pipe rather than a tty, which changes nothing: every tool the gate runs
+    # already has its output captured to a file or a variable by run_quietly/run_supervised_tier, so none of
+    # them was looking at a terminal to begin with.
+    step_log="$(step_log_path "${step}")"
+    : > "${step_log}"
+    # `|| true`: a tee that cannot write its copy (a full disk, an unwritable GATE_LOG_DIR) must not take
+    # the gate down with it - the run's own output is already on its way to the terminal either way. It also
+    # satisfies shellcheck, which flags the substitution's masked return value otherwise (SC2312).
+    exec {step_out_fd}> >(tee -a "${step_log}" || true)
+    step_tee_pid=$!
+    {
+        case "${step}" in
+        docker) run_docker ;;
+        java) run_java ;;
+        javascript) run_javascript ;;
+        markdown) run_markdown ;;
+        perf) run_perf ;;
+        shellcheck) run_shellcheck ;;
+        typescript) run_typescript ;;
+        *) ;; # unreachable: steps are validated against VALID_STEPS above
+        esac
+    } >&"${step_out_fd}" 2>&1 {step_out_fd}>&-
+    exec {step_out_fd}>&-
+    wait "${step_tee_pid}" 2>/dev/null || true
     if [[ "${overall_exit_code}" -ne 0 ]]; then
         # Recorded as the INVOCATION, not the bare step name, so the re-run command at the end repeats the
         # scoping too - re-running the whole java gate to chase a `java:qodana` failure is minutes wasted.
         step_failure="$(step_invocation "${step}")"
         failed_steps+=("${step_failure}")
+        failed_step_logs+=("${step_log}")
         final_exit_code=1
+    else
+        # Only a failure's log is kept (see the lane replay's copy of this).
+        rm -f "${step_log}"
     fi
     # -e/--exit-on-failure: stop as soon as a step fails, skipping the remaining steps.
     if [[ "${FAIL_FAST}" == true && "${overall_exit_code}" -ne 0 ]]; then
@@ -2722,6 +2839,9 @@ if [[ "${final_exit_code}" -ne 0 ]]; then
     failed_list="$(IFS=','; echo "${failed_steps[*]}")"
     echo
     echo "❌ Failed steps (${#failed_steps[@]}): ${RED}${failed_list}${RESET}"
+    # Why each of them failed, re-printed here because the point at which it was first reported can be a
+    # whole parallel phase and a multi-minute serial tail ago.
+    report_failure_details
     # Cancelled steps are listed separately and kept OUT of the re-run command: they did not fail, they were
     # stopped (or never started) by -e, so nothing about them is known and none of them is a thing to fix.
     if [[ "${#cancelled_steps[@]}" -gt 0 ]]; then

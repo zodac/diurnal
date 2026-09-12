@@ -72,6 +72,13 @@ The case that prompted this: adding `implements Serializable` to a record to sil
 Javadoc warnings, and three separate local `-Dlint` runs reported "clean" because every grep was scoped to
 failures. Both the rule and the warnings turned out to be avoidable - see `OptionPreview`'s Javadoc.
 
+**Every failing step's output is re-printed at the end of the run**, under a
+`──── <step>: last N of M captured lines ────` banner, before the `❌ Failed steps` summary. That is the place to
+read a failure from: a parallel run reports one the moment its lane is reaped, which can be a whole java stream and
+a multi-minute serial tail before the run actually ends. The banner names the full log - one file per failed step
+under `/tmp/lint_and_tests/<step>.log`, kept after the run (a passing step's is deleted) - so `grep` it rather than
+scrolling. `GATE_FAILURE_TAIL_LINES` (default 40) widens the excerpt; `GATE_LOG_DIR` moves the directory.
+
 ## 4. Triage: is this failure actually mine?
 
 Work down this list before changing any product code.
