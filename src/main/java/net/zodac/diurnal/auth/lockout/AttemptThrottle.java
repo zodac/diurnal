@@ -44,6 +44,11 @@ import org.jspecify.annotations.Nullable;
  * State is held in a {@link ConcurrentHashMap} and mutated only inside {@link ConcurrentHashMap#compute} (which locks the bin), so concurrent
  * attempts for the same key are consistent. A counter <em>decays</em>: a fresh failure that arrives more than one window after the previous one
  * starts over, so a shared key (e.g. a NAT'd IP) never accumulates unrelated failures indefinitely. A restart also drops the entry.
+ *
+ * <p>
+ * Decaying is not the same as being forgotten, though, and the difference is the map's size: a decayed counter is reset in place the next time its
+ * key is seen, so without {@link #evictStale(Instant)} every key ever seen is retained for the life of the process. {@link IpThrottle} runs that
+ * eviction on a schedule, which is what bounds the map for a deployment under sustained attack from many addresses.
  */
 // AccessingNonPublicFieldOfAnotherObject: Attempt is a private nested mutable holder, read and written directly by the methods below - the
 // inspection's ignoreInnerClasses option only covers the opposite direction (an inner class reading its enclosing class's fields).
@@ -173,6 +178,42 @@ public final class AttemptThrottle {
 
         final Attempt removed = attempts.remove(key);
         return removed != null && removed.isLockedAt(now);
+    }
+
+    /**
+     * Drops every key whose counter has decayed, and reports how many went. Without this the map only ever grows: a key is retained for the life of
+     * the process once seen, because {@link #recordFailure} resets a lapsed counter <em>in place</em> rather than removing it, and the only other
+     * removal is an administrator's {@link #unlock}. One entry per client IP is nothing for a deployment's real user base and everything for a
+     * sustained attack from many addresses, which is precisely when the map is being written to hardest.
+     *
+     * <p>
+     * A key is dropped on exactly the condition that makes it worthless to keep: it is stale by {@link Attempt#isStaleAt}, which is the same test
+     * {@link #recordFailure} uses to decide a fresh failure starts a new count. So an evicted key was going to be reset the moment it was next seen,
+     * and eviction changes no decision this class makes - it only stops the entry occupying memory until then. That test is also, exactly, "not
+     * currently locked": a lockout always runs to {@code lastFailureAt + lockoutDuration}, the same instant staleness begins, so a live lockout can
+     * never be evicted and an attacker cannot clear their own budget by waiting.
+     *
+     * <p>
+     * Each key is re-tested inside {@link java.util.concurrent.ConcurrentHashMap#computeIfPresent}, which holds the bin lock that
+     * {@link #recordFailure} also computes under, so a failure arriving mid-sweep either precedes the test (and saves the entry) or follows the
+     * removal (and starts a fresh count). Reading the entry outside that lock would let the two interleave and drop a counter that had just been
+     * incremented.
+     *
+     * @param now the current instant
+     * @return how many keys were dropped
+     */
+    public int evictStale(final Instant now) {
+        if (!enabled) {
+            return 0;
+        }
+
+        int evicted = 0;
+        for (final String key : List.copyOf(attempts.keySet())) {
+            if (attempts.computeIfPresent(key, (_, attempt) -> attempt.isStaleAt(now, lockoutDuration) ? null : attempt) == null) {
+                evicted++;
+            }
+        }
+        return evicted;
     }
 
     /**

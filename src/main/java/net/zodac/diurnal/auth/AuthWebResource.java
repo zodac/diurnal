@@ -101,6 +101,7 @@ public class AuthWebResource {
     private final RegistrationConfig registrationConfig;
     private final IpThrottleConfig ipThrottleConfig;
     private final AppPaths appPaths;
+    private final ClientAddress clientAddress;
 
     /**
      * Injects the page templates, the shared authentication and registration services, the session store and cookie builder, and every config view
@@ -123,6 +124,7 @@ public class AuthWebResource {
      * @param registrationConfig the registration settings
      * @param ipThrottleConfig the per-IP throttle settings
      * @param appPaths the single builder of every application URL, for every redirect and cookie path this resource emits
+     * @param clientAddress the resolver for the requesting client's IP
      */
     // Constructor injection is what CODE_STYLE.md mandates, and it explicitly keeps the parameter-count limits off, so the collaborator count here
     // is the convention rather than a smell.
@@ -136,7 +138,8 @@ public class AuthWebResource {
         final AuthenticationService authenticationService,
         final RegistrationService registrationService, final SessionStore sessionStore, final SessionCookies sessionCookies,
         final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig, final PasswordAuthConfig passwordAuthConfig,
-        final RegistrationConfig registrationConfig, final IpThrottleConfig ipThrottleConfig, final AppPaths appPaths) {
+        final RegistrationConfig registrationConfig, final IpThrottleConfig ipThrottleConfig, final AppPaths appPaths,
+        final ClientAddress clientAddress) {
         this.loginTemplate = loginTemplate;
         this.registerTemplate = registerTemplate;
         this.setupTemplate = setupTemplate;
@@ -154,6 +157,7 @@ public class AuthWebResource {
         this.registrationConfig = registrationConfig;
         this.ipThrottleConfig = ipThrottleConfig;
         this.appPaths = appPaths;
+        this.clientAddress = clientAddress;
     }
 
     // ── Login ──────────────────────────────────────────────────────────────
@@ -273,7 +277,7 @@ public class AuthWebResource {
         @FormParam("email") @Nullable final String email,
         @FormParam("password") @Nullable final String password,
         @Context @Nullable final RoutingContext routingContext) {
-        final String clientIp = ClientAddress.of(routingContext);
+        final String clientIp = clientAddress.of(routingContext);
         final Instant now = clock.now();
         LOGGER.debug("Web login attempt from {} - forwarded headers: {}", clientIp, ClientAddress.forwardedSummary(routingContext));
         final LoginResult result = authenticationService.authenticate(email == null ? "" : email, password == null ? "" : password, clientIp, now);
@@ -377,12 +381,12 @@ public class AuthWebResource {
         final Instant now = clock.now();
         final RegistrationResult result = registrationService.register(
             email, displayName, password, confirmPassword == null ? "" : confirmPassword,
-            ClientAddress.of(routingContext), now);
+            clientAddress.of(routingContext), now);
 
         return switch (result) {
             case final RegistrationResult.Success success -> {
                 final String token = sessionStore.create(
-                    success.user(), Session.AUTH_SOURCE_PASSWORD, SessionCookies.userAgent(routingContext), ClientAddress.of(routingContext), now);
+                    success.user(), Session.AUTH_SOURCE_PASSWORD, SessionCookies.userAgent(routingContext), clientAddress.of(routingContext), now);
                 yield Response.seeOther(appPaths.dashboardUri()).cookie(sessionCookies.issued(token, routingContext)).build();
             }
             case final RegistrationResult.LockedOut locked ->

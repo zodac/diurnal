@@ -74,6 +74,7 @@ public class AuthResource {
     private final PasswordAuthConfig passwordAuthConfig;
     private final RegistrationConfig registrationConfig;
     private final AppClock clock;
+    private final ClientAddress clientAddress;
 
     /**
      * Injects the shared authentication and registration services, the session store, the current-user accessor, the relevant config views and the
@@ -86,11 +87,12 @@ public class AuthResource {
      * @param passwordAuthConfig the password-auth settings
      * @param registrationConfig the registration settings
      * @param clock the application clock for date-boundary logic
+     * @param clientAddress the resolver for the requesting client's IP
      */
     @Inject
     public AuthResource(final AuthenticationService authenticationService, final CurrentUser currentUser,
         final RegistrationService registrationService, final SessionStore sessionStore, final PasswordAuthConfig passwordAuthConfig,
-        final RegistrationConfig registrationConfig, final AppClock clock) {
+        final RegistrationConfig registrationConfig, final AppClock clock, final ClientAddress clientAddress) {
         this.authenticationService = authenticationService;
         this.currentUser = currentUser;
         this.registrationService = registrationService;
@@ -98,6 +100,7 @@ public class AuthResource {
         this.passwordAuthConfig = passwordAuthConfig;
         this.registrationConfig = registrationConfig;
         this.clock = clock;
+        this.clientAddress = clientAddress;
     }
 
     /**
@@ -152,7 +155,7 @@ public class AuthResource {
             request == null ? null : request.email(),
             request == null ? null : request.displayName(),
             request == null ? null : request.password(),
-            null, ClientAddress.of(routingContext), clock.now());
+            null, clientAddress.of(routingContext), clock.now());
 
         return switch (result) {
             case final RegistrationResult.Success success -> {
@@ -214,7 +217,7 @@ public class AuthResource {
                     .build();
         }
 
-        final String clientIp = ClientAddress.of(routingContext);
+        final String clientIp = clientAddress.of(routingContext);
         final Instant now = clock.now();
         LOGGER.debug("API login attempt from {} - forwarded headers: {}", clientIp, ClientAddress.forwardedSummary(routingContext));
         final LoginResult result = authenticationService.authenticate(email, password, clientIp, now);
@@ -282,7 +285,7 @@ public class AuthResource {
 
     private String newSession(final User user, final @Nullable RoutingContext routingContext) {
         final String userAgent = routingContext == null ? null : routingContext.request().getHeader(HttpHeaders.USER_AGENT);
-        return sessionStore.create(user, Session.AUTH_SOURCE_PASSWORD, userAgent, ClientAddress.of(routingContext), clock.now());
+        return sessionStore.create(user, Session.AUTH_SOURCE_PASSWORD, userAgent, clientAddress.of(routingContext), clock.now());
     }
 
     // Shared by both the login and registration lockouts — the message is neutral across surfaces (one

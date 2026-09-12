@@ -69,6 +69,7 @@ public class UserResource {
     private final CurrentUser currentUser;
     private final ProfileService profileService;
     private final PasswordChangeService passwordChangeService;
+    private final ClientAddress clientAddress;
 
     /**
      * Injects the current-user accessor and the shared profile and password-change services.
@@ -76,12 +77,15 @@ public class UserResource {
      * @param currentUser the current-user accessor
      * @param profileService the shared profile-mutation service
      * @param passwordChangeService the shared password-change service
+     * @param clientAddress the resolver for the requesting client's IP
      */
     @Inject
-    public UserResource(final CurrentUser currentUser, final ProfileService profileService, final PasswordChangeService passwordChangeService) {
+    public UserResource(final CurrentUser currentUser, final ProfileService profileService,
+        final PasswordChangeService passwordChangeService, final ClientAddress clientAddress) {
         this.currentUser = currentUser;
         this.profileService = profileService;
         this.passwordChangeService = passwordChangeService;
+        this.clientAddress = clientAddress;
     }
 
     /**
@@ -196,7 +200,7 @@ public class UserResource {
         final String newPassword = request == null ? null : request.newPassword();
         // No confirmPassword: an API client confirms the new password on its own side.
         final PasswordChangeResult result = passwordChangeService.change(currentUser.get(), currentPassword, newPassword,
-            null, callingToken(authorization, sessionCookie), ClientAddress.of(routingContext));
+            null, callingToken(authorization, sessionCookie), clientAddress.of(routingContext));
         return switch (result) {
             case final PasswordChangeResult.Success _ -> Response.noContent().build();
             case final PasswordChangeResult.NotLocalAccount _ -> Response.status(Response.Status.FORBIDDEN).build();

@@ -95,6 +95,7 @@ public class SettingsWebResource {
     private final QuarkusOidcConfig quarkusOidcConfig;
     private final OidcConfig oidcConfig;
     private final AppPaths appPaths;
+    private final ClientAddress clientAddress;
 
     /**
      * Injects the settings template, the translated OIDC connect/denial banner partial, the current-user accessor, the shared profile and
@@ -115,6 +116,7 @@ public class SettingsWebResource {
      * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys the page reads (tenant-enabled, the IdP base URL)
      * @param oidcConfig the application OIDC policy settings
      * @param appPaths the single builder of every application URL, for the sign-out redirect
+     * @param clientAddress the resolver for the requesting client's IP
      */
     @SuppressWarnings("OverlyCoupledMethod")
     @Inject
@@ -126,7 +128,7 @@ public class SettingsWebResource {
         final CurrentUser currentUser, final AppClock clock,
         final ProfileService profileService, final PasswordChangeService passwordChangeService, final SessionStore sessionStore,
         final SessionCookies sessionCookies, final QuarkusHttpLimitsConfig httpLimitsConfig, final QuarkusOidcConfig quarkusOidcConfig,
-        final OidcConfig oidcConfig, final AppPaths appPaths) {
+        final OidcConfig oidcConfig, final AppPaths appPaths, final ClientAddress clientAddress) {
         this.settingsTemplate = settingsTemplate;
         this.oidcMessagesTemplate = oidcMessagesTemplate;
         this.passwordRejectionTemplate = passwordRejectionTemplate;
@@ -142,6 +144,7 @@ public class SettingsWebResource {
         this.quarkusOidcConfig = quarkusOidcConfig;
         this.oidcConfig = oidcConfig;
         this.appPaths = appPaths;
+        this.clientAddress = clientAddress;
     }
 
     // ── Settings ───────────────────────────────────────────────────────────
@@ -289,7 +292,7 @@ public class SettingsWebResource {
         // and other-session revocation — is the shared PasswordChangeService the API also calls.
         final User user = currentUser.get();
         final PasswordChangeResult result = passwordChangeService.change(user, currentPassword, newPassword,
-            confirmPassword == null ? "" : confirmPassword, sessionToken, ClientAddress.of(routingContext));
+            confirmPassword == null ? "" : confirmPassword, sessionToken, clientAddress.of(routingContext));
         return switch (result) {
             case final PasswordChangeResult.Success _ -> Response.ok().build();
             case final PasswordChangeResult.NotLocalAccount _ -> Response.status(Response.Status.FORBIDDEN).build();
@@ -341,7 +344,7 @@ public class SettingsWebResource {
     public Response verifyCurrentPassword(@FormParam("currentPassword") final String currentPassword,
         @Context @Nullable final RoutingContext routingContext) {
         final User user = currentUser.get();
-        return switch (passwordChangeService.verify(user, currentPassword, ClientAddress.of(routingContext))) {
+        return switch (passwordChangeService.verify(user, currentPassword, clientAddress.of(routingContext))) {
             case final PasswordChangeResult.Success _ -> Response.noContent().build();
             case final PasswordChangeResult.NotLocalAccount _ -> Response.status(Response.Status.FORBIDDEN).build();
             // Carries the same kind header as updatePassword's matching branch, so the marker means one thing on both endpoints

@@ -359,6 +359,74 @@ class AttemptThrottleTest {
                 .isFalse();
     }
 
+    @Test
+    void evictStale_dropsDecayedCounter() {
+        final AttemptThrottle throttle = throttle(true);
+        throttle.recordFailure(KEY, T0);
+
+        assertThat(throttle.evictStale(T0.plus(LOCKOUT)))
+                .as("A counter untouched for a full window must be evicted")
+                .isEqualTo(1);
+        // Proven by behaviour rather than by reading the map: the key is gone, so it takes the full threshold to lock again.
+        for (int i = 0; i < MAX_ATTEMPTS - 1; i++) {
+            throttle.recordFailure(KEY, T0.plus(LOCKOUT));
+        }
+        assertThat(throttle.isLocked(KEY, T0.plus(LOCKOUT)))
+                .as("An evicted key must start a fresh count rather than resume the evicted one")
+                .isFalse();
+    }
+
+    @Test
+    void evictStale_keepsCounterStillInsideItsWindow() {
+        final AttemptThrottle throttle = throttle(true);
+        throttle.recordFailure(KEY, T0);
+
+        assertThat(throttle.evictStale(T0.plus(LOCKOUT).minusMillis(1L)))
+                .as("A counter one millisecond short of decaying must be kept")
+                .isZero();
+    }
+
+    @Test
+    void evictStale_neverDropsLiveLockout() {
+        final AttemptThrottle throttle = throttle(true);
+        lockOut(throttle);
+
+        assertThat(throttle.evictStale(T0.plus(LOCKOUT).minusMillis(1L)))
+                .as("A currently-locked key must never be evicted, or an attacker could clear their own budget")
+                .isZero();
+        assertThat(throttle.isLocked(KEY, T0.plus(LOCKOUT).minusMillis(1L)))
+                .as("The lockout must survive the sweep")
+                .isTrue();
+    }
+
+    @Test
+    void evictStale_dropsAnExpiredLockout() {
+        final AttemptThrottle throttle = throttle(true);
+        lockOut(throttle);
+
+        assertThat(throttle.evictStale(T0.plus(LOCKOUT)))
+                .as("A lockout is evictable the instant it expires, which is the instant its counter decays")
+                .isEqualTo(1);
+    }
+
+    @Test
+    void evictStale_leavesUntrackedKeysAlone() {
+        final AttemptThrottle throttle = throttle(true);
+        throttle.recordFailure(KEY, T0);
+        throttle.recordFailure(KEY2, T0.plus(LOCKOUT));
+
+        assertThat(throttle.evictStale(T0.plus(LOCKOUT)))
+                .as("Only the decayed key must be evicted, not the one just recorded")
+                .isEqualTo(1);
+    }
+
+    @Test
+    void evictStale_whenDisabled_evictsNothing() {
+        assertThat(throttle(false).evictStale(T0.plus(LOCKOUT)))
+                .as("A disabled throttle tracks nothing, so has nothing to evict")
+                .isZero();
+    }
+
     private static void lockOut(final AttemptThrottle throttle) {
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
             throttle.recordFailure(KEY, T0);

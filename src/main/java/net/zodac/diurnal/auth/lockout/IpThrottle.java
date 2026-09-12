@@ -17,12 +17,16 @@
 
 package net.zodac.diurnal.auth.lockout;
 
+import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import net.zodac.diurnal.http.ClientAddress;
+import net.zodac.diurnal.time.AppClock;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The single, global per-IP lockout consulted by <em>every</em> credential surface — the login form, {@code POST /api/v1/auth/login}, the
@@ -36,24 +40,47 @@ import net.zodac.diurnal.http.ClientAddress;
  *
  * <p>
  * A success never clears the counter (it decays on its own after a quiet window), so neither a valid login nor a throwaway registration can reset an
- * IP's brute-force budget or launder attempts between the two pages. The client IP comes from {@link ClientAddress} → Vert.x {@code remoteAddress()},
- * which honours {@code TRUST_X_FORWARDED_HEADERS}, so this is only meaningful behind a trusted proxy. State is in-memory (resets on restart, not
- * shared across instances) — acceptable for the single-instance deployment. Time is passed in from {@code AppClock.now()} so the logic stays pure and
- * testable.
+ * IP's brute-force budget or launder attempts between the two pages. The client IP comes from {@link ClientAddress}, which keys on the connection's
+ * own address (honouring {@code TRUST_X_FORWARDED_HEADERS}) unless the deployment declares itself to be behind Cloudflare - so this control is only
+ * meaningful when whichever of the two is trusted is actually configured correctly. State is in-memory (resets on restart, not shared across
+ * instances) — acceptable for the single-instance deployment, and bounded by {@link #evictStaleAttempts()} rather than growing with every address
+ * ever seen. Time is passed in from {@code AppClock.now()} so the logic stays pure and testable.
  */
 @ApplicationScoped
 public class IpThrottle {
 
+    private static final Logger LOGGER = LogManager.getLogger(IpThrottle.class);
+
     private final AttemptThrottle throttle;
+    private final AppClock clock;
 
     /**
      * Builds the throttle from its config snapshot.
      *
      * @param config the per-IP throttle settings
+     * @param clock the application clock, read by the scheduled eviction of decayed counters
      */
     @Inject
-    public IpThrottle(final IpThrottleConfig config) {
+    public IpThrottle(final IpThrottleConfig config, final AppClock clock) {
         throttle = AttemptThrottle.create(config.enabled(), config.maxAttempts(), config.lockoutDuration());
+        this.clock = clock;
+    }
+
+    /**
+     * Drops every tracked IP whose counter has decayed, so the in-memory map is bounded by the addresses currently being counted rather than by every
+     * address ever seen. The interval is configurable via {@code auth.ip-throttle.cleanup-interval} (default hourly).
+     *
+     * <p>
+     * This is the in-memory counterpart of {@code SessionSweeper}, and it exists for the same reason: the ordinary decay path resets a lapsed counter
+     * only when its key is next seen, so an address that attacks once and never returns would otherwise be remembered forever. A currently-locked IP
+     * is never dropped - see {@link AttemptThrottle#evictStale(Instant)} for why staleness and "not locked" are the same condition.
+     */
+    @Scheduled(every = "{auth.ip-throttle.cleanup-interval}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    void evictStaleAttempts() {
+        final int evicted = throttle.evictStale(clock.now());
+        if (evicted > 0) {
+            LOGGER.debug("Evicted {} decayed IP attempt counter(s)", evicted);
+        }
     }
 
     /**

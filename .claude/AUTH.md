@@ -1,6 +1,6 @@
 # Authentication & Security
 
-> **This file is ~25 KB. Read only the section you need** - `grep -n '^#' .claude/AUTH.md` for its
+> **This file is ~27 KB. Read only the section you need** - `grep -n '^#' .claude/AUTH.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Package layout (`auth` and its four subpackages)**
@@ -117,12 +117,33 @@ victim by failing their logins. **One shared counter tallies both failed logins 
 is blocked from **both** logging in and registering. `isLocked`/`recordFailure`/`lockoutRemaining` all key on the IP; there is **no
 `recordSuccess`/reset** — a valid login or registration must not launder an IP's brute-force budget, so the counter only clears by
 decaying (the distributed many-IP brute-force this trades away is mitigated by Argon2id + uniform timing, not account lockouts).
-The client IP comes from `ClientAddress.of(routingContext)`, which prefers Cloudflare's `CF-Connecting-IP` header and falls back to
-Vert.x `remoteAddress()` (which honours `TRUST_X_FORWARDED_HEADERS`) when it is absent — so this is only meaningful behind a trusted
-proxy. `CF-Connecting-IP` is preferred because Cloudflare OVERWRITES whatever the caller sent, where the leftmost `X-Forwarded-For`
-entry is only APPENDED to and so is spoofable; that is safe only while the origin is reachable solely through Cloudflare, which is a
-containment the network edge owns, not this code. `ClientAddress.forwardedSummary` renders the same headers (`cf=… xff=… xfh=…`),
-reduced to length-bounded printable ASCII, for the security log. **Login** verifies credentials through the **same** `AuthenticationService` (which
+The client IP comes from the injected `ClientAddress` bean's `of(routingContext)`, which reads Vert.x `remoteAddress()` (honouring
+`TRUST_X_FORWARDED_HEADERS`) and prefers Cloudflare's `CF-Connecting-IP` **only when `TRUST_CLOUDFLARE_HEADER=true`**. That flag is
+**separate from `TRUST_X_FORWARDED_HEADERS` and defaults to off**, and the separation is the point: a deployment can sit behind
+Traefik without sitting behind Cloudflare, and each header is only trustworthy from the proxy that sets it. `CF-Connecting-IP` is
+preferred where it IS trusted because Cloudflare OVERWRITES whatever the caller sent, where the leftmost `X-Forwarded-For` entry is
+only APPENDED to and so is spoofable — but believing it anywhere else lets a client **name its own throttle key**, which is a fresh
+counter on every request and so unlimited password guessing. Even with the flag on it is safe only while the origin is reachable
+solely through Cloudflare, which is a containment the network edge owns, not this code. **Whatever the source, the resolved value
+must be address-shaped and is discarded otherwise** (bounded at 62 characters — the longest IPv6 literal plus a zone identifier):
+it becomes a throttle key, a `ip_lockouts.ip_address` `VARCHAR(64)` value, and a log-line argument, so an unbounded one would
+overflow that column on the credential path and a newline-bearing one would forge a log line.
+**Both ways of getting the flag wrong raise a once-per-process `WARN`**, on the first request that shows the mismatch — neither can
+be an `AppLifecycle` banner line, because whether an origin sits behind Cloudflare is not knowable at boot. `isHeaderIgnored`
+covers the header arriving while the flag is off: the silent case, where the throttle falls back to the caller-appendable leftmost
+`X-Forwarded-For` entry, so an upgrade would restore the bypass with nothing saying so. `isOriginUnprotected` covers the inverse —
+the flag on while a request arrives with NO header, which means it did not come through Cloudflare, so the origin is reachable
+directly and a caller can forge the header to pick its own throttle key. That second one is the more dangerous, being an open
+bypass rather than a lost defence. **Exactly one of the two can fire in a given process**, since they need opposite values of the
+same flag and config is fixed for the run, which is what lets one latch serve both (`headerWarnings_areMutuallyExclusive` pins
+it). The first logs the header's PRESENCE and never its value, which is attacker-controlled on exactly that deployment.
+`ClientAddress.forwardedSummary` separately renders the raw headers (`cf=… xff=… xfh=…`), reduced to length-bounded printable
+ASCII, for the security log — that is the diagnostic view, deliberately showing what a request CLAIMED rather than what was
+believed. The in-memory counters are dropped once decayed by `IpThrottle.evictStaleAttempts`
+(`@Scheduled`, `AUTH_IP_THROTTLE_CLEANUP_INTERVAL`, default `PT1H`), the in-memory counterpart of `SessionSweeper`: a counter
+decays on its own but is only reset when its key is next SEEN, so without the sweep every address ever seen is retained for the
+life of the process. A currently-locked IP is never evicted, so the sweep can never clear anyone's brute-force budget early.
+**Login** verifies credentials through the **same** `AuthenticationService` (which
 owns the `IpThrottle` check + Argon2id verification and returns a `LoginResult`) — `AuthResource.login` (JSON API → `429` +
 `Retry-After`) and `AuthWebResource.doLogin` (web form). **Registration** likewise runs through one shared `RegistrationService`
 (which owns the `IpThrottle` entry-check + failure recording, the unified field validation — every field checked against its
