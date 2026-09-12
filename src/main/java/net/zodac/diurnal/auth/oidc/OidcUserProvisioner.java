@@ -236,8 +236,9 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
     }
 
     // First-run guard note: the very first account must ALWAYS be created locally (see the /welcome setup flow, which permits it regardless of
-    // ENABLE_REGISTRATION and PASSWORD_AUTH_ENABLED) — in a pure-OIDC deployment that initial administrator is the sysops break-glass credential,
-    // so OIDC never provisions the first user.
+    // ENABLE_LOCAL_REGISTRATION and PASSWORD_AUTH_ENABLED) — in a pure-OIDC deployment that initial administrator is the sysops break-glass
+    // credential, so OIDC never provisions the first user. Beyond that first account, neither switch applies here at all: they govern LOCAL
+    // registration only, and restricting who the IdP may bring in is oidc.user.group/oidc.admin.group (or the provider's own access rules).
     private OidcLoginDecision loginDecision(final OidcIdentityState state, final JsonObject claims) {
         // The last-administrator guard applies to whichever account the login would act on: the linked one, or the email match it would adopt.
         final User acted = state.linked() == null ? state.emailMatch() : state.linked();

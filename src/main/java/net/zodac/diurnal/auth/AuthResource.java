@@ -72,7 +72,7 @@ public class AuthResource {
     private final RegistrationService registrationService;
     private final SessionStore sessionStore;
     private final PasswordAuthConfig passwordAuthConfig;
-    private final RegistrationConfig registrationConfig;
+    private final LocalRegistrationConfig localRegistrationConfig;
     private final AppClock clock;
     private final ClientAddress clientAddress;
 
@@ -85,20 +85,20 @@ public class AuthResource {
      * @param registrationService the shared registration service
      * @param sessionStore the session store used to mint and revoke session tokens
      * @param passwordAuthConfig the password-auth settings
-     * @param registrationConfig the registration settings
+     * @param localRegistrationConfig the local-registration settings
      * @param clock the application clock for date-boundary logic
      * @param clientAddress the resolver for the requesting client's IP
      */
     @Inject
     public AuthResource(final AuthenticationService authenticationService, final CurrentUser currentUser,
         final RegistrationService registrationService, final SessionStore sessionStore, final PasswordAuthConfig passwordAuthConfig,
-        final RegistrationConfig registrationConfig, final AppClock clock, final ClientAddress clientAddress) {
+        final LocalRegistrationConfig localRegistrationConfig, final AppClock clock, final ClientAddress clientAddress) {
         this.authenticationService = authenticationService;
         this.currentUser = currentUser;
         this.registrationService = registrationService;
         this.sessionStore = sessionStore;
         this.passwordAuthConfig = passwordAuthConfig;
-        this.registrationConfig = registrationConfig;
+        this.localRegistrationConfig = localRegistrationConfig;
         this.clock = clock;
         this.clientAddress = clientAddress;
     }
@@ -108,8 +108,9 @@ public class AuthResource {
      * password auth is disabled and {@code 403} when either registration is disabled or the initial account has not yet been created. The very first
      * (administrator) account can never be created through this endpoint — it must be created locally via the web setup flow ({@code /welcome} →
      * {@code POST /register}), so an unauthenticated caller can never seize the initial admin account. Validation and account creation are the shared
-     * {@link RegistrationService} the web form also calls, so the rules cannot diverge; the {@code PASSWORD_AUTH_ENABLED}/{@code ENABLE_REGISTRATION}
-     * guards are enforced here too, so the API can never bypass them.
+     * {@link RegistrationService} the web form also calls, so the rules cannot diverge; the
+     * {@code PASSWORD_AUTH_ENABLED}/{@code ENABLE_LOCAL_REGISTRATION} guards are enforced here too, so the API can never bypass them. Only LOCAL
+     * accounts are created here - an OIDC account is provisioned by its own sign-in flow, which neither endpoint nor switch governs.
      */
     @POST
     @Path("/register")
@@ -144,7 +145,7 @@ public class AuthResource {
                     .entity(new ApiErrorResponse(SETUP_REQUIRED_MESSAGE))
                     .build();
         }
-        if (!registrationConfig.enabled()) {
+        if (!localRegistrationConfig.enabled()) {
             return Response.status(Response.Status.FORBIDDEN)
                     .entity(new ApiErrorResponse("Registration is disabled"))
                     .build();

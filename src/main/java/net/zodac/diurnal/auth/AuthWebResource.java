@@ -98,7 +98,7 @@ public class AuthWebResource {
     private final QuarkusOidcConfig quarkusOidcConfig;
     private final OidcConfig oidcConfig;
     private final PasswordAuthConfig passwordAuthConfig;
-    private final RegistrationConfig registrationConfig;
+    private final LocalRegistrationConfig localRegistrationConfig;
     private final IpThrottleConfig ipThrottleConfig;
     private final AppPaths appPaths;
     private final ClientAddress clientAddress;
@@ -121,7 +121,7 @@ public class AuthWebResource {
      * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys the page reads (tenant-enabled, the IdP base URL)
      * @param oidcConfig the application OIDC policy settings
      * @param passwordAuthConfig the password-auth settings
-     * @param registrationConfig the registration settings
+     * @param localRegistrationConfig the local-registration settings
      * @param ipThrottleConfig the per-IP throttle settings
      * @param appPaths the single builder of every application URL, for every redirect and cookie path this resource emits
      * @param clientAddress the resolver for the requesting client's IP
@@ -138,7 +138,7 @@ public class AuthWebResource {
         final AuthenticationService authenticationService,
         final RegistrationService registrationService, final SessionStore sessionStore, final SessionCookies sessionCookies,
         final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig, final PasswordAuthConfig passwordAuthConfig,
-        final RegistrationConfig registrationConfig, final IpThrottleConfig ipThrottleConfig, final AppPaths appPaths,
+        final LocalRegistrationConfig localRegistrationConfig, final IpThrottleConfig ipThrottleConfig, final AppPaths appPaths,
         final ClientAddress clientAddress) {
         this.loginTemplate = loginTemplate;
         this.registerTemplate = registerTemplate;
@@ -154,7 +154,7 @@ public class AuthWebResource {
         this.quarkusOidcConfig = quarkusOidcConfig;
         this.oidcConfig = oidcConfig;
         this.passwordAuthConfig = passwordAuthConfig;
-        this.registrationConfig = registrationConfig;
+        this.localRegistrationConfig = localRegistrationConfig;
         this.ipThrottleConfig = ipThrottleConfig;
         this.appPaths = appPaths;
         this.clientAddress = clientAddress;
@@ -178,8 +178,8 @@ public class AuthWebResource {
         // initial local account, and short-circuit any OIDC auto-redirect below — the first account
         // must ALWAYS be local, even in a pure-OIDC deployment (PASSWORD_AUTH_ENABLED=false): that
         // initial administrator is the sysops break-glass credential should the IdP be unavailable.
-        // During initial config the local registration is always usable (both ENABLE_REGISTRATION and
-        // PASSWORD_AUTH_ENABLED are ignored until a user exists).
+        // During initial config the local registration is always usable (both ENABLE_LOCAL_REGISTRATION
+        // and PASSWORD_AUTH_ENABLED are ignored until a user exists).
         if (setupRequired()) {
             return Response.seeOther(URI.create(appPaths.getWelcome())).build();
         }
@@ -221,7 +221,7 @@ public class AuthWebResource {
             .data("oidcError", showOidcError)
             .data("oidcErrorMessage", oidcErrorMessage)
             .data("passwordAuthEnabled", passwordAuthConfig.enabled())
-            .data("registrationEnabled", passwordAuthConfig.enabled() && registrationConfig.enabled())
+            .data("localRegistrationEnabled", passwordAuthConfig.enabled() && localRegistrationConfig.enabled())
             .data("oidcEnabled", quarkusOidcConfig.tenantEnabled())
             .data("oidcProviderName", oidcConfig.providerName()))
             .type(MediaType.TEXT_HTML_TYPE);
@@ -340,7 +340,7 @@ public class AuthWebResource {
         if (!passwordAuthConfig.enabled() && !setupRequired()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        if (registrationNotAllowed()) {
+        if (localRegistrationNotAllowed()) {
             return Response.ok(renderRegisterDisabled(acceptLanguage)).build();
         }
         return Response.ok(renderRegister("", "", List.of(), List.of(), false, 0L, acceptLanguage)).build();
@@ -366,7 +366,7 @@ public class AuthWebResource {
         if (!passwordAuthConfig.enabled() && !setupRequired()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        if (registrationNotAllowed()) {
+        if (localRegistrationNotAllowed()) {
             return Response.status(Response.Status.FORBIDDEN).entity(renderRegisterDisabled(acceptLanguage)).build();
         }
 
@@ -443,9 +443,9 @@ public class AuthWebResource {
         return User.count() == 0L;
     }
 
-    private boolean registrationNotAllowed() {
+    private boolean localRegistrationNotAllowed() {
         // Setup overrides everything: the initial (break-glass) account is always created locally.
-        return !setupRequired() && (!passwordAuthConfig.enabled() || !registrationConfig.enabled());
+        return !setupRequired() && (!passwordAuthConfig.enabled() || !localRegistrationConfig.enabled());
     }
 
     // ── Logout ────────────────────────────────────────────────────────────

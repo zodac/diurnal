@@ -17,21 +17,22 @@
 
 package net.zodac.diurnal.auth;
 
-import io.smallrye.config.ConfigMapping;
-import io.smallrye.config.WithDefault;
+import io.quarkus.test.junit.QuarkusTestProfile;
+import java.util.Map;
 
 /**
- * Typed view over the {@code registration.*} settings controlling new-account creation.
+ * Test profile that forces {@code registration.local.enabled=false} to exercise the setup-time override.
  */
-@FunctionalInterface
-@ConfigMapping(prefix = "registration")
-public interface RegistrationConfig {
+public final class LocalRegistrationDisabledProfile implements QuarkusTestProfile {
 
     /**
-     * Whether new password accounts may be created via the UI / API. OIDC accounts are always provisioned on first login regardless of this setting.
+     * Disables open local registration so tests can confirm the first-run setup still permits the initial account while later registration is
+     * rejected.
      *
-     * @return {@code true} when registration is enabled, defaulting to {@code true}
+     * @return the config overrides applied for this profile
      */
-    @WithDefault("true")
-    boolean enabled();
+    @Override
+    public Map<String, String> getConfigOverrides() {
+        return Map.of("registration.local.enabled", "false");
+    }
 }

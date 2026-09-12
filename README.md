@@ -280,7 +280,7 @@ Shown with both sign-in methods enabled.
 
 | Variable                       | Default | Description                                                                                                  |
 |--------------------------------|---------|--------------------------------------------------------------------------------------------------------------|
-| `ENABLE_REGISTRATION`          | `true`  | Set to `false` to close the `/register` page                                                                 |
+| `ENABLE_LOCAL_REGISTRATION`    | `true`  | Set to `false` to close the `/register` page and `POST /api/v1/auth/register` (local accounts only)          |
 | `PASSWORD_AUTH_ENABLED`        | `true`  | Set to `false` to disable password login entirely (requires OIDC to be enabled)                              |
 | `PASSWORD_AUTH_UNIFORM_TIMING` | `true`  | Keep login response time constant whether or not the email exists, so accounts can't be enumerated by timing |
 

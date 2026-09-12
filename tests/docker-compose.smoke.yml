@@ -52,7 +52,7 @@ services:
       TZ: UTC
       LOG_LEVEL: INFO
       PASSWORD_AUTH_ENABLED: "true"
-      ENABLE_REGISTRATION: "true"
+      ENABLE_LOCAL_REGISTRATION: "true"
       OIDC_ENABLED: "false"
       # No outbound GitHub update-check lookup at startup from the isolated smoke stack.
       APP_UPDATE_CHECK_ENABLED: "false"

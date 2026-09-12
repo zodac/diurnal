@@ -461,13 +461,13 @@
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
                         <!-- SmallRye Config reads the repo-root .env at HIGHER priority than the bundled %test profile, so a deployer flipping
-                             PASSWORD_AUTH_ENABLED/ENABLE_REGISTRATION there would silently fail the whole auth suite. System properties outrank
-                             .env, pinning the defaults the tests assume; a QuarkusTestProfile still overrides them for its own keys.
+                             PASSWORD_AUTH_ENABLED/ENABLE_LOCAL_REGISTRATION there would silently fail the whole auth suite. System properties
+                             outrank .env, pinning the defaults the tests assume; a QuarkusTestProfile still overrides them for its own keys.
                              OIDC is pinned off for the same reason: an ambient OIDC_ENABLED=true was observed booting default-profile IT against a
                              live third-party issuer, so they tested a different auth configuration locally than in CI (which has no .env at all).
                              OidcAutoRedirectProfile and friends still turn it on for themselves. -->
                         <password.auth.enabled>true</password.auth.enabled>
-                        <registration.enabled>true</registration.enabled>
+                        <registration.local.enabled>true</registration.local.enabled>
                         <quarkus.oidc.tenant-enabled>false</quarkus.oidc.tenant-enabled>
                         <oidc.auto.redirect>false</oidc.auto.redirect>
                     </systemPropertyVariables>
@@ -628,7 +628,7 @@
                                         <maven.home>${maven.home}</maven.home>
                                         <!-- Same .env-immunity pin as the surefire block above (see the comment there). -->
                                         <password.auth.enabled>true</password.auth.enabled>
-                                        <registration.enabled>true</registration.enabled>
+                                        <registration.local.enabled>true</registration.local.enabled>
                                         <quarkus.oidc.tenant-enabled>false</quarkus.oidc.tenant-enabled>
                                         <oidc.auto.redirect>false</oidc.auto.redirect>
                                     </systemPropertyVariables>

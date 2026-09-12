@@ -152,17 +152,17 @@ The `test` profile's own baseline is: OIDC **off**, password auth **on**, regist
 **off** (`application-test.properties` turns the throttle off; production defaults it on). Every profile below is
 a delta on that.
 
-| Profile                       | Overrides                                                       | Exists for                                     | Used by                                                             |
-|-------------------------------|-----------------------------------------------------------------|------------------------------------------------|---------------------------------------------------------------------|
-| `PasswordOnlyAuthProfile`     | OIDC off, `password.auth.enabled=true`                          | The password-only deployment shape             | `PasswordOnlyAuthIT`                                                |
-| `OidcEnabledProfile`          | OIDC on, discovery off, the five explicit endpoint paths        | Both mechanisms live at once (linking)         | `AccountLinkIT`                                                     |
-| `OidcOnlyAuthProfile`         | The above **plus** `password.auth.enabled=false`                | The OIDC-only deployment shape                 | `OidcEmailAdoptionIT`, `OidcOnlySetupIT`                            |
-| `OidcAutoRedirectProfile`     | The `OidcEnabledProfile` set **plus** `oidc.auto.redirect=true` | Skipping the login page straight to the IdP    | `OidcAutoRedirectIT`                                                |
-| `RegistrationDisabledProfile` | `registration.enabled=false`                                    | Register returning 404, and the first-run path | `AuthRegistrationDisabledIT`, `FirstRunRegistrationDisabledIT`      |
-| `IpThrottleProfile`           | Throttle on, `max-attempts=5`, `lockout-duration=PT15M`         | Lockout behaviour with a small, fast window    | `IpThrottleIT`, `AdminIpLockoutsApiIT`, `AdminIpLockoutsInternalIT` |
-| `CorsEnabledProfile`          | `quarkus.http.cors.origins` set to one allowed origin           | CORS headers, which are off by default here    | `CorsEnabledIT`                                                     |
-| `NoteMaxLengthProfile`        | `notes.max-length`                                              | The one per-deployment `TextFields` bound      | `NoteMaxLengthIT`                                                   |
-| `CsvBomDisabledProfile`       | `transfer.csv-bom=false`                                        | Export without the UTF-8 BOM                   | `CsvBomDisabledIT`                                                  |
+| Profile                            | Overrides                                                       | Exists for                                     | Used by                                                             |
+|------------------------------------|-----------------------------------------------------------------|------------------------------------------------|---------------------------------------------------------------------|
+| `PasswordOnlyAuthProfile`          | OIDC off, `password.auth.enabled=true`                          | The password-only deployment shape             | `PasswordOnlyAuthIT`                                                |
+| `OidcEnabledProfile`               | OIDC on, discovery off, the five explicit endpoint paths        | Both mechanisms live at once (linking)         | `AccountLinkIT`                                                     |
+| `OidcOnlyAuthProfile`              | The above **plus** `password.auth.enabled=false`                | The OIDC-only deployment shape                 | `OidcEmailAdoptionIT`, `OidcOnlySetupIT`                            |
+| `OidcAutoRedirectProfile`          | The `OidcEnabledProfile` set **plus** `oidc.auto.redirect=true` | Skipping the login page straight to the IdP    | `OidcAutoRedirectIT`                                                |
+| `LocalRegistrationDisabledProfile` | `registration.local.enabled=false`                              | Register returning 404, and the first-run path | `AuthRegistrationDisabledIT`, `FirstRunRegistrationDisabledIT`      |
+| `IpThrottleProfile`                | Throttle on, `max-attempts=5`, `lockout-duration=PT15M`         | Lockout behaviour with a small, fast window    | `IpThrottleIT`, `AdminIpLockoutsApiIT`, `AdminIpLockoutsInternalIT` |
+| `CorsEnabledProfile`               | `quarkus.http.cors.origins` set to one allowed origin           | CORS headers, which are off by default here    | `CorsEnabledIT`                                                     |
+| `NoteMaxLengthProfile`             | `notes.max-length`                                              | The one per-deployment `TextFields` bound      | `NoteMaxLengthIT`                                                   |
+| `CsvBomDisabledProfile`            | `transfer.csv-bom=false`                                        | Export without the UTF-8 BOM                   | `CsvBomDisabledIT`                                                  |
 
 **Auth is where this matrix actually bites**, because it is the only area whose behaviour is a product of four
 independent switches — password auth, OIDC, registration and throttling — rather than one. A rule that holds in
