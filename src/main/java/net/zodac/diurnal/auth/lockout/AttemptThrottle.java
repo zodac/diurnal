@@ -114,7 +114,7 @@ public final class AttemptThrottle {
     private Attempt countFailure(final @Nullable Attempt existing, final Instant now) {
         // Start fresh if there is no prior record, or the previous activity is older than one window
         // (a lapsed lockout, or a quiet spell for a still-counting key).
-        final Attempt attempt = existing == null || existing.isStaleAt(now, lockoutDuration) ? new Attempt() : existing;
+        final Attempt attempt = existing == null || existing.isStaleAt(now, lockoutDuration) ? new Attempt(now) : existing;
         attempt.failureCount++;
         attempt.lastFailureAt = now;
         if (attempt.failureCount >= maxAttempts) {
@@ -210,11 +210,13 @@ public final class AttemptThrottle {
     private static final class Attempt {
 
         private int failureCount;
-
-        // Non-null default so isStaleAt needs no null guard; overwritten by the first recordFailure
-        private Instant lastFailureAt = Instant.EPOCH;
+        private Instant lastFailureAt;
         @Nullable
         private Instant lockedUntil;
+
+        private Attempt(final Instant firstFailureAt) {
+            lastFailureAt = firstFailureAt;
+        }
 
         private boolean isLockedAt(final Instant now) {
             return lockedUntil != null && now.isBefore(lockedUntil);

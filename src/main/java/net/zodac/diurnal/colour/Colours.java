@@ -143,8 +143,10 @@ public final class Colours {
 
         final int hue = hue(colour);
         final int saturation = saturationPercent(colour);
+        final int currentPercent = lightnessPercent(colour);
+
         String lightest = colour;
-        for (int lightness = lightnessPercent(colour); lightness <= PERCENT; lightness += LIGHTNESS_STEP_PERCENT) {
+        for (int lightness = currentPercent; lightness <= PERCENT; lightness += LIGHTNESS_STEP_PERCENT) {
             lightest = fromHsl(hue, saturation, lightness);
             if (clears(lightest, background)) {
                 return lightest;

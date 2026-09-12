@@ -838,7 +838,14 @@ public static boolean isInvalidHex(final String colour) {
 > **A regex built from a runtime value cannot follow this rule and must not be forced to.** `NoteSearch.literal(query)` compiles
 > `Pattern.quote(theUsersSearchTerm)` per search, and `SecretsStayOutOfLogsTest` compiles a whole-word matcher per guarded identifier — the pattern
 > text is not known until the call, so there is no constant to hoist. Do not contort a readable `List.of(…)` of names into a parallel `Map<String,
-> Pattern>` to satisfy the linter; SonarQube's `java:S4248` only reports a **constant** argument.
+> Pattern>` to satisfy the linter: SonarQube's `java:S4248` ("Refactor this code to use a `static final` Pattern") reports only a **constant**
+> argument, so it does not fire on a pattern built from a runtime value.
+>
+> **A different SonarQube rule DOES report `NoteSearch.literal` — "Avoid using Pattern.compile() in a non-static context", at Low severity — and
+> that issue is expected.** It is resolved in the Sonar UI as *Won't Fix*, never in code. The pattern text is the user's own search term, so there
+> is no `static final` form for it to move to, and the only way to compile it less often is to thread a pre-compiled `Pattern` (or, worse, a shared
+> mutable `Matcher`) through the call chain — microseconds against the AES pass that opened the note, paid for with the plain two-argument function
+> both surfaces call identically. Do not treat the issue's reappearance on a fresh scan as a regression.
 
 ### Production code kept alive only by its test is dead code
 
