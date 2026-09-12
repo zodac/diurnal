@@ -34,6 +34,7 @@ import net.zodac.diurnal.config.AppConfig;
 public record StubAppConfig(String repositoryUrl, String buildTimestamp, Optional<String> basePath) implements AppConfig {
 
     private static final long DEFAULT_MAX_REQUEST_BODY_BYTES = 1_048_576L;
+    private static final int DEFAULT_MAX_CONCURRENT_IMPORTS = 2;
 
     /**
      * A stub with blank strings, for tests that do not care about any {@code app.*} value.
@@ -75,5 +76,10 @@ public record StubAppConfig(String repositoryUrl, String buildTimestamp, Optiona
     @Override
     public MemorySize maxRequestBody() {
         return new MemorySize(BigInteger.valueOf(DEFAULT_MAX_REQUEST_BODY_BYTES));
+    }
+
+    @Override
+    public int maxConcurrentImports() {
+        return DEFAULT_MAX_CONCURRENT_IMPORTS;
     }
 }

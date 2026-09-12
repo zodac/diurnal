@@ -35,6 +35,10 @@ import org.junit.jupiter.api.Test;
  * write, and the {@code /internal/} HTMX fragments stay {@code no-cache} so their ETags can still earn a {@code 304}.
  *
  * <p>
+ * The {@code /api/v1} namespace is reached by none of those filters, so its rule is applied in code instead ({@code ApiCacheHeadersFilter}):
+ * private per-user data by default, and an endpoint that attached its own validator directive is left holding it.
+ *
+ * <p>
  * Runs under the {@code test} profile, which (unlike {@code dev}) does not relax these headers, so the production caching behaviour is exercised. The
  * served stylesheet is the un-hashed {@code app.css} here, since the content-hash rename happens only in the Docker build.
  */
@@ -140,6 +144,32 @@ class CacheHeadersIT extends IntegrationTestBase {
         given().queryParam("start", today).queryParam("end", today)
                 .get("/internal/logs/minimal-events")
                 .then().statusCode(OK)
+                .header("Cache-Control", containsString("no-cache"))
+                .header("Cache-Control", not(containsString("no-store")));
+    }
+
+    @Test
+    @TestSecurity(user = "cache-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
+    void unvalidatedApiRead_isMarkedPrivateNoStore() {
+        // No response filter configured in application.properties touches /api - the html-pages one excludes it by name - so an API read that
+        // attaches no directive of its own would otherwise go out undirected, and a 200 carrying no Cache-Control is heuristically cacheable.
+        // ApiCacheHeadersFilter is what closes that. The export is the endpoint it matters most for: it is the one artefact that holds every note
+        // in the CLEAR, decrypted out of the database precisely so the user can have the file.
+        given().get("/api/v1/data/export")
+                .then().statusCode(OK)
+                .header("Cache-Control", containsString("private"))
+                .header("Cache-Control", containsString("no-store"));
+    }
+
+    @Test
+    @TestSecurity(user = "cache-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
+    void validatedApiRead_keepsItsOwnNoCacheDirectiveRatherThanNoStore() {
+        // The validated reads set `private, no-cache` themselves (EntityTags.withPrivateValidator) and need the browser to keep a stored copy for
+        // their ETag to revalidate against. The default directive must therefore only fill a gap, never overwrite - `no-store` here would silently
+        // cost every conditional GET in the API its 304.
+        given().get("/api/v1/users/me")
+                .then().statusCode(OK)
+                .header("Cache-Control", containsString("private"))
                 .header("Cache-Control", containsString("no-cache"))
                 .header("Cache-Control", not(containsString("no-store")));
     }

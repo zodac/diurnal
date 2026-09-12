@@ -29,7 +29,7 @@ import io.smallrye.config.WithName;
  * card check the chosen file's size and answer immediately, without reading a gigabyte into the tab to post something the server will not read.
  *
  * <p>
- * The key is deployment-configurable through {@code MAX_UPLOAD_SIZE} (default {@code 100M}), which is why the card names the value rather than a
+ * The key is deployment-configurable through {@code MAX_UPLOAD_SIZE} (default {@code 64M}), which is why the card names the value rather than a
  * constant: the limit a user is told about is the one their own deployment set.
  *
  * <p>

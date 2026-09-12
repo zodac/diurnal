@@ -1297,12 +1297,13 @@ if (oidcConnectArm) {
         if (filenameSpan) {filenameSpan.textContent = noFileChosenLabel}
     }
 
-    // The upload bound and its translated refusal, both server-rendered onto the input (see the note
+    // The upload bound and the two translated refusals, all server-rendered onto the input (see the note
     // beside them in settings.html). A body over the bound is refused by the HTTP layer itself with an
     // EMPTY 413 that never reaches the application, so the size is checked HERE, before the file is
     // read - otherwise a gigabyte is pulled into the tab only to post something the server will not read.
     const maxUploadBytes = Number(fileInput.dataset.maxUploadBytes)
     const tooLargeMessage = fileInput.dataset.tooLargeMessage
+    const serverBusyMessage = fileInput.dataset.serverBusyMessage
 
     // The panel is replaced wholesale on every response, so it is looked up per use rather than held.
     function panel() {return document.getElementById('import-panel')}
@@ -1332,8 +1333,23 @@ if (oidcConnectArm) {
     // swapping that in replaced #import-panel with nothing, silently deleting the element and leaving
     // the card permanently inert with no banner and no way back short of a reload. Anything unexpected
     // therefore becomes a banner instead of a swap.
+    //
+    // Two of those bodiless answers are worth wording properly rather than leaving to the generic
+    // "something went wrong": both are the server declining to READ the upload, and both are things the
+    // user can act on - shrink the file, or simply wait. A 429 in particular is temporary, so saying so
+    // is the difference between retrying and giving up. Their text is already translated, on the file
+    // input (see settings.html).
     const REFUSED = 422
     const TOO_LARGE = 413
+    const SERVER_BUSY = 429
+
+    // The wording for a status whose body is not a panel, falling back to the generic banner for one that
+    // is genuinely unexpected rather than a bound the app sets for itself.
+    function statusMessage(status) {
+        if (status === TOO_LARGE) {return tooLargeMessage}
+        if (status === SERVER_BUSY) {return serverBusyMessage}
+        return window.Diurnal.i18n.somethingWentWrong
+    }
 
     function post(url) {
         return fetch(url, {
@@ -1346,7 +1362,7 @@ if (oidcConnectArm) {
                 if (resp.ok || resp.status === REFUSED) {
                     return resp.text().then(showPanel)
                 }
-                failed(resp.status === TOO_LARGE ? tooLargeMessage : window.Diurnal.i18n.somethingWentWrong)
+                failed(statusMessage(resp.status))
                 return undefined
             })
             .catch(function () {failed(window.Diurnal.i18n.somethingWentWrong)})

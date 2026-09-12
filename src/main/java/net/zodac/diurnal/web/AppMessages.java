@@ -3158,6 +3158,18 @@ public interface AppMessages {
     String importFileTooLarge(long maxMegabytes);
 
     /**
+     * The refusal for an import arriving while the configured number are already in flight, answered by {@code http/ImportConcurrencyFilter} with a
+     * {@code 429} before the upload is read. Worded as the temporary condition it is, because the alternative the generic banner offered
+     * ("something went wrong") reads as a fault in the archive and invites the user to stop rather than to wait - which is the whole difference
+     * worth wording here. Retrying means choosing the file again, as it does after any other failed step: the banner replaces the panel that held
+     * the Import button.
+     *
+     * @return the default (English) text
+     */
+    @Message("The server is busy, try again in a few seconds.")
+    String importServerBusy();
+
+    /**
      * Import action.
      *
      * @return the default (English) text
