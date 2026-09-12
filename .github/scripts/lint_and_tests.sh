@@ -350,6 +350,9 @@ PERF_HTTP_PORT="${PERF_HTTP_PORT:-8083}"
 # and appended as `-D`s by sonar_property_args, because the Maven scanner ignores a
 # `sonar-project.properties`. See that function and the file's own header.
 #
+# The analysis is filed under the version in the VERSION file, NOT the pom's `<version>` the scanner would
+# otherwise default to - see the -Dsonar.projectVersion append in run_java for why.
+#
 # run_java pre-flight-checks the server (sonarqube_reachable, using this same host/token) before
 # deciding whether to append -Dsonarqube at all: if it's unreachable, the analysis is skipped for this
 # run instead of letting a bootstrap failure fail the whole release gate. If it IS reachable but the
@@ -1262,6 +1265,27 @@ run_java() {
             if (( ${#sonar_args[@]} > 0 )); then
                 mvn_args+=("${sonar_args[@]}")
                 substep "applying ${#sonar_args[@]} analysis propert$( (( ${#sonar_args[@]} == 1 )) && echo y || echo ies) from ${SONAR_CONFIG_FILE}"
+            fi
+
+            # The scanner defaults sonar.projectVersion to the pom's <version>, which on master is ALWAYS a
+            # -SNAPSHOT of the NEXT release: bump_version.sh advances it the moment a release publishes, so
+            # the analysis of release X filed itself under X+1-SNAPSHOT - a version that was never released,
+            # leaving every issue and every new-code period in SonarQube pointing at a development version.
+            # publish.yml's own `mvn versions:set` cannot fix that: it runs in the `publish` job, on a
+            # separate checkout, AFTER the `test` job that carries the analysis.
+            #
+            # So name the version here, from the VERSION file - the authoritative release version, the same
+            # source publish.yml's `version` job reads and the same one the footer and the OpenAPI document
+            # report at runtime (see ReleaseVersion.java, which exists for exactly this mismatch). A
+            # command-line -D beats the pom property, so nothing needs to rewrite the POM, and a local scan
+            # is labelled identically to the release one rather than by whatever SNAPSHOT the tree carries.
+            if [[ -f "${REPO_ROOT}/VERSION" ]]; then
+                local release_version
+                release_version="$(tr -d '[:space:]' < "${REPO_ROOT}/VERSION")"
+                if [[ -n "${release_version}" ]]; then
+                    mvn_args+=("-Dsonar.projectVersion=${release_version}")
+                    substep "filing the analysis under release version ${release_version}"
+                fi
             fi
         else
             echo "⚠️  SonarQube server at ${SONARQUBE_HOST_URL} is unreachable - skipping analysis for this run"
