@@ -135,6 +135,8 @@ public class TransferApiResource {
         + "least one row is invalid. The reply locates every problem it can.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ImportRejectionDto.class)))
     @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "429", description = "The maximum number of concurrent imports are already in flight; nothing was read. Retry "
+        + "after the number of seconds given in the Retry-After header.")
     public Response preview(
         @RequestBody(description = "The export archive to validate.",
         content = @Content(mediaType = APPLICATION_ZIP, schema = @Schema(type = SchemaType.STRING, format = "binary")))
@@ -167,6 +169,8 @@ public class TransferApiResource {
         + "missing a member, or at least one row is invalid. The reply locates every problem it can.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ImportRejectionDto.class)))
     @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "429", description = "The maximum number of concurrent imports are already in flight, so nothing was read and "
+        + "nothing was written. Retry after the number of seconds given in the Retry-After header.")
     public Response importData(
         @RequestBody(description = "The export archive to import.",
         content = @Content(mediaType = APPLICATION_ZIP, schema = @Schema(type = SchemaType.STRING, format = "binary")))

@@ -109,16 +109,8 @@ public class AppLifecycle {
         verifyOfferedLanguageCalendars();
         verifyOidcDiscovery();
 
-        // Wall-clock time from JVM launch to now, read from the RuntimeMXBean whose start timestamp is
-        // set by the runtime before any application code runs. This captures the true cold start — JVM
-        // launch, classloading and framework init — not just an in-app stopwatch. It does NOT include
-        // any time before the JVM process was exec'd (container scheduling, image pull); that is not
-        // observable from within the process. Quarkus additionally logs its own "started in X.XXXs"
-        // line (the io.quarkus logger), which is measured from Quarkus bootstrap rather than JVM launch.
-        LOGGER.debug("System cold start: {} (JVM launch -> ready)", ElapsedTime.format(uptime()));
-
         LOGGER.info("=================================================");
-        LOGGER.info("  Diurnal {} started", applicationVersion.release());
+        LOGGER.info("  Diurnal {} started in {}", applicationVersion.release(), ElapsedTime.format(uptime()));
         LOGGER.debug("  Password auth : {}", passwordAuthConfig.enabled() ? "enabled" : "disabled");
         if (quarkusOidcConfig.tenantEnabled()) {
             LOGGER.debug("  OIDC          : enabled  (issuer: {}, provider: {}, auto-redirect: {})",
@@ -147,9 +139,7 @@ public class AppLifecycle {
     @SuppressWarnings("unused") // CDI shutdown observer - invoked by Quarkus, not called directly
     void onStop(@Observes final ShutdownEvent ev) {
         LOGGER.info("=================================================");
-        LOGGER.info("  Diurnal stopped");
-        // The same RuntimeMXBean measurement as the cold-start figure, so the two are read from the same instant (JVM launch).
-        LOGGER.debug("  Uptime        : {}", ElapsedTime.format(uptime()));
+        LOGGER.info("  Diurnal stopped after {}", ElapsedTime.format(uptime()));
         LOGGER.info("=================================================");
     }
 

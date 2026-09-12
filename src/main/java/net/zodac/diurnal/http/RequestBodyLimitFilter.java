@@ -47,15 +47,17 @@ import org.jspecify.annotations.Nullable;
  * A body with no {@code Content-Length} (a chunked upload) is not measured here and is still bounded by {@code max-body-size}; a client that
  * understates {@code Content-Length} only causes the server to read that many bytes, so the header is a sound basis for the check. The cap is checked
  * on {@code Content-Length} alone, so it costs nothing and runs before authentication.
+ *
+ * <p>
+ * The exemption is what makes {@link ImportConcurrencyFilter} necessary: the import endpoints are the only ones whose per-request memory this filter
+ * does not bound, so their AGGREGATE memory is bounded there instead. The two share {@link ImportPaths} so the exempt set and the bounded set cannot
+ * drift apart.
  */
 @Provider
 @Priority(Priorities.AUTHENTICATION)
 public class RequestBodyLimitFilter implements ContainerRequestFilter {
 
     private static final Logger LOGGER = LogManager.getLogger(RequestBodyLimitFilter.class);
-
-    private static final String API_IMPORT_PATH_PREFIX = "api/v1/data/import";
-    private static final String INTERNAL_IMPORT_PATH_PREFIX = "internal/data/import";
 
     private final Instance<AppConfig> appConfig;
 
@@ -101,17 +103,12 @@ public class RequestBodyLimitFilter implements ContainerRequestFilter {
      * @return {@code true} when the body exceeds the cap, and the path is not an exempt import endpoint
      */
     static boolean exceedsLimit(final String path, final @Nullable String contentLengthHeader, final long limitBytes) {
-        if (limitBytes <= 0L || isImportPath(path)) {
+        if (limitBytes <= 0L || ImportPaths.isImportPath(path)) {
             return false;
         }
 
         final OptionalLong contentLength = parseContentLength(contentLengthHeader);
         return contentLength.isPresent() && contentLength.getAsLong() > limitBytes;
-    }
-
-    private static boolean isImportPath(final String path) {
-        final String normalised = path.startsWith("/") ? path.substring(1) : path;
-        return normalised.startsWith(API_IMPORT_PATH_PREFIX) || normalised.startsWith(INTERNAL_IMPORT_PATH_PREFIX);
     }
 
     private static OptionalLong parseContentLength(final @Nullable String contentLengthHeader) {

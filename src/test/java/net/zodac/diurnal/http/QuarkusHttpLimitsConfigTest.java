@@ -42,12 +42,12 @@ class QuarkusHttpLimitsConfigTest {
 
     @Test
     void maxBodySize_bindsTheConfiguredMemorySize() {
-        // The MAX_UPLOAD_SIZE default application.properties ships, whose suffix is binary (100 x 1024 x 1024), not decimal.
-        final QuarkusHttpLimitsConfig config = configWith(Map.of("quarkus.http.limits.max-body-size", "100M"));
+        // The MAX_UPLOAD_SIZE default application.properties ships, whose suffix is binary (64 x 1024 x 1024), not decimal.
+        final QuarkusHttpLimitsConfig config = configWith(Map.of("quarkus.http.limits.max-body-size", "64M"));
 
         assertThat(config.maxBodySize().asLongValue())
-            .as("a 100M limit should bind as 100 binary megabytes")
-            .isEqualTo(104_857_600L);
+            .as("a 64M limit should bind as 64 binary megabytes")
+            .isEqualTo(67_108_864L);
     }
 
     @Test

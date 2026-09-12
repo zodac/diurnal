@@ -127,4 +127,21 @@ public interface AppConfig {    /**
     default long maxRequestBodyBytes() {
         return maxRequestBody().asLongValue();
     }
+
+    /**
+     * How many data imports may be in flight at once, driven by {@code MAX_CONCURRENT_IMPORTS} (default {@code 2}); a value of zero or less turns
+     * the bound off. Enforced by {@code net.zodac.diurnal.http.ImportConcurrencyFilter}, which answers {@code 429} before reading the body of a
+     * request past the bound.
+     *
+     * <p>
+     * The import endpoints are the ones {@link #maxRequestBody()} exempts, so each one holds a whole uploaded archive, its decompressed members and
+     * its parsed rows in memory at once - and the preview endpoint writes nothing, so it is freely repeatable. This is the only thing bounding the
+     * SUM of that; every other limit in the import path bounds ONE request. Keep it low: two concurrent imports is generous for a deployment whose
+     * users each import a backup a handful of times a year, and each further permit is another whole archive's worth of heap.
+     *
+     * @return the maximum number of concurrent data imports
+     */
+    @WithName("http.max-concurrent-imports")
+    @WithDefault("2")
+    int maxConcurrentImports();
 }

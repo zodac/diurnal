@@ -1,6 +1,6 @@
 # Data Export & Import
 
-> **This file is ~19 KB. Read only the section you need** - `grep -n '^#' .claude/TRANSFER.md` for its
+> **This file is ~20 KB. Read only the section you need** - `grep -n '^#' .claude/TRANSFER.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Why**
@@ -182,8 +182,9 @@ the attacker-reachable parser it is:
   total. It deliberately does **not** cap rows: the decompressed-byte limits above are the real bound, and a
   second row-count limit would only add a branch no test could reach without building 32 MB of fixtures.
 - **Before any of that, the HTTP layer caps the request body itself** (`quarkus.http.limits.max-body-size`,
-  deployment-configurable through `MAX_UPLOAD_SIZE`, default 100 MB), so an enormous upload never reaches
-  `TransferArchive` at all. That refusal is **an empty `413` with no body**,
+  deployment-configurable through `MAX_UPLOAD_SIZE`, default 64 MB — `MAX_ARCHIVE_BYTES` itself, which is the
+  smallest value that still admits every archive `unpack` can accept, since a member is only ever decompressed and
+  never inflated), so an enormous upload never reaches `TransferArchive` at all. That refusal is **an empty `413` with no body**,
   which no application code sees and so cannot word: swapping it into the Settings card used to replace
   `#import-panel` with nothing, silently deleting the panel and leaving the card inert. The card therefore reads
   the bound from `http/QuarkusHttpLimitsConfig` (rendered onto the file input as `data-max-upload-bytes` plus an
@@ -195,6 +196,17 @@ the attacker-reachable parser it is:
   and setting it BELOW `MAX_ARCHIVE_BYTES` is coherent rather than a misconfiguration to guard against: imports
   are simply refused earlier, by that banner instead of by `unpack`. So there is deliberately no startup range
   check on it, unlike `NOTE_MAX_LENGTH`.
+
+- **Every limit above bounds ONE import; `http/ImportConcurrencyFilter` bounds how many there are.** That gap was
+  real and is worth stating plainly: import is the one capability `RequestBodyLimitFilter` exempts, so each request
+  in flight holds its whole uploaded body, the members it decompressed and the rows it parsed, all at once — and
+  `POST /api/v1/data/import/preview` writes nothing, so any account can repeat it as fast as it likes. Enough
+  concurrently exhausted the heap. The filter is a Vert.x route rather than a JAX-RS provider for two reasons that
+  both matter: it runs *before* the framework reads the body, so a refusal costs none of the memory it protects;
+  and it releases its permit from `RoutingContext.addEndHandler`, which fires however the response ends, so a
+  connection reset mid-upload cannot strand one. Past `MAX_CONCURRENT_IMPORTS` (default 2) the answer is a `429`
+  with `Retry-After`, which `settings.js` already renders as a banner — it is one of the "any status other than
+  200/422" cases the card was built to handle, exactly like the `413` above.
 
 The three limits are also reachable through a package-private `TransferArchive.unpack` overload that takes them
 explicitly, purely so a test can sit on each boundary exactly. The production path passes the constants.

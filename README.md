@@ -232,13 +232,10 @@ The Compose files also tune PostgreSQL itself; those knobs live in [Performance 
 | `DB_LOG_LEVEL`             | `WARN`  | Set to `TRACE` to log every SQL statement + bound parameters (verbose; may expose parameter values)         |
 | `EXPORT_CSV_BOM`           | `true`  | Lead each exported CSV with a UTF-8 byte-order mark (Excel-friendly); `false` for plain UTF-8 (LibreOffice) |
 | `LOG_LEVEL`                | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                            |
+| `MAX_CONCURRENT_IMPORTS`   | `2`     | How many data imports may run at once; further ones get a `429`. `0` removes the bound                      |
 | `MAX_REQUEST_BODY`         | `1M`    | Largest body accepted on every endpoint *except* data import; `0` removes the cap                           |
-| `MAX_UPLOAD_SIZE`          | `100M`  | Hard ceiling on any request body, in binary units (`100M`, `512K`, `1G`); used by import/export             |
+| `MAX_UPLOAD_SIZE`          | `64M`   | Hard ceiling on any request body, in binary units (`100M`, `512K`, `1G`); used by import/export             |
 | `TZ`                       | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                                                |
-
-`MAX_UPLOAD_SIZE` has to stay large enough for a re-imported export, but that same size on every other endpoint is a cheap memory-exhaustion lever
-(an unauthenticated caller making the server buffer a multi-megabyte body on a hot path like `POST /api/v1/auth/login`). `MAX_REQUEST_BODY` is the
-lower cap that applies everywhere else; keep it comfortably above the largest legitimate form post (a maximum-length note is ~10 KB).
 
 ### Note Configuration
 
