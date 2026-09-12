@@ -94,8 +94,8 @@ fi
 docker compose -p "${DB_PROJECT}" -f "${COMPOSE_FILE}" up -d --wait diurnal-db-dev
 
 # The -D pins outrank the repo-root .env (which Quarkus also reads at runtime, at a HIGHER priority
-# than the bundled %test profile): a deployer flipping PASSWORD_AUTH_ENABLED/ENABLE_REGISTRATION there
-# must not fail the E2E auth specs.
+# than the bundled %test profile): a deployer flipping PASSWORD_AUTH_ENABLED/ENABLE_LOCAL_REGISTRATION
+# there must not fail the E2E auth specs.
 #
 # OIDC is pinned off for the same reason, and it is not hypothetical: with OIDC_ENABLED=true in .env
 # the suite ran against a live third-party issuer, which is neither what CI tests (no .env there) nor
@@ -103,7 +103,7 @@ docker compose -p "${DB_PROJECT}" -f "${COMPOSE_FILE}" up -d --wait diurnal-db-d
 # to the IdP and fail every auth spec. The two keys are pinned rather than the whole file ignored so a
 # deliberate OIDC profile can still opt in.
 java -Dquarkus.profile=test -Dquarkus.http.port="${PORT}" \
-  -Dpassword.auth.enabled=true -Dregistration.enabled=true \
+  -Dpassword.auth.enabled=true -Dregistration.local.enabled=true \
   -Dquarkus.oidc.tenant-enabled=false -Doidc.auto.redirect=false \
   -jar "${TARGET_DIR}/quarkus-app/quarkus-run.jar" >"${TARGET_DIR}/app.log" 2>&1 &
 APP_PID=$!

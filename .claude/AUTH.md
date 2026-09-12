@@ -1,6 +1,6 @@
 # Authentication & Security
 
-> **This file is ~27 KB. Read only the section you need** - `grep -n '^#' .claude/AUTH.md` for its
+> **This file is ~28 KB. Read only the section you need** - `grep -n '^#' .claude/AUTH.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Package layout (`auth` and its four subpackages)**
@@ -151,12 +151,15 @@ owns the `IpThrottle` check + Argon2id verification and returns a `LoginResult`)
 duplicate-email check and account creation, returning a sealed `RegistrationResult`) — `AuthResource.register`
 (JSON API → `429` + `Retry-After`; the deliberately-API-only first-user refusal stays in the resource) and `AuthWebResource.register`
 (web form → `429`, carrying the seconds-left `X-Lockout-Retry-After` header + a `[data-form-errors]` banner; the web-only
-confirm-password rule is expressed by passing `confirmPassword` to the service). The locked-out message states the **exact** whole seconds remaining
-with **neutral** wording (`LockoutMessages.retryMessage`, e.g. "Too many failed attempts. Please try again in 240 seconds.") —
-deliberately NOT naming login vs registration (one shared counter feeds both, so "too many failed logins" after failed *registrations*
-would be misleading) and disclosing nothing about account existence (a non-existent email is keyed and locked identically, no
-enumeration). The API returns it as the `429` body, alongside the exact `Retry-After` header. The web login form: `AuthWebResource.doLogin`
-owns `POST /login` directly (there is no Quarkus form auth), so on a lockout it simply sets the short-lived `diurnal_login_lockout`
+confirm-password rule is expressed by passing `confirmPassword` to the service). **`ENABLE_LOCAL_REGISTRATION`
+(`registration.local.enabled`, `LocalRegistrationConfig`) closes that path and nothing else**: only those two resources read it, an OIDC account is
+provisioned by `OidcUserProvisioner` on first login without ever consulting it, and first-run setup ignores it so the initial account can always be
+created. Restricting who the IdP may bring in is `oidc.user.group`/`oidc.admin.group` instead. The locked-out message states the **exact** whole
+seconds remaining with **neutral** wording (`LockoutMessages.retryMessage`, e.g. "Too many failed attempts. Please try again in 240 seconds.") —
+deliberately NOT naming login vs registration (one shared counter feeds both, so "too many failed logins" after failed *registrations* would be
+misleading) and disclosing nothing about account existence (a non-existent email is keyed and locked identically, no enumeration). The API returns it
+as the `429` body, alongside the exact `Retry-After` header. The web login form: `AuthWebResource.doLogin` owns `POST /login` directly (there is no
+Quarkus form auth), so on a lockout it simply sets the short-lived `diurnal_login_lockout`
 cookie (value = seconds left) onto its own `303 /login` redirect. `AuthWebResource.loginPage` reads that cookie to show the lockout banner
 (over the generic error), clears it, AND echoes the **seconds left** in an `X-Lockout-Retry-After` response header — because the login
 form posts via `fetch` (`data-ajax-submit` in `app.js`) and never renders that HTML, so the AJAX handler reads the header and runs a
@@ -218,11 +221,11 @@ password in the same step (`AccountLinkService.link`), so there is no hybrid sta
   the one-shot `diurnal_oidc_link` intent cookie and enters the code flow; at the callback the provisioner sees intent + valid `diurnal_session`
   and applies `OidcLinkPolicy` → `AccountLinkService.link`, landing on `/settings?msg=oidc-connected`. The Settings confirm warns that the password
   will be removed. Surface policy: the connect flow has no API twin (browser redirect dance).
-- **The initial account is ALWAYS created locally** — the first-run setup flow (`/welcome` + `/register`) ignores BOTH `ENABLE_REGISTRATION` and
+- **The initial account is ALWAYS created locally** — the first-run setup flow (`/welcome` + `/register`) ignores BOTH `ENABLE_LOCAL_REGISTRATION` and
   `PASSWORD_AUTH_ENABLED` until a user exists, and OIDC never provisions user number one. In a pure-OIDC deployment that first administrator is the
-  sysops break-glass credential. Converting it later (adoption/connect) is allowed so long as the account remains an administrator (IdP-asserted
-  admin group, or no group mapping) — only a demotion of the last administrator is refused. A deployer keeps a password-capable backup by giving
-  the break-glass admin a dedicated email the IdP never presents.
+  sysops break-glass credential. Converting it later (adoption/connect) is allowed so long as the account remains an administrator (IdP-asserted admin
+  group, or no group mapping) — only a demotion of the last administrator is refused. A deployer keeps a password-capable backup by giving the
+  break-glass admin a dedicated email the IdP never presents.
 - **The `q_session` cookie alone never grants page access** (`OidcLoginPolicy.revocationGuardSatisfied`): outside the code-flow callback, an
   OIDC-authenticated request must also carry a live `diurnal_session` for the same user, or authentication fails and the code flow re-runs
   (re-minting a session at the callback) — so "log out from everywhere" is authoritative for OIDC devices too; `q_session` survives only for token

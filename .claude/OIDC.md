@@ -1,10 +1,11 @@
 # OIDC / Local Account Management — Review & Decisions
 
-> **This file is ~14 KB. Read only the section you need** - `grep -n '^#' .claude/OIDC.md` for its
+> **This file is ~15 KB. Read only the section you need** - `grep -n '^#' .claude/OIDC.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Decisions taken (2026-07-17)**
 > - **Decisions taken (2026-07-18)**
+> - **Decisions taken (2026-09-12)**
 > - **The implementation** — Policy core (`auth.oidc` package, pure + 100% PIT), Settings Connect (one-way conversion) + email adoption, Interop, Tests
 > - **The `q_session` revocation gap and its guard**
 > - **Deliberately not done**
@@ -41,7 +42,7 @@
   match there grants nothing an IdP login doesn't already grant; `email_verified: false` still never adopts, and the last-admin guard applies.
   With password auth enabled, the collision refusal stands unchanged (that is the genuinely dangerous case).
 - **8. The initial account is ALWAYS created locally — even in a pure-OIDC deployment** (`PASSWORD_AUTH_ENABLED=false`): the first-run setup flow
-  (`/welcome` + `/register`) now ignores `PASSWORD_AUTH_ENABLED` exactly as it already ignored `ENABLE_REGISTRATION`, and OIDC never provisions
+  (`/welcome` + `/register`) now ignores `PASSWORD_AUTH_ENABLED` exactly as it already ignored `ENABLE_LOCAL_REGISTRATION`, and OIDC never provisions
   user number one. That first administrator is the sysops **break-glass credential** (its password becomes usable by re-enabling password auth).
   The setup page's content is deliberately IDENTICAL in both auth modes — the deployer configured `PASSWORD_AUTH_ENABLED` and owns that context
   (an explanatory note was added and then removed on request, 2026-07-18). **Converting that account later is allowed** — an adoption/connect of
@@ -52,6 +53,20 @@
   `ROLE_SYNC_REFUSED` (a conversion/login that would demote the last administrator) and `NOT_IN_GROUP`. The break-glass admin can also CHANGE its
   password while password login is off — password management keys on holding a password, not on `PASSWORD_AUTH_ENABLED` (`PasswordChangeService` +
   the Settings `canChangePassword` gate, 2026-07-19).
+
+## Decisions taken (2026-09-12)
+
+- **9. The registration switch governs LOCAL accounts only, and is named for it.** `ENABLE_LOCAL_REGISTRATION`
+  (`registration.local.enabled`, bound by `LocalRegistrationConfig` and pinned by `LocalRegistrationConfigTest`) closes the `/register` page and
+  `POST /api/v1/auth/register`, and nothing else. An unqualified name would read as "no new accounts", which is never true with an IdP configured:
+  `ProvisionNew` does not consult the switch, and `OidcLoginPolicy.decide` does not either.
+- **10. A matching `ENABLE_OIDC_REGISTRATION` was considered and REJECTED.** `oidc.user.group`/`oidc.admin.group` already restricts provisioning
+  in-app, and does it better: a non-member is denied `NOT_IN_GROUP` before account resolution, and it separates "who may use Diurnal" from "who
+  exists at the IdP" without a switch to flip at every onboarding. The residual gap is narrow - a provider emitting no groups claim (the
+  `OIDC_SCOPES=email,profile` shape) whose user population is not the deployment's - while the cost is not: a fourth switch interacting with
+  `decide`'s ordering, a denial reason worded into every message bundle, and the subtlety that it must gate `ProvisionNew` ONLY, never
+  `AdoptByEmail` (which creates no account and is the `PASSWORD_AUTH_ENABLED=false` migration path). Revisit if a deployment fronted by a public
+  issuer appears.
 
 ## The implementation
 

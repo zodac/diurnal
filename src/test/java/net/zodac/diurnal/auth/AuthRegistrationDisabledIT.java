@@ -30,12 +30,12 @@ import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies the JSON API ({@code POST /api/v1/auth/register}) honours {@code ENABLE_REGISTRATION=false} just like the web form, so the API can never
- * be used to bypass the registration switch. Nor can it be used to create the very first account — that must be done locally via the web setup flow,
- * regardless of the registration switch. Uses {@link RegistrationDisabledProfile} to force {@code registration.enabled=false}.
+ * Verifies the JSON API ({@code POST /api/v1/auth/register}) honours {@code ENABLE_LOCAL_REGISTRATION=false} just like the web form, so the API can
+ * never be used to bypass the local-registration switch. Nor can it be used to create the very first account — that must be done locally via the web
+ * setup flow, regardless of the switch. Uses {@link LocalRegistrationDisabledProfile} to force {@code registration.local.enabled=false}.
  */
 @QuarkusTest
-@TestProfile(RegistrationDisabledProfile.class)
+@TestProfile(LocalRegistrationDisabledProfile.class)
 class AuthRegistrationDisabledIT extends IntegrationTestBase {
 
     @Test
