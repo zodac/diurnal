@@ -4,7 +4,8 @@
 #
 # Description:  Updates pinned tool and package versions across the project:
 #                 - parent-pom version in pom.xml
-#                 - Java (major) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
+#                 - Java (major) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows, plus the
+#                   full JDK tag in lint_and_tests.sh's MVN_JDK_IMAGE (the JVM the gate itself runs on)
 #                 - Maven (full) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
 #                 - Node (full/major), as ONE atomic "like" group kept in lockstep: Dockerfile
 #                   (css/icons -alpine + the screenshots stage's -trixie node source), sandbox/Dockerfile,
@@ -171,7 +172,8 @@ latest_stable_github_release() {
 # ── 1. Java ───────────────────────────────────────────────────────────────────
 # Updates: pom.xml <java-release>, Dockerfile maven stage (major),
 #          Dockerfile jre stage (full tag), sandbox/Dockerfile jdk stage (full tag)
-#          + maven stage (major), all workflow java-version fields.
+#          + maven stage (major), all workflow java-version fields, and lint_and_tests.sh's
+#          MVN_JDK_IMAGE (full tag) + MVN_MAVEN_IMAGE (major) - the JVM gate's own toolchain image.
 # Pre-condition: eclipse-temurin jdk tag exists on Docker Hub,
 #                AND maven:{current_maven}-eclipse-temurin-{new_major} exists.
 
@@ -249,6 +251,14 @@ update_java() {
         # pattern never silently skips a double-quoted file.
         sed -i -E "s/(java-version: )(['\"])[0-9]*\\2/\\1\\2${latest_major}\\2/g" "${workflow}"
     done
+
+    # lint_and_tests.sh: the JVM gate's own toolchain image. MVN_JDK_IMAGE is what actually PINS the gate's
+    # JVM (the `java` step runs mvn inside that image rather than on the host's JDK), so it takes the same
+    # full tag the Dockerfiles get - a major-only pin here would let two machines gate the same commit on
+    # different JDK builds, which is the whole reason the pin exists. MVN_MAVEN_IMAGE carries the java major
+    # in its tag as well; its Maven half is owned by update_maven below.
+    sed -i "s|^MVN_JDK_IMAGE=\"eclipse-temurin:.*\"|MVN_JDK_IMAGE=\"eclipse-temurin:${jdk_tag}\"|" "${LINT_SCRIPT}"
+    sed -i -E "s|^(MVN_MAVEN_IMAGE=\"maven:[^\"]*)-eclipse-temurin-[0-9]+\"|\\1-eclipse-temurin-${latest_major}\"|" "${LINT_SCRIPT}"
 
     ok "Java updated → major ${latest_major} (jdk: ${jdk_tag})"
 }

@@ -168,6 +168,11 @@ class ClientAddressTest {
             .isFalse();
     }
 
+    // ConstantValue: Qodana inlines the predicate and proves the answer from the literal arguments. That is
+    // true of EVERY unit test of a pure function, which is what these are - the constant it objects to is the
+    // expected value. Suppressed rather than obscured: feeding the inputs through something dataflow cannot
+    // fold would only hide the assertion from the reader too.
+    @SuppressWarnings("ConstantValue")
     @Test
     void isHeaderIgnored_whenAbsent() {
         assertThat(ClientAddress.isHeaderIgnored(null, UNTRUSTED))
@@ -259,7 +264,11 @@ class ClientAddressTest {
             .isEqualTo("cf=" + CLOUDFLARE_IP + " xff=- xfh=-");
     }
 
+    @SuppressWarnings("ConstantValue")
     private static boolean bothFire(final @Nullable String ip, final boolean trusted) {
+        // Always false, and proving exactly that is the point - the two warnings key on opposite values of one
+        // flag, which is what lets a single latch serve both. Qodana reaching the same conclusion statically
+        // agrees with the test rather than contradicting it, but it cannot see that a MUTATION would break it.
         return ClientAddress.isHeaderIgnored(ip, trusted) && ClientAddress.isOriginUnprotected(ip, trusted);
     }
 }

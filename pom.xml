@@ -22,6 +22,13 @@
              4 rather than a bigger number so a 2-4 core CI runner is not heavily oversubscribed while a
              developer box still gets most of the win. -->
         <pitest-threads>4</pitest-threads>
+        <!-- Whether the two exec executions below stand the IT database up and tear it down. The default is
+             false, so `mvn clean install -Dall` by hand manages its own database exactly as it always has.
+             The quality gate sets it TRUE: it runs Maven inside a container (MVN_BUILD_IMAGE in
+             .github/scripts/lint_and_tests.sh) that has to be attached to the database's compose network at
+             the moment it starts, which is impossible if the database is created later by the build running
+             inside it. So the script brings the database up first and Maven simply uses it. -->
+        <db.lifecycle.skip>false</db.lifecycle.skip>
 
         <!-- Inherited from parent-pom, but defined here for version update testing -->
         <java-release>26</java-release>
@@ -547,6 +554,7 @@
                                 </goals>
                                 <phase>pre-integration-test</phase>
                                 <configuration>
+                                    <skip>${db.lifecycle.skip}</skip>
                                     <executable>docker</executable>
                                     <arguments>
                                         <argument>compose</argument>
@@ -574,6 +582,7 @@
                                 </goals>
                                 <phase>post-integration-test</phase>
                                 <configuration>
+                                    <skip>${db.lifecycle.skip}</skip>
                                     <executable>docker</executable>
                                     <arguments>
                                         <argument>compose</argument>
