@@ -374,14 +374,13 @@ identity_providers:
 
 #### Login Throttling
 
-Failed login and registration attempts are rate-limited per client IP address. Once an IP exceeds
-`AUTH_IP_THROTTLE_MAX_ATTEMPTS` failures within the `AUTH_IP_THROTTLE_LOCKOUT_DURATION` window, it is locked out of **both** logging in and
-registering. When blocked, the API returns `429` (with a `Retry-After` header). The client IP is read from Cloudflare's
-`CF-Connecting-IP` header when present, otherwise from the connection (which honours [`TRUST_X_FORWARDED_HEADERS`](#reverse-proxy)).
-Durations are [ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations) (e.g. `PT5M` = 5 minutes, `PT1H` = 1 hour, `PT30S` = 30 seconds).
+Failed login and registration attempts are rate-limited per client IP address. Once an IP exceeds `AUTH_IP_THROTTLE_MAX_ATTEMPTS` failures within
+`AUTH_IP_THROTTLE_LOCKOUT_DURATION` window, it is locked out of **both** logging in and registering. The client IP is read from either
+`CF-Connecting-IP` or from the connection (depending on the value of `TRUST_CLOUDFLARE_HEADER` and/or `TRUST_X_FORWARDED_HEADERS`).
 
 | Variable                            | Default | Description                                  |
 |-------------------------------------|---------|----------------------------------------------|
+| `AUTH_IP_THROTTLE_CLEANUP_INTERVAL` | `PT1H`  | How often decayed counters are forgotten     |
 | `AUTH_IP_THROTTLE_ENABLED`          | `true`  | Set to `false` to disable throttling         |
 | `AUTH_IP_THROTTLE_LOCKOUT_DURATION` | `PT15M` | How long an IP stays locked                  |
 | `AUTH_IP_THROTTLE_MAX_ATTEMPTS`     | `15`    | Failures from one IP before it is locked out |
@@ -411,6 +410,7 @@ certificate, any HTTP→HTTPS redirect, and the `Strict-Transport-Security` (HST
 |-----------------------------|---------|---------------------------------------------------------------------------------------|
 | `BASE_PATH`                 |         | URL prefix the app is served under (if unset the application is served at `/`)        |
 | `CORS_ALLOWED_ORIGINS`      |         | Comma-separated list of origins allowed to call the API from a browser (unset = none) |
+| `TRUST_CLOUDFLARE_HEADER`   | `false` | Trust `CF-Connecting-IP` as the client IP (only behind Cloudflare)                    |
 | `TRUST_X_FORWARDED_HEADERS` | `false` | Trust `X-Forwarded-*` headers from the reverse proxy                                  |
 
 ## Performance Tuning

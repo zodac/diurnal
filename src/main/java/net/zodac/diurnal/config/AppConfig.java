@@ -81,6 +81,23 @@ public interface AppConfig {    /**
     boolean trustForwardedHeaders();
 
     /**
+     * Whether the deployment sits behind Cloudflare, so a request's {@code CF-Connecting-IP} header may be believed as the real client address.
+     * Read by {@code net.zodac.diurnal.http.ClientAddress}, which resolves the key the per-IP auth throttle counts against.
+     *
+     * <p>
+     * A SEPARATE key from {@link #trustForwardedHeaders()} because the two name different proxies: a deployment can sit behind Traefik without
+     * sitting behind Cloudflare, and the header each one sets is only trustworthy from the proxy that sets it. Defaulting to {@code false} is what
+     * makes the throttle safe on a directly-exposed deployment - Cloudflare OVERWRITES whatever the caller sent, but nothing else does, so believing
+     * the header anywhere else lets a client nominate its own throttle key and guess passwords without limit. Only enable it when the origin's
+     * ingress is restricted to Cloudflare's ranges; a request that reached the origin any other way can carry a forged value.
+     *
+     * @return {@code true} when the Cloudflare client-IP header is trusted, defaulting to {@code false}
+     */
+    @WithName("proxy.trust-cloudflare-header")
+    @WithDefault("false")
+    boolean trustCloudflareHeader();
+
+    /**
      * Maven's build timestamp (ISO-8601, UTC), filtered in at package time. Empty for an un-packaged dev run.
      *
      * @return the build timestamp, or empty when not packaged

@@ -78,6 +78,7 @@ public class OidcWebResource {
     private final SessionCookies sessionCookies;
     private final QuarkusOidcConfig quarkusOidcConfig;
     private final AppPaths appPaths;
+    private final ClientAddress clientAddress;
 
     /**
      * Injects the current-request identity accessors, the session store and cookie builder, and the framework-owned OIDC keys.
@@ -89,10 +90,12 @@ public class OidcWebResource {
      * @param sessionCookies the shared session-cookie builder
      * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys (tenant-enabled)
      * @param appPaths the single builder of every application URL, for the redirects and cookie paths this resource emits
+     * @param clientAddress the resolver for the requesting client's IP
      */
     @Inject
     public OidcWebResource(final SecurityIdentity identity, final CurrentUser currentUser, final AppClock clock, final SessionStore sessionStore,
-        final SessionCookies sessionCookies, final QuarkusOidcConfig quarkusOidcConfig, final AppPaths appPaths) {
+        final SessionCookies sessionCookies, final QuarkusOidcConfig quarkusOidcConfig, final AppPaths appPaths,
+        final ClientAddress clientAddress) {
         this.identity = identity;
         this.currentUser = currentUser;
         this.clock = clock;
@@ -100,6 +103,7 @@ public class OidcWebResource {
         this.sessionCookies = sessionCookies;
         this.quarkusOidcConfig = quarkusOidcConfig;
         this.appPaths = appPaths;
+        this.clientAddress = clientAddress;
     }
 
     /**
@@ -148,7 +152,7 @@ public class OidcWebResource {
         user.persist();
         LOGGER.debug("OIDC login: name={} email={} role={}", user.displayName, user.email, user.role);
         final String token = sessionStore.create(
-            user, Session.AUTH_SOURCE_OIDC, SessionCookies.userAgent(routingContext), ClientAddress.of(routingContext), clock.now());
+            user, Session.AUTH_SOURCE_OIDC, SessionCookies.userAgent(routingContext), clientAddress.of(routingContext), clock.now());
         if (linkIntent != null) {
             // A Settings "Connect" round trip: the link itself was applied during authentication by OidcUserProvisioner and OidcLinkPolicy.
             // Clear the one-shot intent marker and land back on Settings with a success banner instead of the dashboard.

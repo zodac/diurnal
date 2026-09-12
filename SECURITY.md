@@ -19,7 +19,8 @@ That opens a draft advisory visible only to you and the maintainer.
 Helpful things to include, as far as you have them:
 
 - The version you are running (the footer shows it, as does `GET /api/v1/status`)
-- Whether the deployment is behind a reverse proxy, and whether `TRUST_X_FORWARDED_HEADERS` is on
+- Whether the deployment is behind a reverse proxy or Cloudflare, and whether `TRUST_X_FORWARDED_HEADERS` and `TRUST_CLOUDFLARE_HEADER`
+  are on - between them they decide which client IP the per-IP auth lockout counts against
 - Which sign-in methods are enabled (`PASSWORD_AUTH_ENABLED`, `OIDC_ENABLED`)
 - The steps to reproduce, and what an attacker gains
 
@@ -34,7 +35,9 @@ the `/internal` endpoints, the admin console, the import/export, and the shipped
 Out of scope:
 
 - Findings that require an operator to have already misconfigured the deployment in a way the README warns against - notably
-  `TRUST_X_FORWARDED_HEADERS=true` on a container exposed directly to the internet, which lets a client spoof its own IP address.
+  `TRUST_X_FORWARDED_HEADERS=true` on a container exposed directly to the internet, or `TRUST_CLOUDFLARE_HEADER=true` on an origin that is
+  reachable other than through Cloudflare. Either lets a client spoof its own IP address, and so choose the key the auth lockout counts
+  against. The application warns about the second one in its own log, once, on the first request that arrives without the header.
 - Missing `Strict-Transport-Security`. Diurnal serves plaintext HTTP by design and expects a TLS-terminating reverse proxy to own every TLS concern,
   HSTS included.
 - The version string on the unauthenticated `GET /api/v1/status` probe. It is there so a health check and a bug report can both name a version.

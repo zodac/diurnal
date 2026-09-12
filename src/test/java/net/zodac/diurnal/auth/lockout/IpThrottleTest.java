@@ -21,6 +21,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.time.Instant;
+import net.zodac.diurnal.stub.StubAppConfig;
+import net.zodac.diurnal.time.AppClock;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -35,7 +37,7 @@ class IpThrottleTest {
     private static final String DUMMY_IP = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - Test IP
 
     private static IpThrottle throttle() {
-        return new IpThrottle(new FixedConfig(true, MAX_ATTEMPTS, LOCKOUT));
+        return new IpThrottle(new FixedConfig(true, MAX_ATTEMPTS, LOCKOUT), new AppClock(StubAppConfig.empty()));
     }
 
     @Test
@@ -90,7 +92,7 @@ class IpThrottleTest {
 
     @Test
     void disabled_neverLocks() {
-        final IpThrottle throttle = new IpThrottle(new FixedConfig(false, MAX_ATTEMPTS, LOCKOUT));
+        final IpThrottle throttle = new IpThrottle(new FixedConfig(false, MAX_ATTEMPTS, LOCKOUT), new AppClock(StubAppConfig.empty()));
         for (int i = 0; i < MAX_ATTEMPTS + 2; i++) {
             throttle.recordFailure(DUMMY_IP, NOW);
         }
@@ -143,5 +145,9 @@ class IpThrottleTest {
 
     private record FixedConfig(boolean enabled, int maxAttempts, Duration lockoutDuration) implements IpThrottleConfig {
 
+        @Override
+        public Duration cleanupInterval() {
+            return LOCKOUT;
+        }
     }
 }

@@ -31,9 +31,10 @@ import java.time.Duration;
  * service to a targeted victim by failing logins for their email. Keying purely on the client IP avoids that footgun.
  *
  * <p>
- * The client IP comes from Vert.x {@code remoteAddress()}, which honours {@code quarkus.http.proxy.proxy-address-forwarding}
- * ({@code TRUST_X_FORWARDED_HEADERS}); this control is therefore only meaningful when that is configured correctly behind a trusted proxy. Because
- * many users can share one IP (NAT/CGNAT), the limit is deliberately generous and a counter decays after a quiet window so shared IPs don't
+ * The client IP is resolved by {@code net.zodac.diurnal.http.ClientAddress} from Vert.x {@code remoteAddress()}, which honours
+ * {@code quarkus.http.proxy.proxy-address-forwarding} ({@code TRUST_X_FORWARDED_HEADERS}), or from {@code CF-Connecting-IP} when
+ * {@code TRUST_CLOUDFLARE_HEADER} is on; this control is therefore only meaningful when whichever of those is trusted is configured correctly.
+ * Because many users can share one IP (NAT/CGNAT), the limit is deliberately generous and a counter decays after a quiet window so shared IPs don't
  * accumulate unrelated failures.
  */
 @ConfigMapping(prefix = "auth.ip-throttle")
@@ -64,4 +65,17 @@ public interface IpThrottleConfig {
     @WithName("lockout-duration")
     @WithDefault("PT15M")
     Duration lockoutDuration();
+
+    /**
+     * How often {@link IpThrottle} drops the tracked IPs whose counters have decayed, bounding the in-memory map to the addresses actually being
+     * counted rather than every address ever seen. Also referenced directly by the eviction's
+     * {@code @Scheduled(every = "{auth.ip-throttle.cleanup-interval}")}; declared here so the property maps cleanly under the
+     * {@code auth.ip-throttle.*} prefix. ISO-8601 duration.
+     *
+     * @return the cleanup interval, defaulting to 1 hour
+     */
+    @WithName("cleanup-interval")
+    @WithDefault("PT1H")
+    @SuppressWarnings("unused") // IpThrottle reads the key via @Scheduled(every = "{auth.ip-throttle.cleanup-interval}"); no Java caller
+    Duration cleanupInterval();
 }
