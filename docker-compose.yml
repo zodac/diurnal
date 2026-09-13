@@ -1,0 +1,133 @@
+networks:
+  diurnal-network:
+    name: diurnal-network
+    driver: bridge
+  # Backend network for app<->database traffic only, no egress
+  diurnal-internal:
+    name: diurnal-internal
+    driver: bridge
+    internal: true
+
+services:
+
+  diurnal:
+    image: zodac/diurnal:1.0.0
+    container_name: diurnal
+    hostname: diurnal
+    cap_drop:
+      - ALL
+    depends_on:
+      diurnal-db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: "2G"
+          pids: "256"
+    memswap_limit: "2G"
+    environment:
+      # Database configuration
+      DB_HOST: "diurnal-db"
+      DB_PORT: "5432"
+      DB_NAME: "${DIURNAL_DB_NAME:?[diurnal] Database name missing}"
+      DB_USER: "${DIURNAL_DB_USER:?[diurnal] Database user missing}"
+      DB_PASSWORD: "${DIURNAL_DB_PASSWORD:?[diurnal] Database password missing}"
+      # Application configuration
+      EXPORT_CSV_BOM: "false"
+      LOG_LEVEL: "INFO"
+      NOTE_ENCRYPTION_KEY: "${DIURNAL_NOTE_ENCRYPTION_KEY:?[diurnal] Note encryption key missing}"
+      TZ: "${TIMEZONE:?Timezone missing}"
+      # Authentication config
+      ENABLE_LOCAL_REGISTRATION: "true"
+      PASSWORD_AUTH_ENABLED: "true"
+      # OIDC config
+      OIDC_AUTO_REDIRECT: "false"
+      OIDC_CLIENT_ID: "${DIURNAL_OIDC_CLIENT_ID:?[diurnal] OIDC client ID missing}"
+      OIDC_CLIENT_SECRET: "${DIURNAL_OIDC_CLIENT_SECRET:?[diurnal] OIDC client secret missing}"
+      OIDC_ENABLED: "true"
+      OIDC_ISSUER_URL: "${DIURNAL_OIDC_ISSUER_URI:?[diurnal] OIDC issuer URI missing}"
+      OIDC_PROVIDER_NAME: "Authelia"
+      # Reverse proxy configuration
+      TRUST_CLOUDFLARE_HEADER: "true"
+      TRUST_X_FORWARDED_HEADERS: "true"
+    labels:
+      # Reverse proxy config
+      traefik.enable: "true"
+      traefik.http.routers.diurnal.rule: "Host(`diurnal.${DOMAIN_NAME}`)"
+      traefik.http.routers.diurnal.entrypoints: "websecure"
+      traefik.http.routers.diurnal.tls: "true"
+      traefik.http.routers.diurnal.middlewares: "no-forward-auth@file"
+      traefik.http.services.diurnal.loadbalancer.server.port: "4021"
+      # Monitor config
+      kuma.diurnal.http.name: "Diurnal (Habit Tracker)"
+      kuma.diurnal.http.url: "${DIURNAL_MONITOR_URL:?[diurnal] Monitor URL missing}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - diurnal-internal  # reaches the database, which lives only on this internal network
+      - diurnal-network   # egress for OIDC discovery + the GitHub update-check
+    ports:
+      - "${DIURNAL_BIND_IP:-127.0.0.1}:4021:8080"
+    read_only: true  # Immutable root filesystem - the app writes nothing outside /tmp
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges=true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    user: "65532:65532"  # nonroot user
+
+  diurnal-db:
+    image: postgres:18.6-alpine
+    container_name: diurnal-db
+    hostname: diurnal-db
+    command:
+      - -ccheckpoint_timeout=15min
+      - -ceffective_cache_size=768MB
+      - -cjit=off
+      - -cmaintenance_work_mem=128MB
+      - -cmax_connections=25
+      - -cmax_wal_size=2GB
+      - -cmin_wal_size=256MB
+      - -crandom_page_cost=1.1
+      - -cshared_buffers=256MB
+      - -cwal_compression=lz4
+      - -cwork_mem=8MB
+    environment:
+      # Base config
+      TZ: "${TIMEZONE:?Timezone missing}"
+      PGTZ: "${TIMEZONE:?Timezone missing}"
+      POSTGRES_INITDB_ARGS: "--set=log_timezone=${TIMEZONE:?Timezone missing}"
+      # Database config
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_DB: "${DIURNAL_DB_NAME:?[diurnal-db] Database name missing}"
+      POSTGRES_PASSWORD: "${DIURNAL_DB_PASSWORD:?[diurnal-db] Database password missing}"
+      POSTGRES_USER: "${DIURNAL_DB_USER:?[diurnal-db] Database user missing}"
+    expose:
+      - "5432"
+    healthcheck:
+      test: [ "CMD", "pg_isready", "--host", "localhost", "-U", "${DIURNAL_DB_USER:?[diurnal-db] Database user missing}", "-d", "${DIURNAL_DB_NAME:?[diurnal-db] Database name missing}" ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+      start_interval: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - diurnal-internal
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges=true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+      - /var/run/postgresql:uid=999,gid=999,mode=775  # Giving access to startup root execution
+    user: "999:999"  # postgres user
+    volumes:
+    # Persistent volumes
+      - ../storage/diurnal-db/:/var/lib/postgresql/
