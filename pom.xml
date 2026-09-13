@@ -35,6 +35,12 @@
         <!-- This project's own Checkstyle suppressions -->
         <checkstyle-project-suppression-file>${config-overrides-directory}/checkstyle-suppression.xml</checkstyle-project-suppression-file>
 
+        <!-- PITest tuning knobs, read by the pitest-maven <configuration> below. Properties rather than
+             literals so a run can be re-scoped from the command line without editing this file - see the
+             comment there for why that indirection is load-bearing. -->
+        <pitest-threads>4</pitest-threads>
+        <pitest-verbosity>QUIET</pitest-verbosity>
+
         <!-- Where SonarQube reads coverage from. The parent configures report paths for Checkstyle, PMD and
              SpotBugs but none for coverage, so without this the SonarQube project shows none at all - which
              is exactly what it showed. Both paths are listed because WHICH of the two coverage plugins ends
@@ -485,9 +491,14 @@
                          plugin cost in the gate, on a box with cores to spare. The mutated code is deliberately
                          pure static helpers (see the record-vs-Extensions rule in CLAUDE.md), so the unit tests
                          share no state and parallel minions are safe. Override per-run with -Dpitest-threads=N;
-                         drop it to 1 if a mutation result ever looks order-dependent. -->
-                    <threads>4</threads>
-                    <verbosity>QUIET</verbosity>
+                         drop it to 1 if a mutation result ever looks order-dependent.
+
+                         Both values below are indirected through a property ON PURPOSE. A literal in a plugin
+                         <configuration> silently WINS over the plugin's own -D user property, so the
+                         `-Dpitest-threads` / `-Dpitest-verbosity` overrides this comment and the `gate` skill
+                         both promise did nothing at all until they were named here. -->
+                    <threads>${pitest-threads}</threads>
+                    <verbosity>${pitest-verbosity}</verbosity>
                 </configuration>
                 <!-- Re-bound install -> prepare-package (see checkstyle note: lints before IT/e2e). -->
                 <executions>
