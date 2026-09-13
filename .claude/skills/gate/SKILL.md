@@ -29,11 +29,18 @@ unless something fails.
 .github/scripts/lint_and_tests.sh java,shellcheck
 .github/scripts/lint_and_tests.sh -v java      # stream full output (default hides it, prints on fail)
 .github/scripts/lint_and_tests.sh java:qodana  # ONE tier of a step
+.github/scripts/lint_and_tests.sh --list-steps # print what auto-detect WOULD run, run nothing
 ```
 
 Steps: `docker`, `java`, `javascript`, `markdown`, `perf`, `shellcheck`, `typescript`.
 Substeps: `docker:hadolint` / `docker:grype`; `java:mvn` / `java:e2e` / `java:smoke` / `java:qodana`;
 `shellcheck:lint` / `shellcheck:hooks`.
+
+`--list-steps` is how to answer "why did CI run that step, and not this one?" without paying for a run - it
+prints the selection to stdout (the reasoning, e.g. `Skipping java: only comment ... changes`, goes to
+stderr). `publish.yml`'s `perf` job calls it for real: the release names its gate steps explicitly, so that
+job asks the script whether the perf suite is worth running rather than re-stating the trigger rules in a
+workflow `if:`. It is rejected alongside `-f/--force` or an explicit step list, which bypass detection.
 
 | You changed                      | Run                                                                      |
 |----------------------------------|--------------------------------------------------------------------------|

@@ -13,7 +13,20 @@ on:
       - '!src/test/**' # test code never reaches the published image (packaged with -DskipTests)
       - 'translations/**' # Not an image input - only so a source-export-only commit reaches the `translations` job
       - 'VERSION'
-  workflow_dispatch: # allows manual trigger
+  # A manual trigger is otherwise a FULL RELEASE - image pushed, tag created, VERSION bumped - so these
+  # two inputs exist to make the pipeline measurable without spending a version number on it. They are
+  # dispatch-only: a push to master reads neither (the `inputs` context is null there), so the release
+  # path is exactly what it always was.
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Run the gate and the preview build, but publish nothing'
+        type: boolean
+        default: false
+      gate-steps:
+        description: 'Steps to pass to lint_and_tests.sh for the gate job (the perf suite runs as its own job)'
+        type: string
+        default: 'docker,java'
 
 jobs:
   # Resolve the release version. Every run is a full release: the GitHub release is created and the
@@ -58,7 +71,11 @@ jobs:
   # Full CI gate (lints + unit + IT + E2E + deployment-smoke) before anything is released or published.
   test:
     name: Test latest software
-    needs: [ version, translations ]
+    # Deliberately NO `needs`. It used to wait on `version` (whose output it never reads) and on
+    # `translations` - and AppMessageCoverageTest is a *Test, so `mvn ... -Dall` inside the gate below
+    # runs it again a few minutes later anyway. Gating on it bought no coverage and cost ~70s of pure
+    # serialisation on the critical path, every release. The two jobs still run; they just run beside
+    # this one now, and `publish` still needs all three to be green.
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -115,33 +132,51 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-
 
+      # `chromium` is named explicitly because a bare `install` pulls Firefox and WebKit too, and NOTHING
+      # runs on them: playwright.config.ts defines chromium + mobile-chrome (a chromium device preset) and
+      # playwright.smoke.config.ts defines chromium alone. Naming it cuts the download and, more
+      # importantly, keeps the cached directory small - see the repository cache-budget note on the Grype
+      # step below. Add the browser here if a config ever gains a project running on one.
       - name: Install E2E dependencies and browsers
         working-directory: tests
         run: |
           npm ci
           if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
-            npx playwright install-deps
+            npx playwright install-deps chromium
           else
-            npx playwright install --with-deps
+            npx playwright install --with-deps chromium
           fi
 
       # Cache Grype's ~1.6GB vulnerability DB across runs. Locally the wrapper persists it in a named
       # Docker volume (diurnal-grype-db); a fresh runner has no such volume, so Grype re-downloads the
       # whole DB every run (3-5m). We point GRYPE_DB_CACHE_VOLUME at an absolute host path below so the
       # `docker run -v` becomes a bind mount into this cached directory instead of a named volume.
-      # The DB updates ~daily; keying on run_id (with a date-prefixed restore-keys fallback) always
-      # restores the most recent copy so Grype only pulls the delta, and writes a fresh entry each run.
+      # The DB updates ~daily, so the key is the DAY and the restore-keys prefix falls back to the most
+      # recent previous day - Grype then pulls only the delta.
+      #
+      # THE KEY MUST NOT BE UNIQUE PER RUN. It was `github.run_id`, which never matches an existing entry,
+      # so actions/cache SAVED a fresh ~1.6GB entry on every single run. A repository's total cache budget
+      # is 10GB with LRU eviction: six runs filled it on their own and then began evicting everything
+      # else in this job - the Playwright browsers and, far more expensively, the Qodana index below,
+      # whose cold path costs ~10m against ~2m30s warm. A date key writes at most one entry a day and
+      # leaves room for the caches that actually pay for themselves.
+      - name: Resolve today's date for the Grype cache key
+        id: grype_day
+        run: |
+          day="$(date -u +%F)"
+          echo "day=${day}" >> "${GITHUB_OUTPUT}"
+
       - name: Cache Grype vulnerability DB
         uses: actions/cache@v6.1.0
         with:
           path: ~/.cache/grype-db
-          key: ${{ runner.os }}-grype-db-${{ github.run_id }}
+          key: ${{ runner.os }}-grype-db-${{ steps.grype_day.outputs.day }}
           restore-keys: |
             ${{ runner.os }}-grype-db-
 
       # Cache Qodana's IntelliJ index, its downloaded JBR and the Maven repository it resolves into. A cold
       # scan builds the whole index from scratch and pulls the JBR before it inspects a single file, which
-      # is the bulk of the step's wall clock on a 2-vCPU runner.
+      # is the bulk of the step's wall clock on a shared runner.
       #
       # ONLY .qodana/cache is cached - NEVER .qodana/results, which is where the SARIF lands. That is not an
       # oversight: the gate is judged fresh on every run and deliberately keeps no baseline (see the "NO
@@ -162,30 +197,40 @@ jobs:
       # modules" - a green pipeline turning red with no code change. A prefix fallback would reach exactly
       # those entries. Without one, a change to any keyed file simply starts cold once (~10m instead of
       # ~2m30s) and is warm from then on, which is the right way round for a gate.
+      #
+      # THE POM IS HASHED WITH ITS OWN <version> REDACTED, which is why this is a hand-rolled sha256 and
+      # not a second `hashFiles(...)` argument. bump_version.sh rewrites that element to the next
+      # -SNAPSHOT and commits it at the end of EVERY release, so the pom is guaranteed to differ from the
+      # one the previous release cached against - hashing the file as-is meant the key never matched on a
+      # release run, and every release paid the full cold ~10m scan. Nothing the scan indexes depends on
+      # this project's own version string. Everything that genuinely changes the index still changes the
+      # key: the awk below blanks only the FIRST <version> after </parent>, so the parent-pom version,
+      # every dependency and the whole plugin configuration are still hashed.
+      - name: Resolve the Qodana cache key
+        id: qodana_key
+        run: |
+          # -euo pipefail is explicit: the Actions default shell is `bash -e` WITHOUT pipefail, so a
+          # missing submodule file would otherwise let `cat` fail inside the pipeline and still hash the
+          # partial input into a plausible-looking key - silently reusing a stale index, which is the
+          # exact failure the submodule note above exists to prevent. Fail loudly instead.
+          set -euo pipefail
+          {
+            awk 'BEGIN{done=0} /<\/parent>/{inproj=1} inproj && !done && /<version>/{sub(/<version>[^<]*<\/version>/,"<version>PROJECT</version>"); done=1} {print}' pom.xml
+            cat code-quality-config-overrides/qodana.yaml
+            cat code-quality-config/java/qodana/profiles/java.yaml
+            find code-quality-config/java/qodana/overrides -type f -print0 | sort -z | xargs -0 cat
+          } | sha256sum | cut -d' ' -f1 | sed 's/^/key=/' >> "${GITHUB_OUTPUT}"
+
       - name: Cache Qodana index
         uses: actions/cache@v6.1.0
         with:
           path: .qodana/cache
-          key: ${{ runner.os }}-qodana-${{ hashFiles('code-quality-config-overrides/qodana.yaml', 'code-quality-config/java/qodana/profiles/java.yaml', 'code-quality-config/java/qodana/overrides/**', 'pom.xml') }}
+          key: ${{ runner.os }}-qodana-${{ steps.qodana_key.outputs.key }}
 
       # Executes the full gate one place.
       # Needs the host toolchain set up above: JDK+Maven, Node deps, Playwright, and Docker.
       - name: Run full test and lint gate
-        # Perf-tier calibration for the shared GitHub runner. ubuntu-latest is a 2-vCPU box running the
-        # app, Postgres AND the k6 generator on the same cores, so the dev-workstation load-shape drives
-        # it into queueing collapse (p95s of seconds that are pure queue time, not service time). Offer a
-        # lighter load so we measure service time, and widen the latency budget with PERF_P95_TOLERANCE —
-        # while the error-rate budgets stay strict, so a genuinely broken path still fails. These are
-        # forwarded through lint_and_tests.sh -> run-perf.sh into the k6 container; tune against the
-        # observed CI numbers. (Only the `perf` step reads the PERF_* ones; every other step ignores them.)
         env:
-          PERF_RATE: "5"
-          PERF_VUS: "10"
-          PERF_P95_TOLERANCE: "8"
-          # The 2-vCPU runner shares its cores with the app, Postgres and k6, so the generator
-          # itself can miss its schedule. Allow a few dropped iterations rather than 0 (the
-          # local default), while still failing on a collapse in offered load.
-          PERF_DROPPED_MAX: "50"
           # Absolute path => the wrapper's `docker run -v` bind-mounts this cached dir as Grype's DB
           # cache (instead of the default named volume), so the actions/cache step above persists it.
           GRYPE_DB_CACHE_VOLUME: /home/runner/.cache/grype-db
@@ -195,7 +240,9 @@ jobs:
           # off is gone rather than one `grep` away. 150 covers a Maven reactor summary with its whole
           # failing-test list, or a Playwright failure with its diff.
           GATE_FAILURE_TAIL_LINES: "150"
-        run: .github/scripts/lint_and_tests.sh docker,java,perf -v -e
+        # `|| 'docker,java'` is the push path: `inputs` is null for a push event, so the default on the
+        # dispatch input above is not applied and the expression would otherwise expand to nothing.
+        run: .github/scripts/lint_and_tests.sh ${{ inputs.gate-steps || 'docker,java' }} -v -e
 
       # The Grype scanner runs as root, so the cached DB files are root-owned; hand them back to the
       # runner user so actions/cache's post-job tar can read them when saving. `always()` so the cache
@@ -204,11 +251,194 @@ jobs:
         if: always()
         run: sudo chown -R "$USER" /home/runner/.cache/grype-db || true
 
+  # The k6 performance/load suite, run BESIDE the gate rather than serially after it.
+  #
+  # Inside lint_and_tests.sh `perf` deliberately runs last and alone, because it MEASURES the application
+  # and anything sharing the box distorts the numbers into queue time. A separate GitHub job is a separate
+  # VM, so that isolation is preserved exactly - the suite still has a whole runner to itself, of the same
+  # spec - which is why every budget below carries over unchanged from when it ran inside `test`. What is
+  # no longer paid is its wall clock: it used to be minutes of pure tail on the release's critical path.
+  #
+  # It needs nothing from `test`: tests/docker-compose.perf.yml builds the production image from the
+  # Dockerfile itself, so there is no Maven, no Node and no target/ to inherit. That build is cold here
+  # where the combined job got it as a layer-cache hit off the smoke tier - paid in parallel, against a
+  # `test` job that runs far longer, so it stays free.
+  #
+  # This job always SUCCEEDS rather than being skipped when the suite is not selected (see the step
+  # below), which is deliberate: `publish` needs it, and GitHub skips a job whose dependency was skipped.
+  # A plain `if:` here would therefore silently cancel the release on the very runs the suite is skipped -
+  # the common case. Costing one runner start-up keeps `publish`'s gating exactly as it was.
+  perf:
+    name: Performance suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      # fetch-depth 0 is for the TAGS, not the history: the auto-detection below diffs against the most
+      # recent semver tag, and on a shallow clone it finds none - whereupon it reports that it is
+      # "running all steps", and the suite runs on every single push. Fail-open is the right default
+      # inside the script; here it would quietly undo the point of this job.
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      # Printed rather than assumed. Every budget below is calibrated against a specific core count, and
+      # the standard runner has been resized before (public repositories moved from 2 vCPU to 4), which
+      # silently halves the strictness of a tolerance tuned for the older box. Two seconds here means the
+      # next recalibration starts from a measurement instead of a guess.
+      - name: Record the runner size
+        run: |
+          # Each substitution is assigned on its own line so shellcheck (SC2312) does not flag a masked
+          # return value - the same convention lint_and_tests.sh follows.
+          cpus="$(nproc)"
+          memory="$(free -h | awk '/^Mem:/ {print $2}')"
+          disk="$(df -h / | awk 'NR==2 {print $4}')"
+          echo "vCPUs:  ${cpus}"
+          echo "Memory: ${memory}"
+          echo "Disk:   ${disk} free"
+
+      # Perf-tier calibration for the GitHub runner, which runs the app, Postgres AND the k6 generator on
+      # the same cores - so the dev-workstation load-shape drives it into queueing collapse (p95s of
+      # seconds that are pure queue time, not service time). Offer a lighter load so we measure service
+      # time, and widen the latency budget with PERF_P95_TOLERANCE - while the error-rate budgets stay
+      # strict, so a genuinely broken path still fails. These are forwarded through lint_and_tests.sh ->
+      # run-perf.sh into the k6 container.
+      #
+      # RECALIBRATED for a 4-vCPU / 16GB runner. These numbers were originally chosen for a 2-vCPU box,
+      # which is what the standard public-repository runner used to be; it is now 4 vCPU, and a budget
+      # tuned for half the cores is not a neutral leftover - it is a gate that has quietly stopped
+      # catching things. Roughly twice the CPU roughly halves service time, so PERF_P95_TOLERANCE halves
+      # with it (8 -> 4) and PERF_DROPPED_MAX with it (50 -> 25). That is deliberately a RE-EXPRESSION of
+      # the original strictness on the bigger box rather than a new policy.
+      #
+      # PERF_RATE and PERF_VUS are deliberately NOT raised in the same change. Offered load pushes latency
+      # UP while the extra cores push it DOWN, so moving both at once makes a red run uninterpretable;
+      # moving one leaves an unambiguous cause. Raising PERF_RATE towards the local default of 20 is the
+      # natural follow-up once one run has established a baseline - read the measured p95s out of this
+      # job's output and the "Record the runner size" step above.
+      #
+      # THE SUITE IS RUN ONLY IF AUTO-DETECTION SELECTS IT, and the script is asked rather than second-
+      # guessed. `perf` triggers on the same file set as `java` (anything feeding the runtime, the app
+      # code or the dependencies) plus the suite's own files, with java's comment-only and version-bump
+      # suppression applied - rules that live in detect_changed_steps and nowhere else. Restating them in
+      # an `if:` here would be a second copy free to drift; `--list-steps` reports the real verdict.
+      # `grep -qx` so a scoped entry can never match on a substring.
+      - name: Run the performance suite if auto-detection selects it
+        env:
+          PERF_RATE: "5"
+          PERF_VUS: "10"
+          PERF_P95_TOLERANCE: "4"
+          # The runner shares its cores with the app, Postgres and k6, so the generator itself can miss
+          # its schedule. Allow a few dropped iterations rather than 0 (the local default), while still
+          # failing on a collapse in offered load.
+          PERF_DROPPED_MAX: "25"
+          # Not a perf knob: how much of the failing tier's log the wrapper re-prints before its summary.
+          # Wider than the local default of 40 because this excerpt is all a red run leaves behind - the
+          # logs live in the runner's /tmp and die with the job.
+          GATE_FAILURE_TAIL_LINES: "150"
+        run: |
+          # The detection is run into a VARIABLE rather than straight down a pipe into grep, so that the
+          # two ways of not running the suite stay distinguishable. Piped, a script that failed outright
+          # would hand grep an empty stdin, grep would report no match, and the step would quietly take
+          # the "not selected" branch - skipping a release gate because the thing that decides was
+          # broken. Assigned under `set -e`, that failure kills the step instead, which is what a gate
+          # whose selector is broken should do. (-euo pipefail is explicit because the Actions default
+          # shell is `bash -e` WITHOUT pipefail.)
+          set -euo pipefail
+          selected="$(.github/scripts/lint_and_tests.sh --list-steps)"
+          if grep -qx 'perf' <<<"${selected}"; then
+            .github/scripts/lint_and_tests.sh perf -v -e
+          else
+            echo "Auto-detection did not select 'perf': nothing in this release changes what the suite"
+            echo "measures (the runtime image, the app code, the dependencies, or the suite itself), so"
+            echo "running it would re-measure an unchanged application. Skipped."
+            echo "Steps it did select: ${selected//$'\n'/, }"
+          fi
+
+  # The preview-generation image build, verified in PARALLEL with the gate instead of inside `publish`.
+  #
+  # The gate builds the runtime image twice (the smoke tier and the grype scan) but BOTH pass
+  # GENERATE_PREVIEWS=false, so the preview-generation stage - an extra Quarkus build plus Postgres and
+  # Chromium, inside the image build - is exercised by no test tier at all. The published image takes the
+  # default, GENERATE_PREVIEWS=true, so without this job the push would be the first and only time that
+  # stage is ever built. Building it here fails on the stage itself, with nothing pushed and no tag
+  # created - `publish` needs this job, so a failure stops the release exactly as it did when this was a
+  # step inside it.
+  #
+  # It used to BE that step, and cost 5m15s of the release's critical path for a build with no outward
+  # effect. It shares nothing with the gate, so it does not belong behind it.
+  #
+  # `cache-to` is what makes the split pay: the layers are handed to `publish`'s runner through the
+  # registry cache rather than a local buildx cache that a separate job cannot see. Writing it for a
+  # commit whose gate then fails is harmless - this ref is a layer cache, never a released tag.
+  preview:
+    name: Verify the preview image build
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Maven Action
+        uses: s4u/setup-maven-action@v1.21.0
+        with:
+          java-distribution: 'temurin'
+          java-version: '26'
+          maven-version: '3.9.16'
+
+      # LOAD-BEARING, and the reason Maven is set up in a job that only builds an image. `publish` runs
+      # this same command before its own build, and the Dockerfile COPYs pom.xml into both the
+      # `previewbuild` and `build` stages - so a pom differing by one byte misses the cache at that COPY
+      # and `publish` rebuilds from scratch everything this job just built. The two must produce a
+      # byte-identical pom. Move this and you silently undo the whole saving.
+      - name: Set Maven version from VERSION file
+        run: mvn versions:set -DnewVersion="${VERSION}" -DgenerateBackupPoms=false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.3.0
+
+      # Needed for `cache-to` below - writing the registry cache is an authenticated push.
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4.6.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # DOC_SCREENSHOTS=true matches the value `publish` passes on its push AND on its screenshot export -
+      # the same value on all three on purpose. A build arg is part of the stage's cache key, so a build
+      # passing a different value re-runs the whole Postgres + Chromium + app-boot stage instead of hitting
+      # the cache. One execution here then serves the published image and the exported README screenshots.
+      - name: Verify the preview-generation image build
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          build-args: |
+            GENERATE_PREVIEWS=true
+            DOC_SCREENSHOTS=true
+          cache-from: type=registry,ref=zodac/diurnal:cache
+          cache-to: type=registry,ref=zodac/diurnal:cache,mode=max
+
   # Tag the release, build and push the Docker image, publish a GitHub Release and bump the patch
-  # version for the next cycle. Runs after `test` is green.
+  # version for the next cycle. Runs once the gate, the translation check, the performance suite and the
+  # preview image build are all green.
   publish:
     name: Publish release
-    needs: [ version, test ]
+    needs: [ version, translations, test, perf, preview ]
+    # Skipped on a dry run - every irreversible act of the release lives in this job, so switching it off
+    # is the whole of the dry run. `!= true` rather than `== false` because on a PUSH `inputs` is null and
+    # this must still evaluate true.
+    if: ${{ inputs.dry-run != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -253,29 +483,12 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # The gate builds the runtime image twice (the smoke tier and the grype scan) but BOTH pass
-      # GENERATE_PREVIEWS=false, so the preview-generation stage — an extra Quarkus build plus Postgres
-      # and Chromium, inside the image build — is never exercised by any test tier. The published image
-      # takes the default, GENERATE_PREVIEWS=true, which makes the push below the first and only time
-      # that stage is built. Building it here first fails on the stage itself, with nothing pushed and
-      # no tag created, rather than surfacing as a failure of the publish step; it also warms the layer
-      # cache the push then reuses, so it is close to free.
+      # DOC_SCREENSHOTS=true is passed on the push below, on the screenshot export, AND on the `preview`
+      # job's verification build - the same value on all three on purpose. A build arg is part of the
+      # stage's cache key, so a build passing a different value would re-run the whole Postgres + Chromium
+      # + app-boot stage instead of hitting the cache. One execution then serves the published image and
+      # the exported README screenshots both.
       #
-      # DOC_SCREENSHOTS=true is passed HERE, on the push below, and on the screenshot export - the same
-      # value on all three on purpose. A build arg is part of the stage's cache key, so a build passing a
-      # different value would re-run the whole Postgres + Chromium + app-boot stage instead of hitting the
-      # cache. One execution then serves the published image and the exported README screenshots both.
-      - name: Verify the preview-generation image build
-        uses: docker/build-push-action@v7.3.0
-        with:
-          context: .
-          file: ./Dockerfile
-          push: false
-          build-args: |
-            GENERATE_PREVIEWS=true
-            DOC_SCREENSHOTS=true
-          cache-from: type=registry,ref=zodac/diurnal:cache
-
       # org.opencontainers.image.created must be RFC 3339, and must be resolved here rather than inside
       # the build - a Dockerfile cannot read the clock.
       - name: Resolve the image build date
@@ -285,8 +498,8 @@ jobs:
       # The three build-args feed the OCI labels on the runtime stage (see the end of the Dockerfile) and
       # nothing else. They are consumed by a LABEL, which writes no filesystem layer, so a new revision
       # and build date every release changes only the image config - the registry cache above is still a
-      # full hit and no layer is re-pushed. Only THIS build passes them: the verification build above is
-      # thrown away, and leaving it unlabelled keeps its (identical) layers reusable here.
+      # full hit and no layer is re-pushed. Only THIS build passes them: the `preview` job's verification
+      # build is thrown away, and leaving it unlabelled keeps its (identical) layers reusable here.
       - name: Build and push Docker image
         uses: docker/build-push-action@v7.3.0
         with:

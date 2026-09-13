@@ -4,7 +4,7 @@
 #
 # Description:     Lints and tests the project using Docker.
 #
-# Usage:           ./lint_and_tests.sh [-v|--verbose] [-f|--force] [steps]
+# Usage:           ./lint_and_tests.sh [-v|--verbose] [-f|--force] [-l|--list-steps] [steps]
 #
 #                  [steps] is an optional comma-separated list of steps to run.
 #                  If omitted, only steps whose relevant files have changed since
@@ -40,6 +40,14 @@
 #                    release pipeline (publish.yml) to fail fast rather than burn time on later steps.
 #                    Steps still running when the first failure lands are signalled and reported as
 #                    CANCELLED (their result is unknown), separately from the step that actually failed.
+#
+#                  -l, --list-steps
+#                    Print the steps auto-detection WOULD run, one per line, and exit without running
+#                    any of them. Scoped entries are printed exactly as they would be run
+#                    (`docker:hadolint`), and the explanatory lines auto-detection emits ("Skipping
+#                    java: ...") go to stderr, so stdout is a clean list to grep.
+#                    Rejected alongside -f/--force or an explicit step list, both of which bypass the
+#                    detection this flag exists to report.
 #
 #                  End-of-run failure report (see report_failure_details):
 #                    Every step's output is captured to GATE_LOG_DIR (default /tmp/lint_and_tests) as
@@ -384,6 +392,10 @@ FORCE=false
 # -e/--exit-on-failure (parsed below), the execution loop breaks as soon as a step fails, skipping
 # the remaining steps (used by the release pipeline so a failing gate stops promptly).
 FAIL_FAST=false
+
+# List-only off by default: with -l/--list-steps (parsed below) the auto-detection runs, prints the
+# steps it selected, and the script exits without running any of them.
+LIST_STEPS=false
 
 # Per-step failure signal: reset to 0 before each step in the execution loop, set to 1 by any run_*
 # function that fails. Read straight after each step to tell whether THAT step failed (a plain
@@ -2773,9 +2785,10 @@ while [[ $# -gt 0 ]]; do
     -v | --verbose) VERBOSE=true ;;
     -f | --force) FORCE=true ;;
     -e | --exit-on-failure) FAIL_FAST=true ;;
+    -l | --list-steps) LIST_STEPS=true ;;
     --) shift; positional+=("$@"); break ;;
     -*)
-        echo "❌ Unknown option: '${1}'. Supported: -v, --verbose, -f, --force, -e, --exit-on-failure"
+        echo "❌ Unknown option: '${1}'. Supported: -v, --verbose, -f, --force, -e, --exit-on-failure, -l, --list-steps"
         exit 1
         ;;
     *) positional+=("${1}") ;;
@@ -2793,6 +2806,29 @@ fi
 if [[ "${FORCE}" == true && $# -gt 0 ]]; then
     echo "❌ -f/--force runs ALL steps and cannot be combined with an explicit step list ('${1}')"
     exit 1
+fi
+
+# -l/--list-steps answers "what would a bare run do?" and exits, so a CALLER can act on the selection
+# without paying for the run.
+#
+# It exists for publish.yml's `perf` job. The release pipeline names its steps explicitly (`docker,java`),
+# which bypasses auto-detection entirely, so the only thing that knows whether the perf suite is worth
+# running is this script - and that job asks it, rather than restating the file-path rules in a workflow
+# `if:` where the two copies would drift apart silently. Keep the perf triggers (see detect_changed_steps)
+# as the ONE definition; anything that needs to know the answer calls this.
+#
+# Rejected alongside -f/--force and an explicit step list for the same reason those two reject each other:
+# both bypass detection, so the "answer" would only ever restate the argument.
+#
+# `|| true` because detect_changed_steps ends on a conditional echo, so it returns non-zero whenever the
+# last step it tests (typescript) was not selected - a value that says nothing about whether it worked.
+if [[ "${LIST_STEPS}" == true ]]; then
+    if [[ "${FORCE}" == true || $# -gt 0 ]]; then
+        echo "❌ -l/--list-steps reports the AUTO-DETECTED steps, so it cannot be combined with -f/--force or an explicit step list"
+        exit 1
+    fi
+    detect_changed_steps || true
+    exit 0
 fi
 
 # Parse the comma-separated [steps] argument into the global `steps` array, recording any `step:substep`

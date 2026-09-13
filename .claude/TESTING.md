@@ -1,6 +1,6 @@
 # Testing Tiers & Conventions
 
-> **This file is ~23 KB. Read only the section you need** - `grep -n '^#' .claude/TESTING.md` for its
+> **This file is ~24 KB. Read only the section you need** - `grep -n '^#' .claude/TESTING.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Testing conventions**
@@ -161,8 +161,20 @@ others (`… java,perf`), or via `tests/run-perf.sh <port> <projectRoot>` direct
 ## Config permutations: the `@QuarkusTestProfile` matrix
 
 Most tests run on the plain `test` profile. A test that needs the app configured **differently** gets a profile,
-and there are nine. **Check this table before writing a tenth** — the combination you need probably exists, and
-`@QuarkusTest` pays a full application restart per distinct profile, so a duplicate costs build time on every run.
+and there are eleven. **Check this table before writing a twelfth** — the combination you need probably exists,
+and `@QuarkusTest` pays a full application restart per distinct profile, so a duplicate costs build time on
+every run.
+
+**What a profile actually costs is one application boot, and the number is measured, not estimated.** Quarkus
+groups the test classes by profile itself, so the `*IT` tier restarts once per DISTINCT profile rather than once
+per profile CHANGE down the run order: a full `-Dall` run boots the application **12 times** — eleven profiles
+plus the unprofiled majority, across 78 `*IT` classes. A twelfth profile is a thirteenth boot, on every run, for
+every developer. That grouping is already optimal and needs nothing from this project: it comes from
+`QuarkusTestProfileAwareClassOrderer`, which `quarkus-junit` registers through a `junit-platform.properties`
+**inside its own jar**. Never add one of those to `src/test/resources` — JUnit reads only the first on the
+classpath, so a project copy SHADOWS Quarkus's rather than adding to it, and Quarkus fails the build outright
+with `Critical failure. Quarkus tests would fail with corrupted application errors`. A custom order, if one is
+ever genuinely wanted, goes through `junit.quarkus.orderer.secondary-orderer` instead.
 
 The `test` profile's own baseline is: OIDC **off**, password auth **on**, registration **on**, IP throttle
 **off** (`application-test.properties` turns the throttle off; production defaults it on). Every profile below is
@@ -174,6 +186,8 @@ a delta on that.
 | `OidcEnabledProfile`               | OIDC on, discovery off, the five explicit endpoint paths        | Both mechanisms live at once (linking)         | `AccountLinkIT`                                                     |
 | `OidcOnlyAuthProfile`              | The above **plus** `password.auth.enabled=false`                | The OIDC-only deployment shape                 | `OidcEmailAdoptionIT`, `OidcOnlySetupIT`                            |
 | `OidcAutoRedirectProfile`          | The `OidcEnabledProfile` set **plus** `oidc.auto.redirect=true` | Skipping the login page straight to the IdP    | `OidcAutoRedirectIT`                                                |
+| `OidcGroupsProfile`                | `oidc.admin.group` and `oidc.user.group` pinned                 | Group-to-role rules as deterministic facts     | `OidcGroupProvisioningIT`                                           |
+| `OidcCallbackProfile`              | OIDC off, the `code`-mechanism paths parked unserved            | Reaching the two code-flow routes from a test  | `OidcWebResourceIT`                                                 |
 | `LocalRegistrationDisabledProfile` | `registration.local.enabled=false`                              | Register returning 404, and the first-run path | `AuthRegistrationDisabledIT`, `FirstRunRegistrationDisabledIT`      |
 | `IpThrottleProfile`                | Throttle on, `max-attempts=5`, `lockout-duration=PT15M`         | Lockout behaviour with a small, fast window    | `IpThrottleIT`, `AdminIpLockoutsApiIT`, `AdminIpLockoutsInternalIT` |
 | `CorsEnabledProfile`               | `quarkus.http.cors.origins` set to one allowed origin           | CORS headers, which are off by default here    | `CorsEnabledIT`                                                     |
@@ -186,10 +200,11 @@ the default shape may not hold when password auth is off (the first-user path, p
 available, the OIDC email-adoption rules), which is why those three deployment shapes each have a profile of
 their own rather than being asserted against the default.
 
-**The three OIDC profiles repeat the same seven discovery-disabled overrides**, differing by exactly one entry
-each. They set `discovery-enabled=false` and spell out the five endpoint paths so that no test ever reaches for a
-real identity provider. If a fourth is ever needed, factor that shared block out rather than copying it a fourth
-time.
+**The three OIDC-ENABLING profiles repeat the same seven discovery-disabled overrides**, differing by exactly one
+entry each. They set `discovery-enabled=false` and spell out the five endpoint paths so that no test ever reaches
+for a real identity provider. If a fourth is ever needed, factor that shared block out rather than copying it a
+fourth time. The other two `Oidc*` profiles are not part of that set and do not carry the block:
+`OidcGroupsProfile` only names the two IdP groups, and `OidcCallbackProfile` turns the tenant **off**.
 
 ## Reading state in a test: use the API, never the markup
 
