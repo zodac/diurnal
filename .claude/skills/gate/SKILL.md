@@ -209,6 +209,16 @@ already tells you your own change is fine.
 - **Test sources do not compile without `-Dtests`** — plain `mvn test-compile` prints "Not compiling test sources".
   Use `mvn test-compile -Dtests -Dcss.build.skip=true`.
 - **PITest needs `-Dskip-linters=false`.** Keep logic in pure static helpers; thin glue reports as `NO_COVERAGE`.
+  It runs alone in ~2m50s: `mvn -o org.pitest:pitest-maven:mutationCoverage -Dtests -Dskip-linters=false
+  -Dcss.build.skip=true` against an existing `target/`, with the report at `target/pit-reports/index.html`.
+  **The pom pins `verbosity` to `QUIET`**, which drops the progress spinner (multi-kilobyte runs of backspace
+  escapes in the captured log) and every `Minion exited abnormally due to …` warning. Those warnings are noise
+  for `TIMED_OUT` — a mutant that removed a loop's progress, which the timeout is the *correct* way to kill, and
+  there are 13 of them on master, in `CsvParser`'s scanner, `TextOrdering.runEnd` and `StatsService.currentStreak`.
+  They are **not** noise for `RUN_ERROR`: PITest scores that as DETECTED even though the minion crashed without
+  evaluating the mutant, so it silently props the 100% threshold up. The cause here is always a record — the JVM
+  refuses to redefine one, which is what the `*Extensions` rule exists for. If the strength figure ever looks
+  unearned, re-run with `-Dpitest-verbosity=NO_SPINNER` to get the warnings back.
 - **E2E against an already-running app**: `cd tests && BASE_URL=http://localhost:8081 npm test`.
 - **E2E around a broken linter tier**: `mvn clean package -Dtests` then
   `bash tests/run-e2e.sh 8081 "$(pwd)/target" "$(pwd)"` — that script brings up and tears down its own database and
