@@ -18,6 +18,7 @@
 package net.zodac.diurnal.auth.oidc;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_OIDC_ISSUER;
 import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static net.zodac.diurnal.http.HttpStatusCodes.SEE_OTHER;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,7 +46,6 @@ class AccountLinkIT extends IntegrationTestBase {
 
     private static final String OIDC_ONLY = "oidc-only@lt.test";
     private static final String LOCAL = "local@lt.test";
-    private static final String OIDC_ISSUER = "https://diurnal.example.com/idp";
 
     @Inject
     private AccountLinkService accountLinkService;
@@ -54,7 +54,7 @@ class AccountLinkIT extends IntegrationTestBase {
     protected void createDbState() {
         final User oidcOnly = newUser(OIDC_ONLY, "OIDC Only", Role.USER.storageValue());
         oidcOnly.passwordHash = null; // NOPMD: NullAssignment - seeding a password-less OIDC-only account
-        oidcOnly.oidcIssuer = OIDC_ISSUER;
+        oidcOnly.oidcIssuer = DUMMY_OIDC_ISSUER;
         oidcOnly.oidcSubject = "subject-oidc-only";
         oidcOnly.persist();
 
@@ -65,7 +65,7 @@ class AccountLinkIT extends IntegrationTestBase {
 
     @Test
     void link_localAccount_attachesIdentityAndRemovesPassword() {
-        runInTx(() -> accountLinkService.link(User.findByEmail(LOCAL).orElseThrow(), OIDC_ISSUER, "subject-local"));
+        runInTx(() -> accountLinkService.link(User.findByEmail(LOCAL).orElseThrow(), DUMMY_OIDC_ISSUER, "subject-local"));
 
         runInTx(() -> assertThat(User.findByEmail(LOCAL).orElseThrow().authSource())
             .as("Connecting must convert the account to OIDC-only sign-in (identity attached, password removed)")
@@ -74,7 +74,7 @@ class AccountLinkIT extends IntegrationTestBase {
 
     @Test
     void link_identityAlreadyOwnedByAnotherAccount_throwsAndChangesNothing() {
-        runInTx(() -> assertThatThrownBy(() -> accountLinkService.link(User.findByEmail(LOCAL).orElseThrow(), OIDC_ISSUER, "subject-oidc-only"))
+        runInTx(() -> assertThatThrownBy(() -> accountLinkService.link(User.findByEmail(LOCAL).orElseThrow(), DUMMY_OIDC_ISSUER, "subject-oidc-only"))
             .as("An identity already linked to another account must never be re-linked")
             .isInstanceOf(IllegalStateException.class));
 
@@ -85,7 +85,7 @@ class AccountLinkIT extends IntegrationTestBase {
 
     @Test
     void link_alreadyLinkedAccount_throws() {
-        runInTx(() -> assertThatThrownBy(() -> accountLinkService.link(User.findByEmail(OIDC_ONLY).orElseThrow(), OIDC_ISSUER, "subject-new"))
+        runInTx(() -> assertThatThrownBy(() -> accountLinkService.link(User.findByEmail(OIDC_ONLY).orElseThrow(), DUMMY_OIDC_ISSUER, "subject-new"))
             .as("A linked account must not be re-linked to a different identity")
             .isInstanceOf(IllegalStateException.class));
     }

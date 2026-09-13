@@ -18,6 +18,7 @@
 package net.zodac.diurnal.web.admin;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_IP;
 import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
 
@@ -37,8 +38,6 @@ import org.junit.jupiter.api.Test;
 class AdminIpLockoutsDisabledInternalIT extends IntegrationTestBase {
 
     static final String ADMIN_EMAIL = "iplock-disabled-internal@lt.test";
-
-    private static final String SOME_IP = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - test IP
 
     @Override
     protected void createDbState() {
@@ -65,7 +64,7 @@ class AdminIpLockoutsDisabledInternalIT extends IntegrationTestBase {
 
     @Test
     void unlock_whenDisabled_isNotFound() {
-        given().post("/internal/admin/ip-lockouts/" + SOME_IP + "/unlock")
+        given().post("/internal/admin/ip-lockouts/" + DUMMY_IP + "/unlock")
                 .then().statusCode(NOT_FOUND);
     }
 }

@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.auth.oidc;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_OIDC_ISSUER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -53,7 +54,6 @@ import org.junit.jupiter.api.Test;
 @TestProfile(OidcGroupsProfile.class)
 class OidcGroupProvisioningIT extends IntegrationTestBase {
 
-    private static final String OIDC_ISSUER = "https://diurnal.example.com/idp";
     private static final String EXISTING_ADMIN = "existing-admin@example.com";
 
     @Inject
@@ -258,7 +258,7 @@ class OidcGroupProvisioningIT extends IntegrationTestBase {
     private static JsonObject claims(final String email, final String name) {
         return new JsonObject()
             .put("sub", "subject-" + email)
-            .put("iss", OIDC_ISSUER)
+            .put("iss", DUMMY_OIDC_ISSUER)
             .put("email", email)
             .put("name", name);
     }

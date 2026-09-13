@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.stats;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_COLOUR;
 import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -35,11 +36,11 @@ class StatSubjectTest {
         final Action action = new Action();
         action.id = DUMMY_UUID;
         action.name = "Morning run";
-        action.colour = "#6366f1";
+        action.colour = DUMMY_COLOUR;
 
         assertThat(StatSubject.of(action))
             .as("an action subject must present the action's own id, name and colour")
-            .isEqualTo(new StatSubject(action.id, "Morning run", "#6366f1", StatSubjectKind.ACTION));
+            .isEqualTo(new StatSubject(action.id, "Morning run", DUMMY_COLOUR, StatSubjectKind.ACTION));
     }
 
     @Test
@@ -73,7 +74,7 @@ class StatSubjectTest {
         final Action action = new Action();
         action.id = DUMMY_UUID;
         action.name = "Morning run";
-        action.colour = "#6366f1";
+        action.colour = DUMMY_COLOUR;
 
         assertThat(StatSubjectExtensions.notes(StatSubject.of(action)))
             .as("an action must never be mistaken for the notes subject")
@@ -89,7 +90,7 @@ class StatSubjectTest {
         final Action action = new Action();
         action.id = DUMMY_UUID;
         action.name = "Morning run";
-        action.colour = "#6366f1";
+        action.colour = DUMMY_COLOUR;
 
         assertThat(StatSubjectExtensions.actionName(StatSubject.of(action)))
             .as("an action's name is the user's own text and is passed straight through, never translated")

@@ -33,7 +33,7 @@ public final class StubUpdateCheckService extends UpdateCheckService {
     private final UpdateStatus status;
 
     private StubUpdateCheckService(final UpdateStatus status) {
-        super(new StubUpdateCheckConfig(), StubAppConfig.empty(), Optional::empty, StubApplicationVersion.of("dev"));
+        super(StubAppConfig.empty(), StubApplicationVersion.of("dev"), new StubUpdateCheckConfig(), Optional::empty);
         this.status = status;
     }
 

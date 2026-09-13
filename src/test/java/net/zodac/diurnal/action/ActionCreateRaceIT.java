@@ -18,6 +18,7 @@
 package net.zodac.diurnal.action;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_COLOUR;
 import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
 import static net.zodac.diurnal.http.HttpStatusCodes.CREATED;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,10 +61,6 @@ class ActionCreateRaceIT extends IntegrationTestBase {
     // be won by the pre-check every time and still pass.
     private static final int RACE_ROUNDS = 25;
 
-    // An explicit colour on every request, so no round depends on the suggester still having an unused colour
-    // left in its palette after the previous rounds filled it up.
-    private static final String FIXED_COLOUR = "#6366f1";
-
     private UUID primaryId;
 
     @Override
@@ -102,9 +99,11 @@ class ActionCreateRaceIT extends IntegrationTestBase {
     }
 
     private static Runnable createAction(final String name, final Queue<Integer> statuses) {
+        // An explicit colour on every request, so no round depends on the suggester still having an unused colour
+        // left in its palette after the previous rounds filled it up.
         return () -> {
             final int status = given().contentType(ContentType.JSON)
-                .body("{\"name\":\"" + name + "\",\"colour\":\"" + FIXED_COLOUR + "\"}")
+                .body("{\"name\":\"" + name + "\",\"colour\":\"" + DUMMY_COLOUR + "\"}")
                 .post("/api/v1/actions")
                 .then().extract().statusCode();
             statuses.add(status);

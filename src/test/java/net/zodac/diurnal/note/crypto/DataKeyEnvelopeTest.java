@@ -17,9 +17,10 @@
 
 package net.zodac.diurnal.note.crypto;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
+import static net.zodac.diurnal.DummyValues.OTHER_DUMMY_UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -28,17 +29,14 @@ import org.junit.jupiter.api.Test;
  */
 class DataKeyEnvelopeTest {
 
-    private static final UUID OWNER = UUID.fromString("11111111-1111-1111-1111-111111111111");
-    private static final UUID OTHER_OWNER = UUID.fromString("22222222-2222-2222-2222-222222222222");
-
     @Test
     void wrapThenUnwrap_returnsTheDataKey() {
         final byte[] dataKey = Aes256Gcm.randomKey();
         final byte[] masterKey = Aes256Gcm.randomKey();
 
-        final byte[] wrapped = DataKeyEnvelope.wrap(dataKey, masterKey, OWNER);
+        final byte[] wrapped = DataKeyEnvelope.wrap(dataKey, masterKey, DUMMY_UUID);
 
-        assertThat(DataKeyEnvelope.unwrap(wrapped, masterKey, OWNER))
+        assertThat(DataKeyEnvelope.unwrap(wrapped, masterKey, DUMMY_UUID))
             .as("the master key that wrapped a data key must open it again, or every note sealed under it is lost")
             .contains(dataKey);
     }
@@ -47,7 +45,7 @@ class DataKeyEnvelopeTest {
     void wrap_doesNotStoreTheDataKeyInTheClear() {
         final byte[] dataKey = Aes256Gcm.randomKey();
 
-        final byte[] wrapped = DataKeyEnvelope.wrap(dataKey, Aes256Gcm.randomKey(), OWNER);
+        final byte[] wrapped = DataKeyEnvelope.wrap(dataKey, Aes256Gcm.randomKey(), DUMMY_UUID);
 
         assertThat(wrapped)
             .as("the wrapped form must differ from the key it wraps")
@@ -59,18 +57,18 @@ class DataKeyEnvelopeTest {
         final byte[] dataKey = Aes256Gcm.randomKey();
         final byte[] masterKey = Aes256Gcm.randomKey();
 
-        final byte[] wrapped = DataKeyEnvelope.wrap(dataKey, masterKey, OWNER);
+        final byte[] wrapped = DataKeyEnvelope.wrap(dataKey, masterKey, DUMMY_UUID);
 
-        assertThat(Aes256Gcm.open(masterKey, wrapped, OWNER.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+        assertThat(Aes256Gcm.open(masterKey, wrapped, DUMMY_UUID.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)))
             .as("the configured master must not be the wrapping key itself - it is HKDF-derived, so other uses cannot share key material")
             .isEmpty();
     }
 
     @Test
     void unwrap_refusesDifferentMasterKey() {
-        final byte[] wrapped = DataKeyEnvelope.wrap(Aes256Gcm.randomKey(), Aes256Gcm.randomKey(), OWNER);
+        final byte[] wrapped = DataKeyEnvelope.wrap(Aes256Gcm.randomKey(), Aes256Gcm.randomKey(), DUMMY_UUID);
 
-        assertThat(DataKeyEnvelope.unwrap(wrapped, Aes256Gcm.randomKey(), OWNER))
+        assertThat(DataKeyEnvelope.unwrap(wrapped, Aes256Gcm.randomKey(), DUMMY_UUID))
             .as("a changed or mistyped NOTE_ENCRYPTION_KEY must not open the data key")
             .isEmpty();
     }
@@ -78,9 +76,9 @@ class DataKeyEnvelopeTest {
     @Test
     void unwrap_refusesWrappingBelongingToAnotherAccount() {
         final byte[] masterKey = Aes256Gcm.randomKey();
-        final byte[] wrapped = DataKeyEnvelope.wrap(Aes256Gcm.randomKey(), masterKey, OWNER);
+        final byte[] wrapped = DataKeyEnvelope.wrap(Aes256Gcm.randomKey(), masterKey, DUMMY_UUID);
 
-        assertThat(DataKeyEnvelope.unwrap(wrapped, masterKey, OTHER_OWNER))
+        assertThat(DataKeyEnvelope.unwrap(wrapped, masterKey, OTHER_DUMMY_UUID))
             .as("the owner is bound in as associated data, so a wrapping moved to another account's row must not open")
             .isEmpty();
     }
@@ -90,8 +88,8 @@ class DataKeyEnvelopeTest {
         final byte[] dataKey = Aes256Gcm.randomKey();
         final byte[] masterKey = Aes256Gcm.randomKey();
 
-        assertThat(DataKeyEnvelope.wrap(dataKey, masterKey, OWNER))
+        assertThat(DataKeyEnvelope.wrap(dataKey, masterKey, DUMMY_UUID))
             .as("wrapping the same key twice should produce different blobs")
-            .isNotEqualTo(DataKeyEnvelope.wrap(dataKey, masterKey, OWNER));
+            .isNotEqualTo(DataKeyEnvelope.wrap(dataKey, masterKey, DUMMY_UUID));
     }
 }

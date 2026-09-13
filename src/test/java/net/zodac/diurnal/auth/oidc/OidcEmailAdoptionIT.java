@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.auth.oidc;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_OIDC_ISSUER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -47,7 +48,6 @@ import org.junit.jupiter.api.Test;
 @TestProfile(OidcOnlyAuthProfile.class)
 class OidcEmailAdoptionIT extends IntegrationTestBase {
 
-    private static final String OIDC_ISSUER = "https://diurnal.example.com/idp";
 
     // Injects the very config the bean under test reads, so these tests stay environment-agnostic: SmallRye resolves .env at a higher priority
     // than the %test profile, so a specific value cannot be forced here - each expectation is instead derived from the same source the bean uses.
@@ -160,7 +160,7 @@ class OidcEmailAdoptionIT extends IntegrationTestBase {
             .orElseGet(List::of);
         return new JsonObject()
             .put("sub", "subject-" + email)
-            .put("iss", OIDC_ISSUER)
+            .put("iss", DUMMY_OIDC_ISSUER)
             .put("email", email)
             .put("name", name)
             .put("groups", groups);

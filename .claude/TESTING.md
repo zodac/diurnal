@@ -1,6 +1,6 @@
 # Testing Tiers & Conventions
 
-> **This file is ~22 KB. Read only the section you need** - `grep -n '^#' .claude/TESTING.md` for its
+> **This file is ~23 KB. Read only the section you need** - `grep -n '^#' .claude/TESTING.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Testing conventions**
@@ -25,15 +25,19 @@ guards span more than one feature package. Nothing catches this automatically: Q
 is a review habit, not a gate.
 
 **Three conventions the linters do not enforce, stated in full in [`CODE_STYLE.md`](CODE_STYLE.md)** (its "A test's `@Inject` fields are `private`",
-"A placeholder id is `DummyValues.DUMMY_UUID`, never `UUID.randomUUID()`" and "A test helper takes no parameter it is always handed the same value"
+"Placeholder data lives in `DummyValues`, never in a local constant" and "A test helper takes no parameter it is always handed the same value"
 sections). Each was swept clean across the suite once and will drift back silently, because nothing fails on any of them:
 
 - **Every `@Inject` field in a test class is `private`** — the constructor-injection rule is a `src/main` rule, but the *visibility* half applies
   here too. The lone exception is `IntegrationTestBase.clock`, which is `protected` **so a subclass reads it instead of re-injecting an `AppClock` of
   its own** — a subclass that declares one shadows the inherited field rather than overriding it.
-- **A placeholder id is `DummyValues.DUMMY_UUID`** — never `UUID.randomUUID()` (a failure whose id differs every run cannot be reproduced from the
-  output) and never a hand-rolled `SOME_ID` constant meaning the same thing. It must never be persisted; several distinct *named* ids are still right
-  where a test needs identities to tell apart.
+- **Placeholder data lives in `DummyValues`** — `DUMMY_UUID`/`OTHER_DUMMY_UUID`/`THIRD_DUMMY_UUID` for ids (never `UUID.randomUUID()`, whose failure
+  cannot be reproduced from the output, and never a hand-rolled `SOME_ID`), `DUMMY_IP`/`OTHER_DUMMY_IP` for an address, `DUMMY_COLOUR` for a hex
+  colour, `DUMMY_PASSWORD` to register or log in with, `DUMMY_OIDC_ISSUER` for a federated account's issuer. Each is named for its PURPOSE, not its
+  type — a new purpose takes a new constant rather than a vague `DUMMY_URL` shared across issuers, origins and API endpoints alike. A local constant
+  is still right where the value's MEANING is what the test exercises — `ClientAddressTest`'s per-source addresses, `ActionLogIdTest`'s
+  user-versus-action ids, `OidcDiscoveryTest`'s issuer, a colour an import round-trip must return unchanged — or where a test needs more distinct
+  ids than `DummyValues` offers. A JSON text block keeps the literal, since it interpolates nothing; write the same value the constant holds.
 - **A helper takes no parameter every call site passes the same value for** — inline it and drop it from the signature. Overloads keep theirs.
 
 Integration tests extend `IntegrationTestBase` (clears `subject_stats_cache → notes → user_notes_keys → action_logs → actions →

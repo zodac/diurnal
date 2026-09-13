@@ -166,8 +166,9 @@ class AppLifecycleIT extends IntegrationTestBase {
     private static AppLifecycle lifecycle(final StubQuarkusOidcConfig quarkusOidcConfig, final boolean verifyOnStartup) {
         final StubNotesEncryptionConfig encryptionConfig = StubNotesEncryptionConfig.of(NOTES_MASTER_KEY);
         final StubOidcConfig oidcConfig = new StubOidcConfig("stub", false, verifyOnStartup, Optional.empty(), Optional.empty(), Optional.empty());
-        return new AppLifecycle(new StubPasswordAuthConfig(true, true), quarkusOidcConfig, oidcConfig, encryptionConfig,
-            new StubNotesConfig(TextFields.NOTE_MAX_LENGTH), new NoteKeys(encryptionConfig), StubApplicationVersion.of("dev"));
+        return new AppLifecycle(StubApplicationVersion.of("dev"), new NoteKeys(encryptionConfig),
+            new StubNotesConfig(TextFields.NOTE_MAX_LENGTH), encryptionConfig, oidcConfig, new StubPasswordAuthConfig(true, true),
+            quarkusOidcConfig);
     }
 
     private static String issuerUrlOf(final HttpServer provider) {

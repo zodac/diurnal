@@ -18,6 +18,7 @@
 package net.zodac.diurnal.auth.lockout;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_PASSWORD;
 import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
 import static net.zodac.diurnal.http.HttpStatusCodes.FOUND;
 import static net.zodac.diurnal.http.HttpStatusCodes.MOVED_PERMANENTLY;
@@ -231,8 +232,8 @@ class IpThrottleIT extends IntegrationTestBase {
         return given().redirects().follow(false)
                 .formParam("email", "form-new@example.com")
                 .formParam("displayName", "Form New")
-                .formParam("password", "password123")
-                .formParam("confirmPassword", "password123")
+                .formParam("password", DUMMY_PASSWORD)
+                .formParam("confirmPassword", DUMMY_PASSWORD)
                 .post("/register");
     }
 

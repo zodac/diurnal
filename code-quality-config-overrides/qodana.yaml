@@ -42,6 +42,14 @@ profile:
     - inspection: ZeroLengthArrayInitialization
       ignore: [ 'src/main/java/net/zodac/diurnal/log/ActionLog.java', 'src/main/java/net/zodac/diurnal/note/Note.java' ]
 
+    # `IntegrationTestBase.clock` is protected deliberately, and the reason is the failure mode: a subclass in another package needs the same "now"
+    # the request under test sees, and one that re-injects an `AppClock` of its own SHADOWS this field rather than overriding it, so the two freeze
+    # independently and the subclass's assertions drift a day from the request's. An accessor would satisfy the inspection at the cost of rewriting
+    # every `clock.now()` in the IT suite, to hide a field with exactly one documented, subclass-facing purpose - see the deterministic-time section
+    # of .claude/TESTING.md. Scoped to that one file, so an ordinary protected field anywhere else is still reported.
+    - inspection: ProtectedField
+      ignore: [ 'src/test/java/net/zodac/diurnal/IntegrationTestBase.java' ]
+
 # File to exclude from analysis
 exclude:
   - name: All

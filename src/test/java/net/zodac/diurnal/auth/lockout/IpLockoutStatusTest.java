@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.auth.lockout;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_IP;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
@@ -30,11 +31,10 @@ import org.junit.jupiter.api.Test;
  */
 class IpLockoutStatusTest {
 
-    private static final String IP = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - test IP
     private static final Instant NOW = Instant.parse("2026-06-15T12:00:00Z");
 
     private static IpLockout lockout(final Instant lockedUntil, final @Nullable Instant unlockedAt) {
-        final IpLockout lockout = IpLockout.of(IP, NOW.minusSeconds(300), lockedUntil, 15);
+        final IpLockout lockout = IpLockout.of(DUMMY_IP, NOW.minusSeconds(300), lockedUntil, 15);
         lockout.unlockedAt = unlockedAt;
         return lockout;
     }

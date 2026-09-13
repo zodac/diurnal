@@ -18,6 +18,8 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_OIDC_ISSUER;
+import static net.zodac.diurnal.DummyValues.DUMMY_PASSWORD;
 import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
 import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
 import static net.zodac.diurnal.http.HttpStatusCodes.CREATED;
@@ -56,7 +58,7 @@ class AuthResourceIT extends IntegrationTestBase {
     void register_validRequest_returns201WithToken() {
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"new@example.com","displayName":"New User","password":"password1"}
+                        {"email":"new@example.com","displayName":"New User","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then()
@@ -70,7 +72,7 @@ class AuthResourceIT extends IntegrationTestBase {
     void register_normalisesEmailToLowercase() {
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"UPPER@Example.COM","displayName":"Cased","password":"password1"}
+                        {"email":"UPPER@Example.COM","displayName":"Cased","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then()
@@ -81,7 +83,7 @@ class AuthResourceIT extends IntegrationTestBase {
     @Test
     void register_duplicateEmail_returns409() {
         final String body = """
-            {"email":"dup@example.com","displayName":"First","password":"password1"}
+            {"email":"dup@example.com","displayName":"First","password":"password123"}
             """;
         given().contentType(ContentType.JSON).body(body).post("/api/v1/auth/register")
                 .then().statusCode(CREATED);
@@ -95,13 +97,13 @@ class AuthResourceIT extends IntegrationTestBase {
     void register_duplicateEmail_caseInsensitive() {
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"Case@Example.com","displayName":"First","password":"password1"}
+                        {"email":"Case@Example.com","displayName":"First","password":"password123"}
                         """)
                 .post("/api/v1/auth/register").then().statusCode(CREATED);
 
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"case@example.com","displayName":"Second","password":"password1"}
+                        {"email":"case@example.com","displayName":"Second","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then().statusCode(CONFLICT);
@@ -116,7 +118,7 @@ class AuthResourceIT extends IntegrationTestBase {
 
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"oidc-user@example.com","displayName":"Impostor","password":"password1"}
+                        {"email":"oidc-user@example.com","displayName":"Impostor","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then()
@@ -138,7 +140,7 @@ class AuthResourceIT extends IntegrationTestBase {
 
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"Cased-OIDC@Example.com","displayName":"Impostor","password":"password1"}
+                        {"email":"Cased-OIDC@Example.com","displayName":"Impostor","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then()
@@ -150,7 +152,7 @@ class AuthResourceIT extends IntegrationTestBase {
     void register_blankEmail_returns400() {
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"","displayName":"User","password":"password1"}
+                        {"email":"","displayName":"User","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then().statusCode(BAD_REQUEST);
@@ -160,7 +162,7 @@ class AuthResourceIT extends IntegrationTestBase {
     void register_blankDisplayName_returns400() {
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"valid@example.com","displayName":"","password":"password1"}
+                        {"email":"valid@example.com","displayName":"","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then().statusCode(BAD_REQUEST);
@@ -190,7 +192,7 @@ class AuthResourceIT extends IntegrationTestBase {
     void register_emailWithoutAtSign_returns400() {
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"no-at-sign","displayName":"User","password":"password1"}
+                        {"email":"no-at-sign","displayName":"User","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then().statusCode(BAD_REQUEST)
@@ -201,7 +203,7 @@ class AuthResourceIT extends IntegrationTestBase {
     void register_singleCharacterDisplayName_returns400() {
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"shortname@example.com","displayName":"A","password":"password1"}
+                        {"email":"shortname@example.com","displayName":"A","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then().statusCode(BAD_REQUEST)
@@ -212,7 +214,7 @@ class AuthResourceIT extends IntegrationTestBase {
     void register_setsLastLoginAt() {
         // Registration logs the account straight in (a token is returned), so the shared
         // RegistrationService stamps the first login on both surfaces.
-        registerUser("first-login@example.com", "First Login", "password1");
+        registerUser("first-login@example.com", "First Login", DUMMY_PASSWORD);
 
         runInTx(() -> assertThat(User.findByEmail("first-login@example.com").orElseThrow().lastLoginAt)
             .as("an API-registered account should have its first login stamped")
@@ -234,7 +236,7 @@ class AuthResourceIT extends IntegrationTestBase {
 
     @Test
     void login_validCredentials_returns200WithToken() {
-        registerUser("login@example.com", "Login User", "password123");
+        registerUser("login@example.com", "Login User", DUMMY_PASSWORD);
 
         given().contentType(ContentType.JSON)
                 .body("""
@@ -327,7 +329,7 @@ class AuthResourceIT extends IntegrationTestBase {
 
     @Test
     void login_caseInsensitiveEmail() {
-        registerUser("CasedLogin@Example.com", "Cased", "password123");
+        registerUser("CasedLogin@Example.com", "Cased", DUMMY_PASSWORD);
 
         given().contentType(ContentType.JSON)
                 .body("""
@@ -340,7 +342,7 @@ class AuthResourceIT extends IntegrationTestBase {
 
     @Test
     void login_returnsOpaqueSessionTokenThatAuthenticates() {
-        registerUser("session@example.com", "Session User", "password123");
+        registerUser("session@example.com", "Session User", DUMMY_PASSWORD);
 
         final String token = given().contentType(ContentType.JSON)
             .body("""
@@ -374,7 +376,7 @@ class AuthResourceIT extends IntegrationTestBase {
         // The API can never mint an admin (see FirstUserCreationBlockedIT for the first-run refusal).
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"second@example.com","displayName":"Second","password":"password1"}
+                        {"email":"second@example.com","displayName":"Second","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then().statusCode(CREATED);
@@ -406,7 +408,7 @@ class AuthResourceIT extends IntegrationTestBase {
         final User user = new User();
         user.email = email;
         user.displayName = "OIDC User";
-        user.oidcIssuer = "https://diurnal.example.com/idp";
+        user.oidcIssuer = DUMMY_OIDC_ISSUER;
         user.oidcSubject = "subject-" + email;
         user.role = Role.USER.storageValue();
         user.persist();

@@ -71,16 +71,16 @@ class AppInfoTest {
     }
 
     private static AppInfo appInfo(final AppConfig appConfig, final AssetsConfig assetsConfig) {
-        return new AppInfo(StubApplicationVersion.of("dev"), appConfig, assetsConfig, StubUpdateCheckService.of(NO_UPDATE),
-            new AppPaths(appConfig));
+        return new AppInfo(appConfig, StubApplicationVersion.of("dev"), new AppPaths(appConfig), assetsConfig,
+            StubUpdateCheckService.of(NO_UPDATE));
     }
 
     @Test
     void version_delegatesToApplicationVersion() {
         // getVersion() is a thin delegate over ApplicationVersion.release() (the packaged-VERSION
         // resolution itself is tested in ApplicationVersionTest); assert the value passes straight through.
-        final AppInfo appInfo = new AppInfo(StubApplicationVersion.of("1.2.3"), EMPTY_APP_CONFIG, EMPTY_ASSETS_CONFIG,
-            StubUpdateCheckService.of(NO_UPDATE), new AppPaths(EMPTY_APP_CONFIG));
+        final AppInfo appInfo = new AppInfo(EMPTY_APP_CONFIG, StubApplicationVersion.of("1.2.3"), new AppPaths(EMPTY_APP_CONFIG),
+            EMPTY_ASSETS_CONFIG, StubUpdateCheckService.of(NO_UPDATE));
         assertThat(appInfo.getVersion())
             .as("getVersion() should return exactly what ApplicationVersion resolves")
             .isEqualTo("1.2.3");
@@ -343,7 +343,7 @@ class AppInfoTest {
     }
 
     private static AppInfo appInfoWithUpdate(final UpdateStatus status) {
-        return new AppInfo(StubApplicationVersion.of("dev"), EMPTY_APP_CONFIG, EMPTY_ASSETS_CONFIG, StubUpdateCheckService.of(status),
-            new AppPaths(EMPTY_APP_CONFIG));
+        return new AppInfo(EMPTY_APP_CONFIG, StubApplicationVersion.of("dev"), new AppPaths(EMPTY_APP_CONFIG), EMPTY_ASSETS_CONFIG,
+            StubUpdateCheckService.of(status));
     }
 }

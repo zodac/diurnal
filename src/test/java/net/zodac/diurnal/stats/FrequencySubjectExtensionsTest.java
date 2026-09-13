@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.stats;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_COLOUR;
 import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -32,11 +33,9 @@ import org.junit.jupiter.api.Test;
  */
 class FrequencySubjectExtensionsTest {
 
-    private static final String ACTION_COLOUR = "#6366f1";
-
     @Test
     void seriesForAnAction_keepsTheUsersOwnName() {
-        final FrequencySeries series = new FrequencySeries(DUMMY_UUID, "Morning run", ACTION_COLOUR, 12L, true);
+        final FrequencySeries series = new FrequencySeries(DUMMY_UUID, "Morning run", DUMMY_COLOUR, 12L, true);
 
         assertThat(FrequencySubjectExtensions.actionName(series))
             .as("a legend chip for an action shows the user's own text, which is never translated")
@@ -45,7 +44,7 @@ class FrequencySubjectExtensionsTest {
 
     @Test
     void seriesForNotes_isNullSoTheLegendFallsBackToTheTranslatedWord() {
-        final FrequencySeries series = new FrequencySeries(StatSubject.NOTES_ID, "Notes", ACTION_COLOUR, 12L, false);
+        final FrequencySeries series = new FrequencySeries(StatSubject.NOTES_ID, "Notes", DUMMY_COLOUR, 12L, false);
 
         assertThat(FrequencySubjectExtensions.actionName(series))
             .as("the notes series yields null, which is what makes the template's .or(msg:statSubjectNotes) fire")
@@ -54,7 +53,7 @@ class FrequencySubjectExtensionsTest {
 
     @Test
     void barForAnAction_keepsTheUsersOwnName() {
-        final FrequencyBar drawnBar = new FrequencyBar(DUMMY_UUID, "Morning run", ACTION_COLOUR, 3L, 50);
+        final FrequencyBar drawnBar = new FrequencyBar(DUMMY_UUID, "Morning run", DUMMY_COLOUR, 3L, 50);
 
         assertThat(FrequencySubjectExtensions.actionName(drawnBar))
             .as("a hover bubble for an action's bar shows the user's own text, which is never translated")
@@ -63,7 +62,7 @@ class FrequencySubjectExtensionsTest {
 
     @Test
     void barForNotes_isNullSoTheTooltipFallsBackToTheTranslatedWord() {
-        final FrequencyBar drawnBar = new FrequencyBar(StatSubject.NOTES_ID, "Notes", ACTION_COLOUR, 3L, 50);
+        final FrequencyBar drawnBar = new FrequencyBar(StatSubject.NOTES_ID, "Notes", DUMMY_COLOUR, 3L, 50);
 
         assertThat(FrequencySubjectExtensions.actionName(drawnBar))
             .as("the notes bar yields null, which is what makes the template's .or(msg:statSubjectNotes) fire")

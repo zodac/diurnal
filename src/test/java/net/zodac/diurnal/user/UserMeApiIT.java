@@ -18,6 +18,7 @@
 package net.zodac.diurnal.user;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_OIDC_ISSUER;
 import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
 import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
 import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
@@ -493,7 +494,7 @@ class UserMeApiIT extends IntegrationTestBase {
         final User oidc = new User();
         oidc.email = "oidc-me@lt.test";
         oidc.displayName = "OIDC Me";
-        oidc.oidcIssuer = "https://diurnal.example.com/idp";
+        oidc.oidcIssuer = DUMMY_OIDC_ISSUER;
         oidc.oidcSubject = "subject-oidc-me";
         oidc.role = Role.USER.storageValue();
         oidc.persist();

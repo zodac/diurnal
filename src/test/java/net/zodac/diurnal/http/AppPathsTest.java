@@ -17,11 +17,13 @@
 
 package net.zodac.diurnal.http;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_IP;
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
+import static net.zodac.diurnal.DummyValues.OTHER_DUMMY_UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 import net.zodac.diurnal.stub.StubAppConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -34,10 +36,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 class AppPathsTest {
 
     private static final String BASE = "/diurnal";
-    private static final UUID ID = UUID.fromString("11111111-2222-3333-4444-555555555555");
-    private static final UUID OTHER_ID = UUID.fromString("66666666-7777-8888-9999-000000000000");
     private static final LocalDate DATE = LocalDate.of(2026, 6, 15);
-    private static final String LOCKED_IP = "198.51.100.7"; // NOPMD: AvoidUsingHardCodedIP - test IP
 
     private static AppPaths atRoot() {
         return new AppPaths(StubAppConfig.empty());
@@ -264,21 +263,21 @@ class AppPathsTest {
             "/internal/actions/list",
             "/internal/actions/list?page=1",
             "/internal/actions/random-colour",
-            "/internal/actions/11111111-2222-3333-4444-555555555555",
-            "/internal/actions/11111111-2222-3333-4444-555555555555/delete",
+            "/internal/actions/81d92e7a-6589-4050-984d-98234bcece64",
+            "/internal/actions/81d92e7a-6589-4050-984d-98234bcece64/delete",
             "/internal/notes/list",
             "/internal/notes/list?page=1",
             "/internal/stats/list",
-            "/internal/stats/chart/11111111-2222-3333-4444-555555555555/candidates?compare=66666666-7777-8888-9999-000000000000",
+            "/internal/stats/chart/81d92e7a-6589-4050-984d-98234bcece64/candidates?compare=3f0b1c2d-47ae-4b91-8e63-5a7d0c1e29f4",
             "/internal/admin/users",
             "/internal/admin/users/list",
-            "/internal/admin/users/11111111-2222-3333-4444-555555555555",
-            "/internal/admin/users/11111111-2222-3333-4444-555555555555/role",
-            "/internal/admin/users/11111111-2222-3333-4444-555555555555/delete",
+            "/internal/admin/users/81d92e7a-6589-4050-984d-98234bcece64",
+            "/internal/admin/users/81d92e7a-6589-4050-984d-98234bcece64/role",
+            "/internal/admin/users/81d92e7a-6589-4050-984d-98234bcece64/delete",
             "/internal/admin/ip-lockouts/history",
-            "/internal/admin/ip-lockouts/11111111-2222-3333-4444-555555555555/confirm-unlock",
-            "/internal/admin/ip-lockouts/198.51.100.7/unlock",
-            "/internal/admin/ip-lockouts/11111111-2222-3333-4444-555555555555/row",
+            "/internal/admin/ip-lockouts/81d92e7a-6589-4050-984d-98234bcece64/confirm-unlock",
+            "/internal/admin/ip-lockouts/203.0.113.7/unlock",
+            "/internal/admin/ip-lockouts/81d92e7a-6589-4050-984d-98234bcece64/row",
             "/api/v1/data/export");
         assertThat(internalUrls(paths))
             .as("At the origin root every HTMX endpoint keeps the URL it has always had")
@@ -294,9 +293,9 @@ class AppPathsTest {
 
     @Test
     void internalStatsChartCandidates_withoutComparisons_carriesNoQuery() {
-        assertThat(atRoot().internalStatsChartCandidates(ID, ""))
+        assertThat(atRoot().internalStatsChartCandidates(DUMMY_UUID, ""))
             .as("A chart with nothing to compare against asks for candidates with no query at all")
-            .isEqualTo("/internal/stats/chart/11111111-2222-3333-4444-555555555555/candidates");
+            .isEqualTo("/internal/stats/chart/81d92e7a-6589-4050-984d-98234bcece64/candidates");
     }
 
     @Test
@@ -304,12 +303,12 @@ class AppPathsTest {
         final AppPaths paths = atRoot();
 
         final List<String> expected = List.of(
-            "/internal/logs/2026-06-15/11111111-2222-3333-4444-555555555555",
-            "/internal/logs/2026-06-15/11111111-2222-3333-4444-555555555555/increment",
-            "/internal/logs/2026-06-15/11111111-2222-3333-4444-555555555555/decrement",
-            "/internal/logs/2026-06-15/11111111-2222-3333-4444-555555555555/set",
-            "/internal/logs/2026-06-15/11111111-2222-3333-4444-555555555555/confirm-delete",
-            "/internal/logs/2026-06-15/11111111-2222-3333-4444-555555555555/delete",
+            "/internal/logs/2026-06-15/81d92e7a-6589-4050-984d-98234bcece64",
+            "/internal/logs/2026-06-15/81d92e7a-6589-4050-984d-98234bcece64/increment",
+            "/internal/logs/2026-06-15/81d92e7a-6589-4050-984d-98234bcece64/decrement",
+            "/internal/logs/2026-06-15/81d92e7a-6589-4050-984d-98234bcece64/set",
+            "/internal/logs/2026-06-15/81d92e7a-6589-4050-984d-98234bcece64/confirm-delete",
+            "/internal/logs/2026-06-15/81d92e7a-6589-4050-984d-98234bcece64/delete",
             "/internal/logs/day/2026-06-15/list",
             "/internal/logs/day/2026-06-15/list?page=1");
         assertThat(dayLogUrls(paths))
@@ -346,32 +345,32 @@ class AppPathsTest {
             paths.getInternalActionsList(),
             paths.getInternalActionsListFirstPage(),
             paths.getInternalActionsRandomColour(),
-            paths.internalAction(ID),
-            paths.internalActionDelete(ID),
+            paths.internalAction(DUMMY_UUID),
+            paths.internalActionDelete(DUMMY_UUID),
             paths.getInternalNotesList(),
             paths.getInternalNotesListFirstPage(),
             paths.getInternalStatsList(),
-            paths.internalStatsChartCandidates(ID, "?compare=" + OTHER_ID),
+            paths.internalStatsChartCandidates(DUMMY_UUID, "?compare=" + OTHER_DUMMY_UUID),
             paths.getInternalAdminUsers(),
             paths.getInternalAdminUsersList(),
-            paths.internalAdminUser(ID),
-            paths.internalAdminUserRole(ID),
-            paths.internalAdminUserDelete(ID),
+            paths.internalAdminUser(DUMMY_UUID),
+            paths.internalAdminUserRole(DUMMY_UUID),
+            paths.internalAdminUserDelete(DUMMY_UUID),
             paths.getInternalIpLockoutsHistory(),
-            paths.internalIpLockoutConfirmUnlock(ID.toString()),
-            paths.internalIpLockoutUnlock(LOCKED_IP),
-            paths.internalIpLockoutRow(ID),
+            paths.internalIpLockoutConfirmUnlock(DUMMY_UUID.toString()),
+            paths.internalIpLockoutUnlock(DUMMY_IP),
+            paths.internalIpLockoutRow(DUMMY_UUID),
             paths.getApiDataExport());
     }
 
     private static List<String> dayLogUrls(final AppPaths paths) {
         return List.of(
-            paths.internalLog(DATE, ID),
-            paths.internalLogIncrement(DATE, ID),
-            paths.internalLogDecrement(DATE, ID),
-            paths.internalLogSet(DATE, ID),
-            paths.internalLogConfirmDelete(DATE, ID),
-            paths.internalLogDelete(DATE, ID),
+            paths.internalLog(DATE, DUMMY_UUID),
+            paths.internalLogIncrement(DATE, DUMMY_UUID),
+            paths.internalLogDecrement(DATE, DUMMY_UUID),
+            paths.internalLogSet(DATE, DUMMY_UUID),
+            paths.internalLogConfirmDelete(DATE, DUMMY_UUID),
+            paths.internalLogDelete(DATE, DUMMY_UUID),
             paths.internalLogsDayList(DATE),
             paths.internalLogsDayListFirstPage(DATE));
     }

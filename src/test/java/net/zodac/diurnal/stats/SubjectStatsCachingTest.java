@@ -17,11 +17,11 @@
 
 package net.zodac.diurnal.stats;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.util.UUID;
 import net.zodac.diurnal.stats.cache.SubjectStatsCache;
 import net.zodac.diurnal.time.DaySpan;
 import org.junit.jupiter.api.Test;
@@ -35,7 +35,6 @@ import org.junit.jupiter.api.Test;
  */
 class SubjectStatsCachingTest {
 
-    private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final LocalDate TODAY = LocalDate.of(2026, 6, 15);
 
     private static SubjectStats populated() {
@@ -73,7 +72,7 @@ class SubjectStatsCachingTest {
     void from_thenToStats_roundTripsEveryFigure() {
         final SubjectStats original = populated();
 
-        final SubjectStatsCache row = SubjectStatsCaching.from(USER_ID, original);
+        final SubjectStatsCache row = SubjectStatsCaching.from(DUMMY_UUID, original);
         final SubjectStats restored = SubjectStatsCaching.toStats(row, original.subject());
 
         assertThat(restored)
@@ -85,7 +84,7 @@ class SubjectStatsCachingTest {
     void from_thenToStats_roundTripsAnEmptyHistory() {
         final SubjectStats original = empty();
 
-        final SubjectStatsCache row = SubjectStatsCaching.from(USER_ID, original);
+        final SubjectStatsCache row = SubjectStatsCaching.from(DUMMY_UUID, original);
         final SubjectStats restored = SubjectStatsCaching.toStats(row, original.subject());
 
         assertThat(restored)
@@ -97,11 +96,11 @@ class SubjectStatsCachingTest {
     void from_storesTheOwnerAndTheSubjectAsTheRowKey() {
         final SubjectStats original = populated();
 
-        final SubjectStatsCache row = SubjectStatsCaching.from(USER_ID, original);
+        final SubjectStatsCache row = SubjectStatsCaching.from(DUMMY_UUID, original);
 
         assertThat(row.userId)
             .as("unexpected value")
-            .isEqualTo(USER_ID);
+            .isEqualTo(DUMMY_UUID);
         assertThat(row.subjectId)
             .as("unexpected value")
             .isEqualTo(StatSubject.NOTES_ID);
@@ -112,7 +111,7 @@ class SubjectStatsCachingTest {
 
     @Test
     void from_storesTheYearRatherThanTheRenderedLabel() {
-        final SubjectStatsCache row = SubjectStatsCaching.from(USER_ID, populated());
+        final SubjectStatsCache row = SubjectStatsCaching.from(DUMMY_UUID, populated());
 
         assertThat(row.bestYear)
             .as("the year itself is stored, never the rendered label")
@@ -127,7 +126,7 @@ class SubjectStatsCachingTest {
 
     @Test
     void from_storesNoBestYearWhenTheSubjectHasNoHistory() {
-        final SubjectStatsCache row = SubjectStatsCaching.from(USER_ID, empty());
+        final SubjectStatsCache row = SubjectStatsCaching.from(DUMMY_UUID, empty());
 
         assertThat(row.bestYear)
             .as("an absent best year is null, not the label")
@@ -146,7 +145,7 @@ class SubjectStatsCachingTest {
     @Test
     void cachedRow_rebuildsTheSubjectFromTheCallerRatherThanTheRow() {
         final SubjectStats original = populated();
-        final SubjectStatsCache row = SubjectStatsCaching.from(USER_ID, original);
+        final SubjectStatsCache row = SubjectStatsCaching.from(DUMMY_UUID, original);
 
         final StatSubject renamed = StatSubject.notes("#ef4444");
         final SubjectStats restored = SubjectStatsCaching.toStats(row, renamed);

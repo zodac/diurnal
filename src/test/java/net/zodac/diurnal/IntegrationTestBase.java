@@ -17,6 +17,8 @@
 
 package net.zodac.diurnal;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_COLOUR;
+
 import com.password4j.Argon2Function;
 import com.password4j.types.Argon2;
 import jakarta.inject.Inject;
@@ -237,13 +239,13 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
     }
 
     /**
-     * Persists a new action for the given user with the default colour.
+     * Persists a new action for the given user with a placeholder colour.
      */
     protected static Action newAction(final UUID userId, final String name) {
         final Action a = new Action();
         a.userId = userId;
         a.name = name;
-        a.colour = "#6366f1";
+        a.colour = DUMMY_COLOUR;
         a.persist();
         return a;
     }

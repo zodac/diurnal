@@ -18,6 +18,7 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_OIDC_ISSUER;
 import static net.zodac.diurnal.http.HttpStatusCodes.CREATED;
 import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -53,7 +54,6 @@ import org.junit.jupiter.api.Test;
 @QuarkusTest
 class FirstUserCreationBlockedIT extends IntegrationTestBase {
 
-    private static final String OIDC_ISSUER = "https://diurnal.example.com/idp";
 
     // Injects the very config the bean under test reads, so these tests stay environment-agnostic: SmallRye resolves .env at a higher priority
     // than the %test profile, so a specific value cannot be forced here - each expectation is instead derived from the same source the bean uses.
@@ -69,7 +69,7 @@ class FirstUserCreationBlockedIT extends IntegrationTestBase {
     void apiRegister_firstRun_isForbiddenAndCreatesNoUser() {
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"first@example.com","displayName":"First","password":"password1"}
+                        {"email":"first@example.com","displayName":"First","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then()
@@ -88,7 +88,7 @@ class FirstUserCreationBlockedIT extends IntegrationTestBase {
 
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"api-user@example.com","displayName":"API User","password":"password1"}
+                        {"email":"api-user@example.com","displayName":"API User","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then()
@@ -158,7 +158,7 @@ class FirstUserCreationBlockedIT extends IntegrationTestBase {
     private static JsonObject oidcClaims(final String email, final String name) {
         return new JsonObject()
                 .put("sub", "subject-" + email)
-                .put("iss", OIDC_ISSUER)
+                .put("iss", DUMMY_OIDC_ISSUER)
                 .put("email", email)
                 .put("name", name);
     }

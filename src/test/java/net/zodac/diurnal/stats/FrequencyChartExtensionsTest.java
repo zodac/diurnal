@@ -17,6 +17,9 @@
 
 package net.zodac.diurnal.stats;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
+import static net.zodac.diurnal.DummyValues.OTHER_DUMMY_UUID;
+import static net.zodac.diurnal.DummyValues.THIRD_DUMMY_UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
@@ -25,10 +28,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 class FrequencyChartExtensionsTest {
-
-    private static final UUID FIRST = UUID.fromString("11111111-1111-1111-1111-111111111111");
-    private static final UUID SECOND = UUID.fromString("22222222-2222-2222-2222-222222222222");
-    private static final UUID THIRD = UUID.fromString("33333333-3333-3333-3333-333333333333");
 
     private static FrequencyChart chartOf(final UUID... actionIds) {
         final List<FrequencySeries> series = Stream.of(actionIds)
@@ -39,52 +38,52 @@ class FrequencyChartExtensionsTest {
 
     @Test
     void canCompare_belowTheLimit_offersThePicker() {
-        assertThat(FrequencyChartExtensions.canCompare(chartOf(FIRST)))
+        assertThat(FrequencyChartExtensions.canCompare(chartOf(DUMMY_UUID)))
             .as("one charted action leaves room for two more")
             .isTrue();
-        assertThat(FrequencyChartExtensions.canCompare(chartOf(FIRST, SECOND)))
+        assertThat(FrequencyChartExtensions.canCompare(chartOf(DUMMY_UUID, OTHER_DUMMY_UUID)))
             .as("two charted actions leave room for one more")
             .isTrue();
     }
 
     @Test
     void canCompare_atTheLimit_hidesThePicker() {
-        assertThat(FrequencyChartExtensions.canCompare(chartOf(FIRST, SECOND, THIRD)))
+        assertThat(FrequencyChartExtensions.canCompare(chartOf(DUMMY_UUID, OTHER_DUMMY_UUID, THIRD_DUMMY_UUID)))
             .as("a full chart must not offer to add a fourth action")
             .isFalse();
     }
 
     @Test
     void compareIds_singleAction_isEmpty() {
-        assertThat(FrequencyChartExtensions.compareIds(chartOf(FIRST)))
+        assertThat(FrequencyChartExtensions.compareIds(chartOf(DUMMY_UUID)))
             .as("nothing is being compared against, so there is no comparison state to echo back")
             .isEmpty();
     }
 
     @Test
     void compareIds_omitsThePrimaryAndKeepsLegendOrder() {
-        assertThat(FrequencyChartExtensions.compareIds(chartOf(FIRST, SECOND, THIRD)))
+        assertThat(FrequencyChartExtensions.compareIds(chartOf(DUMMY_UUID, OTHER_DUMMY_UUID, THIRD_DUMMY_UUID)))
             .as("only the compared actions ride the wrapper, in the order they were added")
-            .isEqualTo(SECOND + "," + THIRD);
+            .isEqualTo(OTHER_DUMMY_UUID + "," + THIRD_DUMMY_UUID);
     }
 
     @Test
     void primarySubjectId_isTheSubjectTheChartWasOpenedFor() {
-        assertThat(FrequencyChartExtensions.primarySubjectId(chartOf(FIRST, SECOND)))
+        assertThat(FrequencyChartExtensions.primarySubjectId(chartOf(DUMMY_UUID, OTHER_DUMMY_UUID)))
             .as("the compare picker hangs off the first series, which is always the charted subject")
-            .isEqualTo(FIRST);
+            .isEqualTo(DUMMY_UUID);
     }
 
     @Test
     void candidatesQuery_carriesEveryComparison() {
-        assertThat(FrequencyChartExtensions.candidatesQuery(chartOf(FIRST, SECOND)))
+        assertThat(FrequencyChartExtensions.candidatesQuery(chartOf(DUMMY_UUID, OTHER_DUMMY_UUID)))
             .as("the picker must know everything already charted, or it would offer it again")
-            .isEqualTo("?compare=" + SECOND);
+            .isEqualTo("?compare=" + OTHER_DUMMY_UUID);
     }
 
     @Test
     void candidatesQuery_singleAction_isEmpty() {
-        assertThat(FrequencyChartExtensions.candidatesQuery(chartOf(FIRST)))
+        assertThat(FrequencyChartExtensions.candidatesQuery(chartOf(DUMMY_UUID)))
             .as("with nothing compared yet the URL should not trail an empty query string")
             .isEmpty();
     }

@@ -94,7 +94,7 @@ class UpdateCheckServiceTest {
 
     private static UpdateCheckService serviceWith(final UpdateCheckConfig config, final LatestReleaseClient client) {
         final StubAppConfig appConfig = new StubAppConfig(REPOSITORY_URL, "", Optional.empty());
-        return new UpdateCheckService(config, appConfig, client, StubApplicationVersion.of(RUNNING_VERSION));
+        return new UpdateCheckService(appConfig, StubApplicationVersion.of(RUNNING_VERSION), config, client);
     }
 
     private record EnabledUpdateCheckConfig() implements UpdateCheckConfig {

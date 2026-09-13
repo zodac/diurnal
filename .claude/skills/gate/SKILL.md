@@ -109,6 +109,22 @@ a single assertion runs. There is no `pgrep` in this sandbox: walk `/proc/[0-9]*
 `quarkus.http.port=8081` and `lint_and_tests`, `kill -9` them, and confirm with
 `(exec 3<>/dev/tcp/127.0.0.1/8081)`.
 
+### `Only one instance of Qodana for JVM can be run at a time`
+
+The **same orphan problem, one level up**: the Qodana tier's work happens in a detached `jetbrains/qodana-jvm-*`
+container, which no `/proc` walk can see and which `TaskStop` does not touch, so it outlives the gate run that
+started it and keeps the single-instance lock. The tell is the timing — **the tier fails in ~9 seconds** instead
+of the usual ~7-10 minutes, with no findings at all, so it reads as a config error rather than contention.
+
+```bash
+docker ps -a --format '{{.ID}} {{.Image}} {{.Status}}' | grep -i qodana   # note StartedAt vs your run
+docker rm -f <id>
+rm -rf .qodana/results .qodana/idea-config                                # its half-written output
+```
+
+Check `docker inspect -f '{{.State.StartedAt}}'` before removing: a container older than your run is the orphan,
+and its results are worthless anyway because it has been analysing whatever the tree happened to contain since.
+
 ### A single E2E spec times out
 
 If it is one flaky-looking `page.waitForResponse: Test timeout` (not an assertion mismatch), and the files you

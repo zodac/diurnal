@@ -17,6 +17,8 @@
 
 package net.zodac.diurnal.auth.lockout;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_IP;
+import static net.zodac.diurnal.DummyValues.OTHER_DUMMY_IP;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
@@ -29,8 +31,6 @@ import org.junit.jupiter.api.Test;
  */
 class AttemptThrottleTest {
 
-    private static final String KEY = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - Test IP key
-    private static final String KEY2 = "198.51.100.9"; // NOPMD: AvoidUsingHardCodedIP - Test IP key
     private static final Instant T0 = Instant.parse("2026-06-15T12:00:00Z");
     private static final int MAX_ATTEMPTS = 3;
     private static final Duration LOCKOUT = Duration.ofMinutes(10L);
@@ -41,7 +41,7 @@ class AttemptThrottleTest {
 
     @Test
     void unknownKey_isNotLocked() {
-        assertThat(throttle(true).isLocked(KEY, T0))
+        assertThat(throttle(true).isLocked(DUMMY_IP, T0))
                 .as("A never-seen key must not be locked")
                 .isFalse();
     }
@@ -50,9 +50,9 @@ class AttemptThrottleTest {
     void belowThreshold_doesNotLock() {
         final AttemptThrottle throttle = throttle(true);
         for (int i = 0; i < MAX_ATTEMPTS - 1; i++) {
-            throttle.recordFailure(KEY, T0);
+            throttle.recordFailure(DUMMY_IP, T0);
         }
-        assertThat(throttle.isLocked(KEY, T0))
+        assertThat(throttle.isLocked(DUMMY_IP, T0))
                 .as("Key must stay unlocked below the failure threshold")
                 .isFalse();
     }
@@ -61,9 +61,9 @@ class AttemptThrottleTest {
     void reachingThreshold_locksKey() {
         final AttemptThrottle throttle = throttle(true);
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            throttle.recordFailure(KEY, T0);
+            throttle.recordFailure(DUMMY_IP, T0);
         }
-        assertThat(throttle.isLocked(KEY, T0))
+        assertThat(throttle.isLocked(DUMMY_IP, T0))
                 .as("Key must lock once the failure threshold is reached")
                 .isTrue();
     }
@@ -73,7 +73,7 @@ class AttemptThrottleTest {
         final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.isLocked(KEY, T0.plus(LOCKOUT).minusSeconds(1L)))
+        assertThat(throttle.isLocked(DUMMY_IP, T0.plus(LOCKOUT).minusSeconds(1L)))
                 .as("Key must remain locked right up to the expiry instant")
                 .isTrue();
     }
@@ -83,7 +83,7 @@ class AttemptThrottleTest {
         final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.isLocked(KEY, T0.plus(LOCKOUT)))
+        assertThat(throttle.isLocked(DUMMY_IP, T0.plus(LOCKOUT)))
                 .as("Key must be unlocked at the exact expiry instant")
                 .isFalse();
     }
@@ -94,9 +94,9 @@ class AttemptThrottleTest {
         lockOut(throttle);
 
         final Instant afterExpiry = T0.plus(LOCKOUT);
-        throttle.recordFailure(KEY, afterExpiry);
+        throttle.recordFailure(DUMMY_IP, afterExpiry);
 
-        assertThat(throttle.isLocked(KEY, afterExpiry))
+        assertThat(throttle.isLocked(DUMMY_IP, afterExpiry))
                 .as("Failure counting must reset after a lockout elapses, not relock on the first new failure")
                 .isFalse();
     }
@@ -108,9 +108,9 @@ class AttemptThrottleTest {
 
         final Instant afterExpiry = T0.plus(LOCKOUT);
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            throttle.recordFailure(KEY, afterExpiry);
+            throttle.recordFailure(DUMMY_IP, afterExpiry);
         }
-        assertThat(throttle.isLocked(KEY, afterExpiry))
+        assertThat(throttle.isLocked(DUMMY_IP, afterExpiry))
                 .as("A fresh batch of failures after expiry must lock the key again")
                 .isTrue();
     }
@@ -120,7 +120,7 @@ class AttemptThrottleTest {
         final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.lockoutRemaining(KEY, T0))
+        assertThat(throttle.lockoutRemaining(DUMMY_IP, T0))
                 .as("Remaining lockout at lock time must equal the configured window")
                 .isEqualTo(LOCKOUT);
     }
@@ -130,14 +130,14 @@ class AttemptThrottleTest {
         final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.lockoutRemaining(KEY, T0.plusSeconds(60L)))
+        assertThat(throttle.lockoutRemaining(DUMMY_IP, T0.plusSeconds(60L)))
                 .as("Remaining lockout must count down as time passes")
                 .isEqualTo(LOCKOUT.minusSeconds(60L));
     }
 
     @Test
     void lockoutRemaining_isZeroWhenNotLocked() {
-        assertThat(throttle(true).lockoutRemaining(KEY, T0))
+        assertThat(throttle(true).lockoutRemaining(DUMMY_IP, T0))
                 .as("An unlocked key has zero remaining lockout")
                 .isEqualTo(Duration.ZERO);
     }
@@ -147,7 +147,7 @@ class AttemptThrottleTest {
         final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.lockoutRemaining(KEY, T0.plus(LOCKOUT)))
+        assertThat(throttle.lockoutRemaining(DUMMY_IP, T0.plus(LOCKOUT)))
                 .as("An elapsed lockout reports zero remaining")
                 .isEqualTo(Duration.ZERO);
     }
@@ -156,9 +156,9 @@ class AttemptThrottleTest {
     void disabled_neverLocks() {
         final AttemptThrottle throttle = throttle(false);
         for (int i = 0; i < MAX_ATTEMPTS * 2; i++) {
-            throttle.recordFailure(KEY, T0);
+            throttle.recordFailure(DUMMY_IP, T0);
         }
-        assertThat(throttle.isLocked(KEY, T0))
+        assertThat(throttle.isLocked(DUMMY_IP, T0))
                 .as("A disabled throttle must never lock, however many failures occur")
                 .isFalse();
     }
@@ -167,7 +167,7 @@ class AttemptThrottleTest {
     void recordFailure_belowThreshold_reportsRunningCountAndNotLocked() {
         final AttemptThrottle throttle = throttle(true);
 
-        final AttemptThrottle.FailureOutcome outcome = throttle.recordFailure(KEY, T0);
+        final AttemptThrottle.FailureOutcome outcome = throttle.recordFailure(DUMMY_IP, T0);
 
         assertThat(outcome.failureCount())
                 .as("The first failure must report a count of one")
@@ -183,10 +183,10 @@ class AttemptThrottleTest {
     @Test
     void recordFailure_atThreshold_reportsLockout() {
         final AttemptThrottle throttle = throttle(true);
-        throttle.recordFailure(KEY, T0);
-        throttle.recordFailure(KEY, T0);
+        throttle.recordFailure(DUMMY_IP, T0);
+        throttle.recordFailure(DUMMY_IP, T0);
 
-        final AttemptThrottle.FailureOutcome outcome = throttle.recordFailure(KEY, T0);
+        final AttemptThrottle.FailureOutcome outcome = throttle.recordFailure(DUMMY_IP, T0);
 
         assertThat(outcome.failureCount())
                 .as("The lockout-tripping failure's count must equal the limit")
@@ -200,7 +200,7 @@ class AttemptThrottleTest {
     void recordFailure_whenDisabled_reportsZeroCountAndNoLockout() {
         final AttemptThrottle throttle = throttle(false);
 
-        final AttemptThrottle.FailureOutcome outcome = throttle.recordFailure(KEY, T0);
+        final AttemptThrottle.FailureOutcome outcome = throttle.recordFailure(DUMMY_IP, T0);
 
         assertThat(outcome.failureCount())
                 .as("A disabled throttle reports no tracked failures")
@@ -215,7 +215,7 @@ class AttemptThrottleTest {
 
     @Test
     void recordFailure_reportsConfiguredLockoutDuration() {
-        assertThat(throttle(true).recordFailure(KEY, T0).lockoutDuration())
+        assertThat(throttle(true).recordFailure(DUMMY_IP, T0).lockoutDuration())
                 .as("The outcome must carry the configured lockout length for logging")
                 .isEqualTo(LOCKOUT);
     }
@@ -226,11 +226,11 @@ class AttemptThrottleTest {
         // One failure per window+ elapsed: each is treated as fresh, so the count never climbs to lock.
         for (int i = 0; i < MAX_ATTEMPTS + 2; i++) {
             final Instant when = T0.plus(LOCKOUT.plusMinutes(1L).multipliedBy(i));
-            final AttemptThrottle.FailureOutcome outcome = throttle.recordFailure(KEY, when);
+            final AttemptThrottle.FailureOutcome outcome = throttle.recordFailure(DUMMY_IP, when);
             assertThat(outcome.failureCount())
                     .as("A failure a full window after the previous one must reset the count to one")
                     .isEqualTo(1);
-            assertThat(throttle.isLocked(KEY, when))
+            assertThat(throttle.isLocked(DUMMY_IP, when))
                     .as("Widely-spaced failures must never lock the key")
                     .isFalse();
         }
@@ -243,7 +243,7 @@ class AttemptThrottleTest {
 
         throttle.clear();
 
-        assertThat(throttle.isLocked(KEY, T0))
+        assertThat(throttle.isLocked(DUMMY_IP, T0))
                 .as("clear() must forget the lockout")
                 .isFalse();
     }
@@ -251,7 +251,7 @@ class AttemptThrottleTest {
     @Test
     void currentLockouts_emptyWhenNoneLocked() {
         final AttemptThrottle throttle = throttle(true);
-        throttle.recordFailure(KEY, T0); // sub-threshold: counting but not locked
+        throttle.recordFailure(DUMMY_IP, T0); // sub-threshold: counting but not locked
 
         assertThat(throttle.currentLockouts(T0))
                 .as("A key below the threshold must not appear as a current lockout")
@@ -265,7 +265,7 @@ class AttemptThrottleTest {
 
         assertThat(throttle.currentLockouts(T0))
                 .as("A locked key must be listed with its expiry and failure count")
-                .containsExactly(new AttemptThrottle.ActiveLockout(KEY, T0.plus(LOCKOUT), MAX_ATTEMPTS));
+                .containsExactly(new AttemptThrottle.ActiveLockout(DUMMY_IP, T0.plus(LOCKOUT), MAX_ATTEMPTS));
     }
 
     @Test
@@ -282,18 +282,18 @@ class AttemptThrottleTest {
     void currentLockouts_listsOnlyTheLockedKeysAmongMany() {
         final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
-        throttle.recordFailure(KEY2, T0); // KEY2 stays below the threshold
+        throttle.recordFailure(OTHER_DUMMY_IP, T0); // OTHER_DUMMY_IP stays below the threshold
 
         assertThat(throttle.currentLockouts(T0))
                 .as("Only keys actually locked must be listed")
-                .containsExactly(new AttemptThrottle.ActiveLockout(KEY, T0.plus(LOCKOUT), MAX_ATTEMPTS));
+                .containsExactly(new AttemptThrottle.ActiveLockout(DUMMY_IP, T0.plus(LOCKOUT), MAX_ATTEMPTS));
     }
 
     @Test
     void currentLockouts_emptyWhenDisabled() {
         final AttemptThrottle throttle = throttle(false);
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            throttle.recordFailure(KEY, T0);
+            throttle.recordFailure(DUMMY_IP, T0);
         }
 
         assertThat(throttle.currentLockouts(T0))
@@ -306,17 +306,17 @@ class AttemptThrottleTest {
         final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.unlock(KEY, T0))
+        assertThat(throttle.unlock(DUMMY_IP, T0))
                 .as("Unlocking a locked key must report that it was locked")
                 .isTrue();
-        assertThat(throttle.isLocked(KEY, T0))
+        assertThat(throttle.isLocked(DUMMY_IP, T0))
                 .as("The key must no longer be locked after an unlock")
                 .isFalse();
     }
 
     @Test
     void unlock_untrackedKey_reportsFalse() {
-        assertThat(throttle(true).unlock(KEY, T0))
+        assertThat(throttle(true).unlock(DUMMY_IP, T0))
                 .as("Unlocking a never-seen key reports it was not locked")
                 .isFalse();
     }
@@ -324,15 +324,15 @@ class AttemptThrottleTest {
     @Test
     void unlock_subThresholdKey_reportsFalseButClearsTheCount() {
         final AttemptThrottle throttle = throttle(true);
-        throttle.recordFailure(KEY, T0);
-        throttle.recordFailure(KEY, T0); // below the threshold
+        throttle.recordFailure(DUMMY_IP, T0);
+        throttle.recordFailure(DUMMY_IP, T0); // below the threshold
 
-        assertThat(throttle.unlock(KEY, T0))
+        assertThat(throttle.unlock(DUMMY_IP, T0))
                 .as("Unlocking a key that was only counting (not locked) reports it was not locked")
                 .isFalse();
         // The counter was cleared, so it now takes the full threshold again to lock.
-        throttle.recordFailure(KEY, T0);
-        assertThat(throttle.isLocked(KEY, T0))
+        throttle.recordFailure(DUMMY_IP, T0);
+        assertThat(throttle.isLocked(DUMMY_IP, T0))
                 .as("A single failure after unlock must not relock a previously-counting key")
                 .isFalse();
     }
@@ -342,7 +342,7 @@ class AttemptThrottleTest {
         final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.unlock(KEY, T0.plus(LOCKOUT)))
+        assertThat(throttle.unlock(DUMMY_IP, T0.plus(LOCKOUT)))
                 .as("Unlocking an already-expired lockout reports it was not locked")
                 .isFalse();
     }
@@ -351,10 +351,10 @@ class AttemptThrottleTest {
     void unlock_whenDisabled_reportsFalse() {
         final AttemptThrottle throttle = throttle(false);
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            throttle.recordFailure(KEY, T0);
+            throttle.recordFailure(DUMMY_IP, T0);
         }
 
-        assertThat(throttle.unlock(KEY, T0))
+        assertThat(throttle.unlock(DUMMY_IP, T0))
                 .as("A disabled throttle has nothing to unlock")
                 .isFalse();
     }
@@ -362,16 +362,16 @@ class AttemptThrottleTest {
     @Test
     void evictStale_dropsDecayedCounter() {
         final AttemptThrottle throttle = throttle(true);
-        throttle.recordFailure(KEY, T0);
+        throttle.recordFailure(DUMMY_IP, T0);
 
         assertThat(throttle.evictStale(T0.plus(LOCKOUT)))
                 .as("A counter untouched for a full window must be evicted")
                 .isEqualTo(1);
         // Proven by behaviour rather than by reading the map: the key is gone, so it takes the full threshold to lock again.
         for (int i = 0; i < MAX_ATTEMPTS - 1; i++) {
-            throttle.recordFailure(KEY, T0.plus(LOCKOUT));
+            throttle.recordFailure(DUMMY_IP, T0.plus(LOCKOUT));
         }
-        assertThat(throttle.isLocked(KEY, T0.plus(LOCKOUT)))
+        assertThat(throttle.isLocked(DUMMY_IP, T0.plus(LOCKOUT)))
                 .as("An evicted key must start a fresh count rather than resume the evicted one")
                 .isFalse();
     }
@@ -379,7 +379,7 @@ class AttemptThrottleTest {
     @Test
     void evictStale_keepsCounterStillInsideItsWindow() {
         final AttemptThrottle throttle = throttle(true);
-        throttle.recordFailure(KEY, T0);
+        throttle.recordFailure(DUMMY_IP, T0);
 
         assertThat(throttle.evictStale(T0.plus(LOCKOUT).minusMillis(1L)))
                 .as("A counter one millisecond short of decaying must be kept")
@@ -394,7 +394,7 @@ class AttemptThrottleTest {
         assertThat(throttle.evictStale(T0.plus(LOCKOUT).minusMillis(1L)))
                 .as("A currently-locked key must never be evicted, or an attacker could clear their own budget")
                 .isZero();
-        assertThat(throttle.isLocked(KEY, T0.plus(LOCKOUT).minusMillis(1L)))
+        assertThat(throttle.isLocked(DUMMY_IP, T0.plus(LOCKOUT).minusMillis(1L)))
                 .as("The lockout must survive the sweep")
                 .isTrue();
     }
@@ -412,8 +412,8 @@ class AttemptThrottleTest {
     @Test
     void evictStale_leavesUntrackedKeysAlone() {
         final AttemptThrottle throttle = throttle(true);
-        throttle.recordFailure(KEY, T0);
-        throttle.recordFailure(KEY2, T0.plus(LOCKOUT));
+        throttle.recordFailure(DUMMY_IP, T0);
+        throttle.recordFailure(OTHER_DUMMY_IP, T0.plus(LOCKOUT));
 
         assertThat(throttle.evictStale(T0.plus(LOCKOUT)))
                 .as("Only the decayed key must be evicted, not the one just recorded")
@@ -429,7 +429,7 @@ class AttemptThrottleTest {
 
     private static void lockOut(final AttemptThrottle throttle) {
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            throttle.recordFailure(KEY, T0);
+            throttle.recordFailure(DUMMY_IP, T0);
         }
     }
 }

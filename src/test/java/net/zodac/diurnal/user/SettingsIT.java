@@ -18,6 +18,7 @@
 package net.zodac.diurnal.user;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_OIDC_ISSUER;
 import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
 import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
 import static net.zodac.diurnal.http.HttpStatusCodes.OK;
@@ -57,7 +58,7 @@ class SettingsIT extends IntegrationTestBase {
         oidc.email = OIDC_USER;
         oidc.displayName = "OIDC User";
         oidc.oidcSubject = "oidc-subject-123";
-        oidc.oidcIssuer = "https://diurnal.example.com";
+        oidc.oidcIssuer = DUMMY_OIDC_ISSUER;
         oidc.persist();
     }
 

@@ -18,6 +18,7 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_PASSWORD;
 import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
 import static net.zodac.diurnal.http.HttpStatusCodes.FOUND;
 import static net.zodac.diurnal.http.HttpStatusCodes.MOVED_PERMANENTLY;
@@ -140,8 +141,8 @@ class AuthWebResourceIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .formParam("email", "newweb@example.com")
                 .formParam("displayName", "New Web User")
-                .formParam("password", "password123")
-                .formParam("confirmPassword", "password123")
+                .formParam("password", DUMMY_PASSWORD)
+                .formParam("confirmPassword", DUMMY_PASSWORD)
                 .post("/register")
                 .then()
                 .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
@@ -170,8 +171,8 @@ class AuthWebResourceIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .formParam("email", "taken@example.com")
                 .formParam("displayName", "Dup")
-                .formParam("password", "password123")
-                .formParam("confirmPassword", "password123")
+                .formParam("password", DUMMY_PASSWORD)
+                .formParam("confirmPassword", DUMMY_PASSWORD)
                 .post("/register")
                 .then()
                 .statusCode(BAD_REQUEST)
@@ -185,14 +186,14 @@ class AuthWebResourceIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .formParam("email", "taken@example.com")
                 .formParam("displayName", "Dup Name")
-                .formParam("password", "password123")
-                .formParam("confirmPassword", "password123")
+                .formParam("password", DUMMY_PASSWORD)
+                .formParam("confirmPassword", DUMMY_PASSWORD)
                 .post("/register")
                 .then()
                 .statusCode(BAD_REQUEST)
                 .body(containsString("value=\"taken@example.com\""))
                 .body(containsString("value=\"Dup Name\""))
-                .body(not(containsString("value=\"password123\"")));
+                .body(not(containsString("value=\"" + DUMMY_PASSWORD + "\"")));
     }
 
     @Test
@@ -218,8 +219,8 @@ class AuthWebResourceIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .formParam("email", "no-at-sign")
                 .formParam("displayName", "No At")
-                .formParam("password", "password123")
-                .formParam("confirmPassword", "password123")
+                .formParam("password", DUMMY_PASSWORD)
+                .formParam("confirmPassword", DUMMY_PASSWORD)
                 .post("/register")
                 .then()
                 .statusCode(BAD_REQUEST)
@@ -233,8 +234,8 @@ class AuthWebResourceIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .formParam("email", "shortname@example.com")
                 .formParam("displayName", "A")
-                .formParam("password", "password123")
-                .formParam("confirmPassword", "password123")
+                .formParam("password", DUMMY_PASSWORD)
+                .formParam("confirmPassword", DUMMY_PASSWORD)
                 .post("/register")
                 .then()
                 .statusCode(BAD_REQUEST)
@@ -246,8 +247,8 @@ class AuthWebResourceIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .formParam("email", "longname@example.com")
                 .formParam("displayName", "x".repeat(101))
-                .formParam("password", "password123")
-                .formParam("confirmPassword", "password123")
+                .formParam("password", DUMMY_PASSWORD)
+                .formParam("confirmPassword", DUMMY_PASSWORD)
                 .post("/register")
                 .then()
                 .statusCode(BAD_REQUEST)
@@ -288,8 +289,8 @@ class AuthWebResourceIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .formParam("email", "nodisplay@example.com")
                 .formParam("displayName", "  ")
-                .formParam("password", "password123")
-                .formParam("confirmPassword", "password123")
+                .formParam("password", DUMMY_PASSWORD)
+                .formParam("confirmPassword", DUMMY_PASSWORD)
                 .post("/register")
                 .then()
                 .statusCode(BAD_REQUEST)

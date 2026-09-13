@@ -1,6 +1,6 @@
 # CODE_STYLE.md
 
-> **This file is ~53 KB. Read only the section you need** - `grep -n '^#' .claude/CODE_STYLE.md` for its
+> **This file is ~57 KB. Read only the section you need** - `grep -n '^#' .claude/CODE_STYLE.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Java** — Format with the IDE formatter (Checkstyle-aligned), Javadoc must use the multi-line form, Block comments and Javadoc fill the line
@@ -11,8 +11,8 @@
 >   Nullability annotations on a field or method sit on their own line, Enum constants are separated by a blank line, Narrow a type with
 >   `instanceof final`, never a cast, An unread pattern binding is `_`, never a placeholder name, Validate a value ONCE per request, then treat it as
 >   settled, Suppress PMD rules with a `NOPMD:` line comment, never `@SuppressWarnings`, AssertJ assertions must be fluent-chained across multiple
->   lines, Multi-argument terminal assertions use an extracted `List`, A test's `@Inject` fields are `private`, A placeholder id is
->   `DummyValues.DUMMY_UUID`, never `UUID.randomUUID()`, A test helper takes no parameter it is always handed the same value, Configuration is read
+>   lines, Multi-argument terminal assertions use an extracted `List`, A test's `@Inject` fields are `private`, Placeholder data lives in
+>   `DummyValues`, never in a local constant, A test helper takes no parameter it is always handed the same value, Configuration is read
 >   through typed `@ConfigMapping`, never scattered property lookups, Panache statics are called on the entity, NEVER on `PanacheEntityBase`, A
 >   request DTO's constraints are `@Schema` attributes, NEVER Jakarta Bean Validation, A constant regex is a `static final Pattern`, never
 >   `String.matches`/`replaceAll`, Production code kept alive only by its test is dead code
@@ -776,7 +776,7 @@ AppClock clock; // IntegrationTestBase already injects this
 private IpLockoutService ipLockoutService;
 ```
 
-### A placeholder id is `DummyValues.DUMMY_UUID`, never `UUID.randomUUID()`
+### Placeholder data lives in `DummyValues`, never in a local constant
 
 **A test needing an id it will never look up takes `DUMMY_UUID`** - the "row that does not exist" 404/409 case, or a field a value object must carry
 that the assertion ignores. Never call `UUID.randomUUID()` for it, and never hand-roll a local `UUID.fromString("…")` constant (`SOME_ID`,
@@ -787,8 +787,53 @@ value in the stack trace or the logged request path differs on every run and nam
 recognisable as the placeholder wherever it surfaces. **It must never be persisted** - every use is a lookup meant to miss. A test needing an id a row
 DOES hold takes it from the row it created.
 
-A hand-rolled *named, distinct* constant is still right where a test needs **several** identities to tell apart (`USER_ID` vs `OTHER_USER_ID` in
-`ActionLogIdTest`, `FIRST`/`SECOND`/`THIRD` in `FrequencyChartExtensionsTest`) - `DUMMY_UUID` is a single shared value and cannot express that.
+`DummyValues` carries **three** distinct ids, so "two identities to tell apart" and "three, because ordering needs a middle one" are both covered
+without a local constant. A hand-rolled *named* one is still right in two cases: a test needing MORE than three distinct ids, and one where the ids
+carry ROLES it asserts on - `ActionLogIdTest`'s `USER_ID`/`ACTION_ID`, which it deliberately passes in the wrong order
+(`doesNotHaveSameHashCodeAs(ActionLogId.of(ACTION_ID, USER_ID, LOG_DATE))`) to prove the hash distinguishes the two positions. A position-named
+`FIRST`/`SECOND` cannot say that, and `DUMMY_UUID`/`OTHER_DUMMY_UUID` in those slots would read as interchangeable when the whole point is that they
+are not. Those two tests keep their own ids and use `DUMMY_UUID` for the "and a different one" case, as they already did.
+
+**The same rule covers every other kind of value a test needs one of but never asserts anything about**, and `DummyValues` carries one of each so
+the literal is written down once:
+
+| Constant            | Value                             | For                                                                   |
+|---------------------|-----------------------------------|-----------------------------------------------------------------------|
+| `DUMMY_UUID`        | a fixed UUID                      | an id that is never looked up                                         |
+| `OTHER_DUMMY_UUID`  | a second UUID                     | a second identity, to tell apart from the first                       |
+| `THIRD_DUMMY_UUID`  | a third UUID                      | a third, where the subject is ordering                                |
+| `DUMMY_IP`          | `203.0.113.7`                     | a throttle key, a lockout row's subject, the address segment of a URL |
+| `OTHER_DUMMY_IP`    | `198.51.100.9`                    | the second address, to tell apart from `DUMMY_IP`                     |
+| `DUMMY_COLOUR`      | `#6366f1`                         | the valid hex colour an action must carry to be created at all        |
+| `DUMMY_PASSWORD`    | `password123`                     | a valid password to register or log in with                           |
+| `DUMMY_OIDC_ISSUER` | `https://diurnal.example.com/idp` | a federated account's issuer, or one a startup check requires         |
+
+So `SOME_IP`, `LOCKED_IP`, `KEY`/`KEY2`, `FIXED_COLOUR`, `ACTION_COLOUR`, `OWNER`/`OTHER_OWNER` and the rest are all the same finding as `SOME_ID`:
+a handful of literals restated under a different name in each file, so a reader cannot tell at a glance whether two tests mean the same value or
+deliberately different ones. The IP placeholders come from RFC 5737's documentation ranges, which can never be routed.
+
+**Each constant is named for its PURPOSE, not its Java type** - `DUMMY_OIDC_ISSUER`, never `DUMMY_URL`. The tests holding a URL hold several
+unrelated kinds of one: an OIDC issuer, the app's own origin matched against a `Host` header, the GitHub releases API the update check derives, the
+repository link in the footer. One `DUMMY_URL` across those reads as "a URL" at every site and leaves the next reader unable to tell which contract
+is under test, so **a new purpose takes a new constant** rather than reusing one whose name almost fits. `OTHER_DUMMY_UUID`/`THIRD_DUMMY_UUID` are
+the deliberate exception: being distinct from the others is their entire purpose, so position IS the name.
+
+**A JSON body written as a Java text block is the one place the literal stays**, since a text block interpolates nothing and splicing a constant in
+through concatenation costs more than the literal does. Write the SAME value the constant holds, so the suite still has one password rather than one
+per surface.
+
+**The line is whether the value's IDENTITY or its MEANING is what the test exercises.** Where the test is about what a value *means*, it stays named
+locally after the role it plays and keeps its own literal:
+
+- `ClientAddressTest`'s `CLOUDFLARE_IP` / `REMOTE_IP` / `FORWARDED_FOR_IP` / `IPV6_IP` - the whole test is which source wins, and one is deliberately
+  private-range and one deliberately IPv6.
+- `ActionColoursTest`'s `BRAND_INDIGO` and `FrequencyChartsTest`'s per-subject colours - both assert on a specific colour, not on there being one.
+- `OidcDiscoveryTest`'s issuer, which it appends `.well-known/openid-configuration` to and hand-writes each expected result for, building the
+  trailing-slash and whitespace variants from the same string - input and expectation must read as a pair, which a shared constant breaks.
+- An import round-trip's colours, or a rename's - the point is that the exact value the user picked survives.
+
+A test asserting something about a PRODUCTION constant's value names that constant (`Colours.BRAND_FILL`, `UserSettings.DEFAULT_NOTE_COLOUR`), never
+the placeholder that happens to share its value - otherwise changing the brand silently moves an unrelated assertion.
 
 ❌ **Wrong:**
 
@@ -796,11 +841,15 @@ A hand-rolled *named, distinct* constant is still right where a test needs **sev
 given().get("/internal/admin/ip-lockouts/" + UUID.randomUUID() + "/row")
 
 private static final UUID SOME_ID = UUID.fromString("00000000-0000-0000-0000-0000000000ff");
+private static final String SOME_IP = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - test IP
+private static final String FIXED_COLOUR = "#6366f1";
 ```
 
 ✅ **Right:**
 
 ```java
+import static net.zodac.diurnal.DummyValues.DUMMY_COLOUR;
+import static net.zodac.diurnal.DummyValues.DUMMY_IP;
 import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 
 given().get("/internal/admin/ip-lockouts/" + DUMMY_UUID + "/row")

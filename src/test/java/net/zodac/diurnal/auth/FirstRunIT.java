@@ -18,6 +18,7 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_PASSWORD;
 import static net.zodac.diurnal.http.HttpStatusCodes.FOUND;
 import static net.zodac.diurnal.http.HttpStatusCodes.MOVED_PERMANENTLY;
 import static net.zodac.diurnal.http.HttpStatusCodes.OK;
@@ -73,8 +74,8 @@ class FirstRunIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .formParam("email", "first@example.com")
                 .formParam("displayName", "First Admin")
-                .formParam("password", "password123")
-                .formParam("confirmPassword", "password123")
+                .formParam("password", DUMMY_PASSWORD)
+                .formParam("confirmPassword", DUMMY_PASSWORD)
                 .post("/register")
                 .then()
                 .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))

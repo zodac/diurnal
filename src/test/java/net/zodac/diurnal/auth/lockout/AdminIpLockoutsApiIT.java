@@ -18,6 +18,8 @@
 package net.zodac.diurnal.auth.lockout;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_IP;
+import static net.zodac.diurnal.DummyValues.OTHER_DUMMY_IP;
 import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
 import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
 import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
@@ -49,8 +51,6 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
 
     private static final int MAX_ATTEMPTS = 5;
     private static final String ADMIN_EMAIL = "iplock-admin@lt.test";
-    private static final String LOCKED_IP = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - test IP
-    private static final String OTHER_IP = "198.51.100.9"; // NOPMD: AvoidUsingHardCodedIP - test IP
     private static final Instant SESSION_INSTANT = Instant.parse("2026-06-15T00:00:00Z");
 
     @Inject
@@ -85,7 +85,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
                 .get("/api/v1/admin/ip-lockouts")
                 .then().statusCode(OK)
                 .body("items.size()", equalTo(1))
-                .body("items[0].ipAddress", equalTo(LOCKED_IP))
+                .body("items[0].ipAddress", equalTo(DUMMY_IP))
                 .body("items[0].failureCount", equalTo(MAX_ATTEMPTS));
     }
 
@@ -105,7 +105,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
                 .get("/api/v1/admin/ip-lockouts/history")
                 .then().statusCode(OK)
                 .body("items.size()", equalTo(1))
-                .body("items[0].ipAddress", equalTo(LOCKED_IP))
+                .body("items[0].ipAddress", equalTo(DUMMY_IP))
                 .body("items[0].status", equalTo("ACTIVE"))
                 .body("items[0].failureCount", equalTo(MAX_ATTEMPTS))
                 .body("totalCount", equalTo(1))
@@ -126,7 +126,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
         lockIp();
 
         given().header("Authorization", "Bearer " + adminToken())
-                .delete("/api/v1/admin/ip-lockouts/" + LOCKED_IP)
+                .delete("/api/v1/admin/ip-lockouts/" + DUMMY_IP)
                 .then().statusCode(NO_CONTENT);
 
         given().header("Authorization", "Bearer " + adminToken())
@@ -144,7 +144,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
     @Test
     void unlock_ipThatIsNotLocked_isNotFound() {
         given().header("Authorization", "Bearer " + adminToken())
-                .delete("/api/v1/admin/ip-lockouts/" + OTHER_IP)
+                .delete("/api/v1/admin/ip-lockouts/" + OTHER_DUMMY_IP)
                 .then().statusCode(NOT_FOUND);
     }
 
@@ -158,7 +158,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
 
     private void lockIp() {
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            ipLockoutService.recordFailure(LOCKED_IP, clock.now());
+            ipLockoutService.recordFailure(DUMMY_IP, clock.now());
         }
     }
 

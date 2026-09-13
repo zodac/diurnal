@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.auth.oidc;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_OIDC_ISSUER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -49,7 +50,6 @@ import org.junit.jupiter.api.Test;
 @QuarkusTest
 class OidcUserProvisionerIT extends IntegrationTestBase {
 
-    private static final String OIDC_ISSUER = "https://diurnal.example.com/idp";
 
     // Injects the very config the bean under test reads, so these tests stay environment-agnostic: SmallRye resolves .env at a higher priority
     // than the %test profile, so a specific value cannot be forced here - each expectation is instead derived from the same source the bean uses.
@@ -170,7 +170,7 @@ class OidcUserProvisionerIT extends IntegrationTestBase {
             .hasValueSatisfying(user -> {
                 assertThat(user.oidcIssuer)
                     .as("unexpected issuer")
-                    .isEqualTo(OIDC_ISSUER);
+                    .isEqualTo(DUMMY_OIDC_ISSUER);
                 assertThat(user.oidcSubject)
                     .as("unexpected subject")
                     .isEqualTo("subject-verified@example.com");
@@ -201,7 +201,7 @@ class OidcUserProvisionerIT extends IntegrationTestBase {
         runInTx(() -> {
             newUser("admin@example.com", "Admin", Role.ADMIN.storageValue());
             final User linked = newUser("linked@example.com", "Linked User");
-            linked.oidcIssuer = OIDC_ISSUER;
+            linked.oidcIssuer = DUMMY_OIDC_ISSUER;
             linked.oidcSubject = "subject-linked";
             linked.persist();
         });
@@ -225,7 +225,7 @@ class OidcUserProvisionerIT extends IntegrationTestBase {
         // without group config the same login simply succeeds with no role change (asserted instead).
         runInTx(() -> {
             final User admin = newUser("solo-admin@example.com", "Solo Admin", Role.ADMIN.storageValue());
-            admin.oidcIssuer = OIDC_ISSUER;
+            admin.oidcIssuer = DUMMY_OIDC_ISSUER;
             admin.oidcSubject = "subject-solo-admin";
             admin.persist();
         });
@@ -259,7 +259,7 @@ class OidcUserProvisionerIT extends IntegrationTestBase {
         runInTx(() -> {
             newUser("other-admin@example.com", "Other Admin", Role.ADMIN.storageValue());
             final User admin = newUser("demoted@example.com", "Demoted Admin", Role.ADMIN.storageValue());
-            admin.oidcIssuer = OIDC_ISSUER;
+            admin.oidcIssuer = DUMMY_OIDC_ISSUER;
             admin.oidcSubject = "subject-demoted";
             admin.persist();
         });
@@ -292,7 +292,7 @@ class OidcUserProvisionerIT extends IntegrationTestBase {
     private static JsonObject oidcClaims(final String email, final String name) {
         return new JsonObject()
             .put("sub", "subject-" + email)
-            .put("iss", OIDC_ISSUER)
+            .put("iss", DUMMY_OIDC_ISSUER)
             .put("email", email)
             .put("name", name);
     }

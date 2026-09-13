@@ -45,7 +45,7 @@ class AuthRegistrationDisabledIT extends IntegrationTestBase {
         // reported distinctly from) the registration-disabled message.
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"first@example.com","displayName":"First","password":"password1"}
+                        {"email":"first@example.com","displayName":"First","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then()
@@ -63,7 +63,7 @@ class AuthRegistrationDisabledIT extends IntegrationTestBase {
 
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"second@example.com","displayName":"Second","password":"password1"}
+                        {"email":"second@example.com","displayName":"Second","password":"password123"}
                         """)
                 .post("/api/v1/auth/register")
                 .then()

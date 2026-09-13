@@ -18,7 +18,9 @@
 package net.zodac.diurnal.web.admin;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_IP;
 import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
+import static net.zodac.diurnal.DummyValues.OTHER_DUMMY_IP;
 import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
 import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.containsString;
@@ -54,8 +56,6 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
     static final String ADMIN_EMAIL = "iplock-web-admin@lt.test";
 
     private static final int MAX_ATTEMPTS = 5;
-    private static final String LOCKED_IP = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - test IP
-    private static final String OTHER_IP = "198.51.100.9"; // NOPMD: AvoidUsingHardCodedIP - test IP
 
     @Inject
     private IpLockoutService ipLockoutService;
@@ -86,7 +86,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
         given().get("/admin/users")
                 .then().statusCode(OK)
                 .body(containsString("IP Lockouts"))
-                .body(containsString(LOCKED_IP))
+                .body(containsString(DUMMY_IP))
                 .body(containsString("Active"));
     }
 
@@ -96,7 +96,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
 
         given().get("/internal/admin/ip-lockouts/history")
                 .then().statusCode(OK)
-                .body(containsString(LOCKED_IP))
+                .body(containsString(DUMMY_IP))
                 .body(containsString("Active"));
     }
 
@@ -107,7 +107,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
 
         given().get("/internal/admin/ip-lockouts/" + id + "/confirm-unlock")
                 .then().statusCode(OK)
-                .body(containsString(LOCKED_IP))
+                .body(containsString(DUMMY_IP))
                 .body(containsString("Unlock"))
                 .body(containsString("Cancel"));
     }
@@ -119,7 +119,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
 
         given().get("/internal/admin/ip-lockouts/" + id + "/row")
                 .then().statusCode(OK)
-                .body(containsString(LOCKED_IP))
+                .body(containsString(DUMMY_IP))
                 .body(containsString("Active"))
                 .body(containsString("Unlock"));
     }
@@ -128,7 +128,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
     void unlock_reRendersTheTableWithTheIpCleared() {
         lockIp();
 
-        given().post("/internal/admin/ip-lockouts/" + LOCKED_IP + "/unlock")
+        given().post("/internal/admin/ip-lockouts/" + DUMMY_IP + "/unlock")
                 .then().statusCode(OK)
                 // the row is still in the table, now stamped with the Unlocked status. The acting admin's
                 // identity is not shown in the row (it lives in the log and the /api/v1 DTO for traceability).
@@ -137,7 +137,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
 
     @Test
     void unlock_ipNoLongerLocked_returnsConflictBanner() {
-        given().post("/internal/admin/ip-lockouts/" + OTHER_IP + "/unlock")
+        given().post("/internal/admin/ip-lockouts/" + OTHER_DUMMY_IP + "/unlock")
                 .then().statusCode(CONFLICT)
                 .body(containsString("no longer locked out"));
     }
@@ -164,18 +164,18 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
         given().get("/admin/users")
                 .then().statusCode(OK)
                 .body(not(containsString("IP Lockouts")))
-                .body(not(containsString(LOCKED_IP)));
+                .body(not(containsString(DUMMY_IP)));
     }
 
     private void lockIp() {
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            ipLockoutService.recordFailure(LOCKED_IP, clock.now());
+            ipLockoutService.recordFailure(DUMMY_IP, clock.now());
         }
     }
 
     private UUID lockoutId() {
         final UUID[] holder = new UUID[1];
-        runInTx(() -> holder[0] = IpLockout.<IpLockout>find("ipAddress", LOCKED_IP).firstResult().id);
+        runInTx(() -> holder[0] = IpLockout.<IpLockout>find("ipAddress", DUMMY_IP).firstResult().id);
         return holder[0];
     }
 }

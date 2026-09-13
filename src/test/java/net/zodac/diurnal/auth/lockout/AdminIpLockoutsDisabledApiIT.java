@@ -18,6 +18,7 @@
 package net.zodac.diurnal.auth.lockout;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_IP;
 import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -39,7 +40,6 @@ import org.junit.jupiter.api.Test;
 class AdminIpLockoutsDisabledApiIT extends IntegrationTestBase {
 
     private static final String ADMIN_EMAIL = "iplock-disabled-admin@lt.test";
-    private static final String SOME_IP = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - test IP
     private static final Instant SESSION_INSTANT = Instant.parse("2026-06-15T00:00:00Z");
 
     @Inject
@@ -69,7 +69,7 @@ class AdminIpLockoutsDisabledApiIT extends IntegrationTestBase {
     @Test
     void unlock_whenDisabled_isNotFound() {
         given().header("Authorization", "Bearer " + adminToken())
-                .delete("/api/v1/admin/ip-lockouts/" + SOME_IP)
+                .delete("/api/v1/admin/ip-lockouts/" + DUMMY_IP)
                 .then().statusCode(NOT_FOUND);
     }
 

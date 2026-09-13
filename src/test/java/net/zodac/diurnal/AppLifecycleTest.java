@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_OIDC_ISSUER;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -81,7 +82,7 @@ class AppLifecycleTest {
 
     @Test
     void validate_oidcOnlyWithIssuer_doesNotThrow() {
-        final AppLifecycle lifecycle = lifecycle(false, true, "https://diurnal.example.com");
+        final AppLifecycle lifecycle = lifecycle(false, true, DUMMY_OIDC_ISSUER);
 
         assertThatCode(lifecycle::validateAuthConfig)
             .as("OIDC-only auth with a configured issuer is a valid configuration")
@@ -90,7 +91,7 @@ class AppLifecycleTest {
 
     @Test
     void validate_bothEnabled_doesNotThrow() {
-        final AppLifecycle lifecycle = lifecycle(true, true, "https://diurnal.example.com");
+        final AppLifecycle lifecycle = lifecycle(true, true, DUMMY_OIDC_ISSUER);
 
         assertThatCode(lifecycle::validateAuthConfig)
             .as("password + OIDC together is a valid configuration")
@@ -184,9 +185,9 @@ class AppLifecycleTest {
 
     private static AppLifecycle lifecycleWithRetiredKeys(final List<String> retiredKeys) {
         final StubNotesEncryptionConfig encryptionConfig = new StubNotesEncryptionConfig(VALID_NOTES_KEY, retiredKeys);
-        return new AppLifecycle(new StubPasswordAuthConfig(true, true), new StubQuarkusOidcConfig(false, "", true, "/oauth2/callback/oidc"),
-            StubOidcConfig.inert(), encryptionConfig, new StubNotesConfig(TextFields.NOTE_MAX_LENGTH), new NoteKeys(encryptionConfig),
-            StubApplicationVersion.of("dev"));
+        return new AppLifecycle(StubApplicationVersion.of("dev"), new NoteKeys(encryptionConfig),
+            new StubNotesConfig(TextFields.NOTE_MAX_LENGTH), encryptionConfig, StubOidcConfig.inert(), new StubPasswordAuthConfig(true, true),
+            new StubQuarkusOidcConfig(false, "", true, "/oauth2/callback/oidc"));
     }
 
     private static AppLifecycle lifecycle(final boolean passwordEnabled, final boolean oidcEnabled, final String issuerUrl) {
@@ -208,8 +209,8 @@ class AppLifecycleTest {
         // The startup probe needs a database and is exercised by NoteKeysIT; these cases are about the pure
         // configuration checks, which never reach it, so an inert instance is enough to construct the bean.
         final StubNotesEncryptionConfig encryptionConfig = StubNotesEncryptionConfig.of(notesKey);
-        return new AppLifecycle(new StubPasswordAuthConfig(passwordEnabled, true),
-            new StubQuarkusOidcConfig(oidcEnabled, issuerUrl, true, "/oauth2/callback/oidc"), StubOidcConfig.inert(), encryptionConfig,
-            new StubNotesConfig(noteMaxLength), new NoteKeys(encryptionConfig), StubApplicationVersion.of("dev"));
+        return new AppLifecycle(StubApplicationVersion.of("dev"), new NoteKeys(encryptionConfig), new StubNotesConfig(noteMaxLength),
+            encryptionConfig, StubOidcConfig.inert(), new StubPasswordAuthConfig(passwordEnabled, true),
+            new StubQuarkusOidcConfig(oidcEnabled, issuerUrl, true, "/oauth2/callback/oidc"));
     }
 }

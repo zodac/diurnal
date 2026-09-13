@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.auth.lockout;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_IP;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
@@ -34,10 +35,9 @@ class IpThrottleTest {
     private static final Instant NOW = Instant.parse("2026-06-15T12:00:00Z");
     private static final int MAX_ATTEMPTS = 3;
     private static final Duration LOCKOUT = Duration.ofMinutes(15);
-    private static final String DUMMY_IP = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - Test IP
 
     private static IpThrottle throttle() {
-        return new IpThrottle(new FixedConfig(true, MAX_ATTEMPTS, LOCKOUT), new AppClock(StubAppConfig.empty()));
+        return new IpThrottle(new AppClock(StubAppConfig.empty()), new FixedConfig(true, MAX_ATTEMPTS, LOCKOUT));
     }
 
     @Test
@@ -92,7 +92,7 @@ class IpThrottleTest {
 
     @Test
     void disabled_neverLocks() {
-        final IpThrottle throttle = new IpThrottle(new FixedConfig(false, MAX_ATTEMPTS, LOCKOUT), new AppClock(StubAppConfig.empty()));
+        final IpThrottle throttle = new IpThrottle(new AppClock(StubAppConfig.empty()), new FixedConfig(false, MAX_ATTEMPTS, LOCKOUT));
         for (int i = 0; i < MAX_ATTEMPTS + 2; i++) {
             throttle.recordFailure(DUMMY_IP, NOW);
         }

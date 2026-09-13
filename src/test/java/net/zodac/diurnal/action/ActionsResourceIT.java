@@ -18,6 +18,7 @@
 package net.zodac.diurnal.action;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_COLOUR;
 import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
 import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
@@ -73,7 +74,7 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void createAction_trimsName() {
-        given().formParam("name", "  Yoga  ").formParam("colour", "#6366f1")
+        given().formParam("name", "  Yoga  ").formParam("colour", DUMMY_COLOUR)
             .post("/internal/actions")
             .then().statusCode(Response.Status.OK.getStatusCode())
             .body(containsString("Yoga"))
@@ -82,7 +83,7 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void createAction_blankName_returns409WithHxRetarget() {
-        given().formParam("name", "   ").formParam("colour", "#6366f1")
+        given().formParam("name", "   ").formParam("colour", DUMMY_COLOUR)
             .post("/internal/actions")
             .then().statusCode(CONFLICT)
             .header("HX-Retarget", "#action-error");
@@ -90,10 +91,10 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void createAction_duplicateName_returns409() {
-        given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/internal/actions")
+        given().formParam("name", "Cycling").formParam("colour", DUMMY_COLOUR).post("/internal/actions")
             .then().statusCode(Response.Status.OK.getStatusCode());
 
-        given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/internal/actions")
+        given().formParam("name", "Cycling").formParam("colour", DUMMY_COLOUR).post("/internal/actions")
             .then().statusCode(CONFLICT)
             .header("HX-Retarget", "#action-error");
     }
@@ -104,7 +105,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         // must not block this user from creating their own action of the same name.
         runInTx(() -> newAction(otherId, "Cycling"));
 
-        given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/internal/actions")
+        given().formParam("name", "Cycling").formParam("colour", DUMMY_COLOUR).post("/internal/actions")
             .then().statusCode(Response.Status.OK.getStatusCode())
             .body(containsString("Cycling"));
 
@@ -243,8 +244,8 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void actionsList_searchFiltersCaseInsensitively() {
-        given().formParam("name", "Morning Run").formParam("colour", "#6366f1").post("/internal/actions");
-        given().formParam("name", "Evening Walk").formParam("colour", "#6366f1").post("/internal/actions");
+        given().formParam("name", "Morning Run").formParam("colour", DUMMY_COLOUR).post("/internal/actions");
+        given().formParam("name", "Evening Walk").formParam("colour", DUMMY_COLOUR).post("/internal/actions");
 
         given().queryParam("q", "MORNING").get("/internal/actions/list")
             .then().statusCode(Response.Status.OK.getStatusCode())
@@ -267,7 +268,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void updateAction_blankName_returns409() {
         final UUID id = createActionAndGetId("ToRename");
-        given().formParam("name", "").formParam("colour", "#6366f1")
+        given().formParam("name", "").formParam("colour", DUMMY_COLOUR)
             .post("/internal/actions/" + id)
             .then().statusCode(CONFLICT)
             .header("HX-Retarget", "#action-error");
@@ -277,7 +278,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void updateAction_renameToExistingName_returns409() {
         createActionAndGetId("Existing");
         final UUID id = createActionAndGetId("ToRename");
-        given().formParam("name", "Existing").formParam("colour", "#6366f1")
+        given().formParam("name", "Existing").formParam("colour", DUMMY_COLOUR)
             .post("/internal/actions/" + id)
             .then().statusCode(CONFLICT);
     }
@@ -285,7 +286,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void updateAction_renameToOwnCurrentName_returns200() {
         final UUID id = createActionAndGetId("SameName");
-        given().formParam("name", "SameName").formParam("colour", "#6366f1")
+        given().formParam("name", "SameName").formParam("colour", DUMMY_COLOUR)
             .post("/internal/actions/" + id)
             .then().statusCode(Response.Status.OK.getStatusCode());
     }
@@ -295,7 +296,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         // Create the action owned by the OTHER user directly in DB
         final Action[] holder = new Action[1];
         runInTx(() -> holder[0] = newAction(otherId, "OtherAction"));
-        given().formParam("name", "Hacked").formParam("colour", "#6366f1")
+        given().formParam("name", "Hacked").formParam("colour", DUMMY_COLOUR)
             .post("/internal/actions/" + holder[0].id)
             .then().statusCode(Response.Status.NOT_FOUND.getStatusCode());
     }
@@ -396,7 +397,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     }
 
     private static UUID createActionAndGetId(final String name) {
-        final String html = given().formParam("name", name).formParam("colour", "#6366f1")
+        final String html = given().formParam("name", name).formParam("colour", DUMMY_COLOUR)
             .post("/internal/actions")
             .then().statusCode(Response.Status.OK.getStatusCode())
             .extract().body().asString();
