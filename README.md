@@ -65,9 +65,9 @@ streaks, weekly averages, month-over-month trends, and more.
 
 <!-- markdownlint-disable MD013 MD033 -- centered dashboard screenshots: intentional inline HTML -->
 <p align="center">
-  <img src="docs/screenshots/dashboard-system.webp" alt="The Diurnal dashboard in both light and dark themes" width="600">
+  <img src="https://github.com/zodac/diurnal/releases/download/screenshots/dashboard-system.webp" alt="The Diurnal dashboard in both light and dark themes" width="600">
   &emsp;&emsp;
-  <img src="docs/screenshots/dashboard-mobile.webp" alt="The Diurnal dashboard on a phone, in both light and dark themes" width="170">
+  <img src="https://github.com/zodac/diurnal/releases/download/screenshots/dashboard-mobile.webp" alt="The Diurnal dashboard on a phone, in both light and dark themes" width="170">
 </p>
 <!-- markdownlint-enable MD013 MD033 -->
 
@@ -89,7 +89,7 @@ set an exact count, or erase the day entirely.
 <details>
 <summary>Screenshot: the Actions page</summary>
 
-<img src="docs/screenshots/actions-dark.webp" alt="The Actions page, listing tracked habits" width="600">
+<img src="https://github.com/zodac/diurnal/releases/download/screenshots/actions-dark.webp" alt="The Actions page, listing tracked habits" width="600">
 
 </details>
 
@@ -103,14 +103,16 @@ Notes are encrypted at rest, so a database dump, backup or replica carries only 
 
 <!-- markdownlint-disable MD013 MD033 -- centered note-box screenshot: intentional inline HTML -->
 <p align="center">
-  <img src="docs/screenshots/note-box-dark.webp" alt="The note box on the dashboard, holding a written note" width="420">
+  <img src="https://github.com/zodac/diurnal/releases/download/screenshots/note-box-dark.webp" alt="The note box on the dashboard, holding a written note" width="420">
 </p>
 <!-- markdownlint-enable MD013 MD033 -->
 
 <details>
 <summary>Screenshot: notes as a statistics subject</summary>
 
-<img src="docs/screenshots/stats-notes-dark.webp" alt="The Notes card on the Stats page, showing streaks, gaps and totals" width="320">
+<!-- markdownlint-disable MD013 MD033 -- notes statistics screenshot: intentional inline HTML -->
+<img src="https://github.com/zodac/diurnal/releases/download/screenshots/stats-notes-dark.webp" alt="The Notes card on the Stats page, showing streaks, gaps and totals" width="320">
+<!-- markdownlint-enable MD013 MD033 -->
 
 </details>
 
@@ -122,9 +124,9 @@ The dashboard calendar can be drawn in one of three styles, chosen per user in [
 - **Minimal**: a coloured dot per action
 - **Stacked**: horizontal bars per action
 
-|                                           Full                                            |                                             Minimal                                             |                                             Stacked                                             |
-|:-----------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------:|
-| <img src="docs/screenshots/cal-full-dark.webp" alt="The full calendar style" width="280"> | <img src="docs/screenshots/cal-minimal-dark.webp" alt="The minimal calendar style" width="280"> | <img src="docs/screenshots/cal-stacked-dark.webp" alt="The stacked calendar style" width="280"> |
+|                                                                  Full                                                                   |                                                                    Minimal                                                                    |                                                                    Stacked                                                                    |
+|:---------------------------------------------------------------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------:|
+| <img src="https://github.com/zodac/diurnal/releases/download/screenshots/cal-full-dark.webp" alt="The full calendar style" width="280"> | <img src="https://github.com/zodac/diurnal/releases/download/screenshots/cal-minimal-dark.webp" alt="The minimal calendar style" width="280"> | <img src="https://github.com/zodac/diurnal/releases/download/screenshots/cal-stacked-dark.webp" alt="The stacked calendar style" width="280"> |
 
 ### Statistics and Streaks
 
@@ -145,17 +147,17 @@ These can be enabled/disabled, renamed, or re-ordered in user settings (see [Sta
 Each subject also has a frequency graph, opened from the chart icon on its card: a bar per day over a month, or a bar per month over a year, with the
 exact figures on hover. Up to three subjects can be charted together.
 
-|                                                    Stats page                                                     |                                                         Frequency graph                                                          |
-|:-----------------------------------------------------------------------------------------------------------------:|:--------------------------------------------------------------------------------------------------------------------------------:|
-| <img src="docs/screenshots/stats-dark.webp" alt="The Stats page, showing per-action statistic tiles" width="400"> | <img src="docs/screenshots/stats-graph-dark.webp" alt="The frequency graph, comparing three actions over one month" width="400"> |
+|                                                                           Stats page                                                                            |                                                                                Frequency graph                                                                                 |
+|:---------------------------------------------------------------------------------------------------------------------------------------------------------------:|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
+| <img src="https://github.com/zodac/diurnal/releases/download/screenshots/stats-dark.webp" alt="The Stats page, showing per-action statistic tiles" width="400"> | <img src="https://github.com/zodac/diurnal/releases/download/screenshots/stats-graph-dark.webp" alt="The frequency graph, comparing three actions over one month" width="400"> |
 
 ### Themes and Fonts
 
 Diurnal ships light and dark themes (or follow the system setting), and three font choices.
 
-|                                             Dark                                              |                                              Light                                              |
-|:---------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------:|
-| <img src="docs/screenshots/dashboard-dark.webp" alt="The dashboard in dark mode" width="400"> | <img src="docs/screenshots/dashboard-light.webp" alt="The dashboard in light mode" width="400"> |
+|                                                                    Dark                                                                     |                                                                     Light                                                                     |
+|:-------------------------------------------------------------------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------:|
+| <img src="https://github.com/zodac/diurnal/releases/download/screenshots/dashboard-dark.webp" alt="The dashboard in dark mode" width="400"> | <img src="https://github.com/zodac/diurnal/releases/download/screenshots/dashboard-light.webp" alt="The dashboard in light mode" width="400"> |
 
 ### Languages
 
@@ -163,9 +165,9 @@ Diurnal can be used in a choice of languages, each with its own translated text,
 picks a language from your browser; once signed in, you can instead choose your own from [Settings](#preferences). Right-to-left languages, like
 Arabic, mirror the layout to match.
 
-|                                                                         Language picker                                                                         |                                                     Right-to-left (Arabic)                                                      |
-|:---------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-------------------------------------------------------------------------------------------------------------------------------:|
-| <img src="docs/screenshots/language-dropdown-dark.webp" alt="The Settings language picker, open, showing the offered languages by their own name" height="256"> | <img src="docs/screenshots/dashboard-arabic-dark.webp" alt="The dashboard shown in Arabic, mirrored right-to-left" width="400"> |
+|                                                                                                Language picker                                                                                                |                                                                            Right-to-left (Arabic)                                                                             |
+|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
+| <img src="https://github.com/zodac/diurnal/releases/download/screenshots/language-dropdown-dark.webp" alt="The Settings language picker, open, showing the offered languages by their own name" height="256"> | <img src="https://github.com/zodac/diurnal/releases/download/screenshots/dashboard-arabic-dark.webp" alt="The dashboard shown in Arabic, mirrored right-to-left" width="400"> |
 
 #### Contributing a Translation
 
@@ -272,7 +274,7 @@ be enabled or the app refuses to start. Regardless of how it is configured, the 
 
 Shown with both sign-in methods enabled.
 
-<img src="docs/screenshots/login-dark.webp" alt="The Diurnal login page" width="600">
+<img src="https://github.com/zodac/diurnal/releases/download/screenshots/login-dark.webp" alt="The Diurnal login page" width="600">
 
 </details>
 
@@ -518,7 +520,7 @@ Each user can customise Diurnal from the **Settings** page (top-right menu).
 <details>
 <summary>Screenshot: the Settings page</summary>
 
-<img src="docs/screenshots/settings-dark.webp" alt="The Settings page" width="600">
+<img src="https://github.com/zodac/diurnal/releases/download/screenshots/settings-dark.webp" alt="The Settings page" width="600">
 
 </details>
 
@@ -629,7 +631,7 @@ The first account to register is an **administrator**. Administrators get two ex
 <details>
 <summary>Screenshot: the admin user-management page</summary>
 
-<img src="docs/screenshots/admin-dark.webp" alt="The admin user-management page" width="600">
+<img src="https://github.com/zodac/diurnal/releases/download/screenshots/admin-dark.webp" alt="The admin user-management page" width="600">
 
 </details>
 

@@ -73,6 +73,9 @@ These are the ones most likely to trip up a first change:
 - **A log line names a user by email, not by id.** An id cannot be matched against a support request.
 - **Every URL the app emits is built by `http/AppPaths`**, never written out at the call site - that is what lets `BASE_PATH` work.
 - **Rebuild the CSS after changing a Tailwind class** in a template or in Java (`npm --prefix frontend run css`), or it gets purged.
+- **The README screenshots are not in the repository.** They are assets on the standalone `screenshots` release, which is why the README embeds them
+  by absolute URL, and the release workflow recaptures and replaces them on every release. You never need to refresh them by hand; to look at them
+  locally, `node scripts/generate-screenshots.cjs documentation` writes them to a gitignored `docs/screenshots/`. Please don't add image files there.
 
 Each has a test that fails when it is broken, so the gate will tell you. `RELEASE_NOTES.md`, `VERSION` and the pom's `<version>` are release
 artefacts - please leave them out of a pull request.

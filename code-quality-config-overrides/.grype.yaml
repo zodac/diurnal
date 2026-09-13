@@ -39,3 +39,26 @@ ignore:
       name: libc6
       type: deb
     reason: "glibc ASLR/heap guard (disputed upstream); Debian no-DSA (unimportant), Negligible"
+
+  # ── TEMPORARY - REMOVE AS SOON AS THE BASE IMAGE IS REBUILT ──────────────────────────────────────────────────────────
+  # These two are NOT like the entries above. Every entry above is a Negligible, Debian-"unimportant" CVE that no package
+  # update will ever clear, so it is suppressed permanently. These two are Critical and High, and a fix EXISTS: Debian
+  # shipped libc6 2.41-12+deb13u4. The runtime base (gcr.io/distroless/base-nossl-debian13:nonroot) has simply not been
+  # rebuilt against it yet - `docker pull` of that tag still returns an image carrying 2.41-12+deb13u3 - so there is
+  # nothing to upgrade TO, and without these the gate blocks every commit on master on Google's rebuild schedule.
+  #
+  # DELETE BOTH ENTRIES the moment the base ships deb13u4 or later. To check:
+  #     docker pull gcr.io/distroless/base-nossl-debian13:nonroot
+  #     .github/scripts/lint_and_tests.sh docker:grype
+  # A scan that is green with these two removed is the signal; leaving them in place after that silently suppresses a
+  # Critical in the production image, which is exactly what this file's other entries are careful NOT to do.
+  - vulnerability: CVE-2026-5450
+    package:
+      name: libc6
+      type: deb
+    reason: "TEMPORARY: Critical, FIXED IN libc6 2.41-12+deb13u4; awaiting a distroless base rebuild. Remove when it lands"
+  - vulnerability: CVE-2026-5928
+    package:
+      name: libc6
+      type: deb
+    reason: "TEMPORARY: High, FIXED IN libc6 2.41-12+deb13u4; awaiting a distroless base rebuild. Remove when it lands"

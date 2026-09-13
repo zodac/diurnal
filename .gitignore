@@ -16,9 +16,16 @@ src/main/resources/META-INF/resources/js/htmx.min.js
 # In-app Settings preview thumbnails — build artifacts generated INSIDE the Docker build (the
 # Dockerfile `screenshots` stage runs `scripts/generate-screenshots.cjs app`) and baked into the image.
 # Deliberately NOT committed so the shipped image always has current previews; a dev / `mvn package` run
-# simply has none. (The committed README shots live under docs/screenshots/.)
+# simply has none. (The README shots are not committed either - see below.)
 src/main/resources/META-INF/resources/img/settings/*.webp
 src/main/resources/META-INF/resources/img/settings/full/*.webp
+
+# README screenshots — `scripts/generate-screenshots.cjs documentation` writes them here, but they are
+# published as assets on the standalone `screenshots` GitHub release rather than committed, and the
+# README/docs embed them by absolute URL from there. Committing them put ~900KB of fresh binaries into
+# history on every regeneration, which is what this rule exists to stop. publish.yml regenerates and
+# re-uploads them on every release, so a local run here is only ever for a look.
+docs/screenshots/
 
 # IDE. `.idea/` stays fully ignored: the one piece of IDE configuration the `qodana` gate needs (the
 # dead-code inspection's entry points) is tracked in the code-quality-config submodule instead, at

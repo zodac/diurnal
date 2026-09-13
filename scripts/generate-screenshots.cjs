@@ -11,16 +11,24 @@
  *                        INSIDE the Docker build (the Dockerfile `screenshots` stage runs this in `app`
  *                        mode via scripts/run-screenshot-build.sh) and baked into the image. A dev /
  *                        `mvn package` run simply has no thumbnails.
- *   2. `documentation` — the README screenshots, written to docs/screenshots/. These ARE committed and
- *                        are allowed to lag: regenerate them manually when a page's appearance changes.
+ *   2. `documentation` — the README screenshots, written to docs/screenshots/. These are NOT committed
+ *                        either: they are published as assets on the standalone `screenshots` GitHub
+ *                        release, which the README and docs/dockerhub-overview.md embed by absolute URL.
+ *                        publish.yml recaptures them on EVERY release (the Dockerfile `screenshots`
+ *                        stage runs this in `documentation` mode too under DOC_SCREENSHOTS=true) and
+ *                        replaces the release assets in place, so they can no longer lag the shipped
+ *                        UI and there is only ever ONE set. docs/screenshots/ is gitignored.
  *
  * WHEN TO RUN THIS
  * ----------------
  *   - `app`: not by hand in the normal flow — the image build runs it for you. Run it manually only to
  *     eyeball the thumbnails locally (they land in img/settings/, gitignored).
- *   - `documentation`: whenever a README-visible page changes (dashboard/calendar styling, the
- *     Actions / Stats / Admin / Settings pages, the light/dark tokens, navbar/day-panel/layout). Then
- *     review and commit the WebP files under docs/screenshots/.
+ *   - `documentation`: not by hand in the normal flow either - the release does it for you. Run it
+ *     manually to REVIEW what a README-visible change will publish (dashboard/calendar styling, the
+ *     Actions / Stats / Admin / Settings pages, the light/dark tokens, navbar/day-panel/layout) before
+ *     the release captures it. To refresh the published set BETWEEN releases:
+ *         gh release upload screenshots --clobber docs/screenshots/*.webp
+ *     --clobber is what keeps ONE set of screenshots on that release rather than a copy per version.
  *
  * WHAT IT PRODUCES
  * ----------------
@@ -114,8 +122,8 @@ const { Client } = require(path.join(__dirname, '..', 'tests', 'node_modules', '
 const BASE = process.env.BASE_URL || 'http://localhost:8081'
 // In-app preview thumbnails — served, content-hashed assets baked into the image (uncommitted).
 const OUT = path.join(__dirname, '..', 'src', 'main', 'resources', 'META-INF', 'resources', 'img', 'settings')
-// README page screenshots — NOT app-served assets, so they live under docs/ (committed), keeping the
-// Docker image lean.
+// README page screenshots — NOT app-served assets, so they never enter the image; uncommitted, and
+// published as assets on the standalone `screenshots` GitHub release (see the header).
 const SHOTS = path.join(__dirname, '..', 'docs', 'screenshots')
 
 // Mode: which set(s) to generate. `app` = in-app thumbnails (OUT), `documentation` = README shots

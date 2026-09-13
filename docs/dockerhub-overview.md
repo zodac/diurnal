@@ -3,9 +3,13 @@
     contents into that box when it needs updating.
 
     Every image and link here is an ABSOLUTE URL on purpose. Docker Hub does not resolve relative paths
-    against the GitHub repository, so the README's `docs/screenshots/...` form renders as a broken image
-    there. The raw.githubusercontent.com URLs serve the correct content types (`image/svg+xml` for the
-    wordmark, `image/webp` for the screenshots), so both embed correctly.
+    against the GitHub repository, so the README's relative `assets/...` form renders as a broken image
+    there. The raw.githubusercontent.com URL serves the wordmark with the correct content type
+    (`image/svg+xml`), so it embeds correctly.
+
+    The screenshots are NOT in the repository at all - they are assets on the standalone `screenshots`
+    release (see CONTRIBUTING.md), served as `image/webp`. Those URLs are identical to the ones the README
+    uses, so the two files no longer need different forms for the same picture.
 
     Pure Markdown image syntax, no inline HTML: Docker Hub sanitises raw tags out of this field, so the
     README's `<p align="center">` wrappers and `width=` attributes would be dropped or shown as text.
@@ -20,7 +24,7 @@ Diurnal is a small, self-hosted web application for tracking daily habits. You d
 them as you go. Diurnal keeps a running calendar of everything you've logged and turns that history into meaningful statistics: current and longest
 streaks, weekly averages, month-over-month trends, and more.
 
-![The Diurnal dashboard in both light and dark themes](https://raw.githubusercontent.com/zodac/diurnal/master/docs/screenshots/dashboard-system.webp)
+![The Diurnal dashboard in both light and dark themes](https://github.com/zodac/diurnal/releases/download/screenshots/dashboard-system.webp)
 
 ## Features
 
@@ -31,7 +35,7 @@ streaks, weekly averages, month-over-month trends, and more.
 - **Themes and fonts** - light and dark themes (or follow the system setting), and three font choices
 - **Languages** - a choice of languages with translated text and locale-aware dates, including right-to-left ones such as Arabic
 
-![The Stats page, showing per-action statistic tiles](https://raw.githubusercontent.com/zodac/diurnal/master/docs/screenshots/stats-dark.webp)
+![The Stats page, showing per-action statistic tiles](https://github.com/zodac/diurnal/releases/download/screenshots/stats-dark.webp)
 
 ## Quick start
 
