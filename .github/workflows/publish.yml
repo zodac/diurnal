@@ -1,10 +1,20 @@
 name: Build and Publish Docker Image
 
-# Never scheduled — only a push to an image-affecting file on master, or a manual dispatch.
+# Never scheduled — only a push to a gate-relevant file on master, or a manual dispatch.
+#
+# A PUSH RUNS THE GATE AND STOPS THERE; only a manual dispatch releases (see the `publish` job's `if:`).
+# It used to release on every push too, and the two are not the same job: the gate should run on anything
+# that could break the build, while a release spends a version number, pushes an image and a tag, and
+# rewrites VERSION. Coupling them meant the first set decided the second - and because "anything that
+# could break the build" necessarily includes ordinary `src/**` commits, master cut EIGHT releases on
+# 2026-09-13 (1.0.4 through 1.0.7, two of the runs red), none of them intended as a release. No path
+# filter can separate the two: the same file edit is both a reason to run the gate and not a reason to
+# ship. The trigger below is therefore now read as "what needs gating", which is why translations/**
+# still belongs in it even though the comment beside it says it reaches no image.
 on:
   push:
     branches: [ master ]
-    # Scope: only files that end up in (or change) the published production image
+    # Scope: what needs the gate run over it
     paths:
       - 'Dockerfile'
       - 'pom.xml'
@@ -13,24 +23,24 @@ on:
       - '!src/test/**' # test code never reaches the published image (packaged with -DskipTests)
       - 'translations/**' # Not an image input - only so a source-export-only commit reaches the `translations` job
       - 'VERSION'
-  # A manual trigger is otherwise a FULL RELEASE - image pushed, tag created, VERSION bumped - so these
-  # two inputs exist to make the pipeline measurable without spending a version number on it. They are
-  # dispatch-only: a push to master reads neither (the `inputs` context is null there), so the release
-  # path is exactly what it always was.
+  # A manual trigger is THE release - image pushed, tag created, VERSION bumped - and these two inputs are
+  # what let the pipeline be measured without spending a version number on it. They are dispatch-only: a
+  # push to master reads neither (the `inputs` context is null there), and no longer releases either way.
   workflow_dispatch:
     inputs:
       dry-run:
         description: 'Run the gate and the preview build, but publish nothing'
         type: boolean
         default: false
+      # Left at false, a dispatch IS the release - that is now the ONLY way one happens.
       gate-steps:
-        description: 'Steps to pass to lint_and_tests.sh for the gate job (the perf suite runs as its own job)'
+        description: 'Steps the gate jobs should cover (the perf suite runs as its own job). Split across them by gate_job_steps.sh'
         type: string
         default: 'docker,java'
 
 jobs:
-  # Resolve the release version. Every run is a full release: the GitHub release is created and the
-  # Docker image is pushed, unconditionally.
+  # Resolve the release version. Read on every run - the gate jobs and `preview` want it too - but only a
+  # non-dry-run DISPATCH goes on to spend it (see the `publish` job).
   version:
     name: Resolve version
     runs-on: ubuntu-latest
@@ -58,37 +68,85 @@ jobs:
       contents: read
 
     steps:
+      # cache-enabled: the action keys ~/.m2/repository on hashFiles('**/pom.xml'), which bump_version.sh
+      # changes on every release - so the key never matched and a fresh ~440MB entry was written every run.
+      # See the note in `gate-build`, which owns the replacement cache; this job only READS it (via
+      # actions/cache/restore, which has no save step) so exactly one writer keeps the entry current.
       - name: Setup Maven Action
         uses: s4u/setup-maven-action@v1.21.0
         with:
+          cache-enabled: false
           java-distribution: 'temurin'
           java-version: '26'
           maven-version: '3.9.16'
 
+      - name: Restore the Maven repository
+        uses: actions/cache/restore@v6.1.0
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-
+          restore-keys: |
+            ${{ runner.os }}-m2-
+
       - name: Check message bundles with AppMessageCoverageTest
         run: mvn test -Dtests -Dtest=AppMessageCoverageTest -Dcss.build.skip=true
 
-  # Full CI gate (lints + unit + IT + E2E + deployment-smoke) before anything is released or published.
-  test:
-    name: Test latest software
-    # Deliberately NO `needs`. It used to wait on `version` (whose output it never reads) and on
-    # `translations` - and AppMessageCoverageTest is a *Test, so `mvn ... -Dall` inside the gate below
-    # runs it again a few minutes later anyway. Gating on it bought no coverage and cost ~70s of pure
-    # serialisation on the critical path, every release. The two jobs still run; they just run beside
-    # this one now, and `publish` still needs all three to be green.
+  # ---- The gate, split across three jobs ---------------------------------------------------------------
+  #
+  # This used to be ONE job (`test`) running `lint_and_tests.sh docker,java`, and it WAS the release: 25-28
+  # minutes of a ~26-minute pipeline, with every other job finishing inside the first six and then waiting.
+  # Measured on two back-to-back dry runs of the same commit (34783820188, 34785465905), the gate step alone
+  # was 24m23s and 26m40s while `preview` - the next longest - was 5m34s and 0m46s.
+  #
+  # Caching was not the lever and adding more of it never could be. Between those two runs the Qodana index
+  # went from a cold miss to a hit and the preview image build went 5m03s -> 0m11s on the registry cache, and
+  # the pipeline still got SLOWER (25m37s -> 27m54s). Every cache restore in the job together came to ~24s of
+  # those ~26 minutes: the caches move DOWNLOAD time, and what is left is compute.
+  #
+  # The compute is the problem, and it is a scheduling one. lint_and_tests.sh runs the java gate's tiers
+  # concurrently, costing max(mvn + e2e, smoke, qodana) instead of their sum - a design calibrated, in that
+  # script's own comments, ON A 16-CORE BOX. A standard GitHub runner is 4 vCPU, so PITest, Chromium, a
+  # multi-stage image build and the IntelliJ indexer time-share four cores and the max() collapses back
+  # towards the sum; the script records the tiers stretching by +25% (mvn) and +70% (the scan) merely under a
+  # load holding 7 of 16 cores. On top of that a `docker` step including its grype tier is deliberately NOT
+  # lane-eligible, so the CVE scan ran serially after all of it.
+  #
+  # So the tiers are split across JOBS, which is the same move already made for `perf` and `preview` and for
+  # the same reason: a separate job is a separate VM, so each group gets four uncontended cores instead of a
+  # quarter share of one box, and the critical path becomes a real max() rather than a contended one.
+  #
+  # What is NOT split, and why - both of these would cost more than they save:
+  #   - java:mvn and java:e2e stay together. E2E boots the fast-jar the Maven tier packages, so splitting
+  #     them buys nothing (they cannot overlap) and costs an artifact upload/download of target/quarkus-app.
+  #   - java:smoke and docker stay together, in that order. The smoke tier and the grype tier build the SAME
+  #     production image from the same Dockerfile with the same GENERATE_PREVIEWS=false; run in one job the
+  #     second is a layer-cache hit, and in separate jobs both would build it cold. `docker` is passed whole
+  #     rather than as `docker:grype` so its hadolint tier - seconds, and free beside the scan - is still run.
+  #
+  # Each job asks gate_job_steps.sh which part of the `gate-steps` input is its own, rather than hardcoding
+  # its steps: the input has to keep working now that no single job receives it, and one shared answer cannot
+  # drift the way four inline YAML copies would. A job with nothing to do SUCCEEDS rather than being skipped -
+  # `publish` needs all three, and GitHub skips a job whose dependency was skipped, so an `if:` here would
+  # silently cancel the release on exactly the runs that narrow the gate.
+
+  gate-build:
+    name: Gate - Maven build and E2E
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: read
-    # Fold SonarQube analysis into the existing full gate (no duplicate build): SONARQUBE_ANALYSIS=true
-    # makes lint_and_tests.sh append -Dsonarqube to its `mvn clean install -Dall`, and the parent-pom
-    # reads the host URL + token straight from these env vars (sonar.host.url / sonar.token). Because a
-    # release only ever runs on a master push / manual dispatch, every release is analysed and uploaded.
+    # Fold SonarQube analysis into the existing Maven build (no duplicate build): SONARQUBE_ANALYSIS=true
+    # makes lint_and_tests.sh append -Dsonarqube to its `mvn clean install -Dall`, and the parent-pom reads
+    # the host URL + token straight from these env vars (sonar.host.url / sonar.token). Because a release
+    # only ever runs on a master push / manual dispatch, every release is analysed and uploaded.
     #
-    # The analysis is filed under the VERSION file's release version rather than the pom's -SNAPSHOT,
-    # which the scanner would otherwise default to: lint_and_tests.sh passes -Dsonar.projectVersion
-    # itself. It has to be done there and not here - the `publish` job's `mvn versions:set` is a
-    # separate job on its own checkout, and runs only once this one is already green.
+    # The analysis is filed under the VERSION file's release version rather than the pom's -SNAPSHOT, which
+    # the scanner would otherwise default to: lint_and_tests.sh passes -Dsonar.projectVersion itself. It has
+    # to be done there and not here - the `publish` job's `mvn versions:set` is a separate job on its own
+    # checkout, and runs only once this one is already green.
+    #
+    # This is the job that carries it because the analysis is a goal of the Maven build, not a step beside
+    # it; the other two gate jobs run no Maven at all.
     env:
       SONARQUBE_ANALYSIS: 'true'
       SONARQUBE_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
@@ -102,21 +160,74 @@ jobs:
           fetch-depth: 0
           submodules: true
 
+      - name: Resolve the steps this job owns
+        id: gate
+        env:
+          # Via the environment rather than interpolated straight into the script: a `${{ }}` expansion is
+          # pasted in as TEXT before bash ever sees the line, so a dispatch input containing a quote would
+          # otherwise end the argument and run whatever followed it.
+          GATE_STEPS: ${{ inputs.gate-steps || 'docker,java' }}
+        run: |
+          set -euo pipefail
+          selected="$(.github/scripts/gate_job_steps.sh "${GATE_STEPS}" 'java:mvn,java:e2e')"
+          echo "selected=${selected}" >> "${GITHUB_OUTPUT}"
+          echo "Running: ${selected:-<nothing - not selected by gate-steps>}"
+
       - name: Set up Node.js
+        if: steps.gate.outputs.selected != ''
         uses: actions/setup-node@v7.0.0
         with:
           node-version: '26.8.2'
 
+      # checkout-enabled: the checkout above already ran, WITH submodules. Left at its default this action
+      # checks the repository out a second time, and its own checkout takes no submodules - so the shared
+      # linter configs would depend on a second clone happening to leave them behind.
+      #
+      # cache-enabled: this action caches ~/.m2/repository under a key ending in hashFiles('**/pom.xml'),
+      # and bump_version.sh rewrites the pom's <version> on EVERY release - so the key never matched and a
+      # fresh ~440MB entry was saved every single run. That is the same failure the Grype step below carries
+      # a warning about, and it was by far the biggest consumer of the repository's 10GB cache budget (3.5GB
+      # across 8 entries in one day), evicting the Qodana index and Playwright browsers that actually pay for
+      # themselves. The cache is taken over by the explicitly-keyed step below instead.
       - name: Setup Maven Action
+        if: steps.gate.outputs.selected != ''
         uses: s4u/setup-maven-action@v1.21.0
         with:
-          checkout-fetch-depth: 0
+          checkout-enabled: false
+          cache-enabled: false
           java-distribution: 'temurin'
           java-version: '26'
           maven-version: '3.9.16'
 
-      # Node deps: the POM's css-build exec runs `npm run css` in frontend/; the E2E run uses tests/ deps + browsers.
+      # The Maven tier runs inside MVN_BUILD_IMAGE (see build_mvn_docker_cmd) with the host's $HOME bind-
+      # mounted and -Dmaven.repo.local pointed into it, so the container resolves into THIS directory - the
+      # reason the repository is worth caching even though the gate brings its own JDK and Maven.
+      #
+      # Keyed on the DAY, exactly like the Grype DB below and for the same reason: the key decides when a new
+      # entry is WRITTEN, while restore-keys decides what is read, so a date key writes at most one ~440MB
+      # entry a day and the prefix still restores the most recent one. A dependency added between writes is
+      # simply downloaded by Maven and folded into the next day's entry - the repository is incremental, so a
+      # key that lags a change costs one download rather than a wrong answer.
+      - name: Resolve today's date for the Maven cache key
+        id: m2_day
+        if: steps.gate.outputs.selected != ''
+        run: |
+          day="$(date -u +%F)"
+          echo "day=${day}" >> "${GITHUB_OUTPUT}"
+
+      - name: Cache the Maven repository
+        if: steps.gate.outputs.selected != ''
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-${{ steps.m2_day.outputs.day }}
+          restore-keys: |
+            ${{ runner.os }}-m2-
+
+      # Node deps: the POM's css-build exec runs `npm run css` in frontend/ (inside the Maven container,
+      # against this host-side node_modules through the same-path mount); the E2E run uses tests/ deps.
       - name: Install CSS build dependencies
+        if: steps.gate.outputs.selected != ''
         working-directory: frontend
         run: npm ci
 
@@ -125,6 +236,7 @@ jobs:
       # we still run `install-deps` below.
       - name: Cache Playwright browsers
         id: playwright-cache
+        if: steps.gate.outputs.selected != ''
         uses: actions/cache@v6.1.0
         with:
           path: ~/.cache/ms-playwright
@@ -135,9 +247,10 @@ jobs:
       # `chromium` is named explicitly because a bare `install` pulls Firefox and WebKit too, and NOTHING
       # runs on them: playwright.config.ts defines chromium + mobile-chrome (a chromium device preset) and
       # playwright.smoke.config.ts defines chromium alone. Naming it cuts the download and, more
-      # importantly, keeps the cached directory small - see the repository cache-budget note on the Grype
-      # step below. Add the browser here if a config ever gains a project running on one.
+      # importantly, keeps the cached directory small - see the repository cache-budget note on the Maven
+      # step above. Add the browser here if a config ever gains a project running on one.
       - name: Install E2E dependencies and browsers
+        if: steps.gate.outputs.selected != ''
         working-directory: tests
         run: |
           npm ci
@@ -147,32 +260,174 @@ jobs:
             npx playwright install --with-deps chromium
           fi
 
-      # Cache Grype's ~1.6GB vulnerability DB across runs. Locally the wrapper persists it in a named
-      # Docker volume (diurnal-grype-db); a fresh runner has no such volume, so Grype re-downloads the
-      # whole DB every run (3-5m). We point GRYPE_DB_CACHE_VOLUME at an absolute host path below so the
-      # `docker run -v` becomes a bind mount into this cached directory instead of a named volume.
-      # The DB updates ~daily, so the key is the DAY and the restore-keys prefix falls back to the most
-      # recent previous day - Grype then pulls only the delta.
+      - name: Run the Maven build and E2E suite
+        if: steps.gate.outputs.selected != ''
+        env:
+          # Not a perf knob: how much of each failing TIER's log the wrapper re-prints before its summary.
+          # Wider here than the local default of 40 because this excerpt is all a red run leaves behind -
+          # the logs themselves live in the runner's /tmp and die with the job, so anything the tail cuts
+          # off is gone rather than one `grep` away. 150 covers a Maven reactor summary with its whole
+          # failing-test list, or a Playwright failure with its diff.
+          GATE_FAILURE_TAIL_LINES: "150"
+          GATE_SELECTED: ${{ steps.gate.outputs.selected }}
+        run: .github/scripts/lint_and_tests.sh "${GATE_SELECTED}" -v -e
+
+  gate-image:
+    name: Gate - deployment smoke and image scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+
+    steps:
+      # submodules: code-quality-config holds the shared hadolint config and the grype won't-fix ignore list.
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      # `docker` whole rather than `docker:grype` - see the note above the gate jobs. The smoke tier is named
+      # first but the ORDER here does not decide execution: lint_and_tests.sh runs the lane-eligible `java`
+      # step first and a grype-bearing `docker` step in the serial tail, which is precisely the order that
+      # makes the second image build a cache hit.
+      - name: Resolve the steps this job owns
+        id: gate
+        env:
+          # Via the environment rather than interpolated straight into the script: a `${{ }}` expansion is
+          # pasted in as TEXT before bash ever sees the line, so a dispatch input containing a quote would
+          # otherwise end the argument and run whatever followed it.
+          GATE_STEPS: ${{ inputs.gate-steps || 'docker,java' }}
+        run: |
+          set -euo pipefail
+          selected="$(.github/scripts/gate_job_steps.sh "${GATE_STEPS}" 'docker,java:smoke')"
+          echo "selected=${selected}" >> "${GITHUB_OUTPUT}"
+          echo "Running: ${selected:-<nothing - not selected by gate-steps>}"
+
+      # No Maven and no frontend deps: the smoke tier builds the production image from the Dockerfile, which
+      # compiles the CSS and the fast-jar in its own stages. Node and Playwright ARE needed - run-smoke.sh
+      # drives the built image with a host-side Playwright suite.
+      - name: Set up Node.js
+        if: steps.gate.outputs.selected != ''
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26.8.2'
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        if: steps.gate.outputs.selected != ''
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('tests/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install smoke dependencies and browsers
+        if: steps.gate.outputs.selected != ''
+        working-directory: tests
+        run: |
+          npm ci
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+
+      # Cache Grype's vulnerability DB across runs. Locally the wrapper persists it in a named Docker volume
+      # (diurnal-grype-db); a fresh runner has no such volume, so Grype re-downloads the whole DB every run
+      # (3-5m). We point GRYPE_DB_CACHE_VOLUME at an absolute host path below so the `docker run -v` becomes
+      # a bind mount into this cached directory instead of a named volume. The DB updates ~daily, so the key
+      # is the DAY and the restore-keys prefix falls back to the most recent previous day - Grype then pulls
+      # only the delta.
       #
-      # THE KEY MUST NOT BE UNIQUE PER RUN. It was `github.run_id`, which never matches an existing entry,
-      # so actions/cache SAVED a fresh ~1.6GB entry on every single run. A repository's total cache budget
-      # is 10GB with LRU eviction: six runs filled it on their own and then began evicting everything
-      # else in this job - the Playwright browsers and, far more expensively, the Qodana index below,
-      # whose cold path costs ~10m against ~2m30s warm. A date key writes at most one entry a day and
-      # leaves room for the caches that actually pay for themselves.
+      # THE KEY MUST NOT BE UNIQUE PER RUN. It was `github.run_id`, which never matches an existing entry, so
+      # actions/cache SAVED a fresh entry on every single run. A repository's total cache budget is 10GB with
+      # LRU eviction, and that one mistake had put 2.5GB of orphaned entries into it - which then evicted the
+      # caches that do pay for themselves, the Qodana index above all (~10m cold against ~2m30s warm). A date
+      # key writes at most one entry a day. The same mistake, in a third-party action, is why the Maven cache
+      # in `gate-build` is keyed by hand rather than left to s4u/setup-maven-action.
       - name: Resolve today's date for the Grype cache key
         id: grype_day
+        if: steps.gate.outputs.selected != ''
         run: |
           day="$(date -u +%F)"
           echo "day=${day}" >> "${GITHUB_OUTPUT}"
 
       - name: Cache Grype vulnerability DB
+        if: steps.gate.outputs.selected != ''
         uses: actions/cache@v6.1.0
         with:
           path: ~/.cache/grype-db
           key: ${{ runner.os }}-grype-db-${{ steps.grype_day.outputs.day }}
           restore-keys: |
             ${{ runner.os }}-grype-db-
+
+      - name: Run the deployment-smoke suite and the image scan
+        if: steps.gate.outputs.selected != ''
+        env:
+          # Absolute path => the wrapper's `docker run -v` bind-mounts this cached dir as Grype's DB
+          # cache (instead of the default named volume), so the actions/cache step above persists it.
+          GRYPE_DB_CACHE_VOLUME: /home/runner/.cache/grype-db
+          GATE_FAILURE_TAIL_LINES: "150"
+          GATE_SELECTED: ${{ steps.gate.outputs.selected }}
+        run: .github/scripts/lint_and_tests.sh "${GATE_SELECTED}" -v -e
+
+      # The Grype scanner runs as root, so the cached DB files are root-owned; hand them back to the
+      # runner user so actions/cache's post-job tar can read them when saving. `always()` so the cache
+      # is still saved (and the next run stays warm) even if the scan above failed.
+      - name: Fix Grype DB cache ownership
+        if: always()
+        run: sudo chown -R "$USER" /home/runner/.cache/grype-db || true
+
+  gate-qodana:
+    name: Gate - whole-program analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+
+    steps:
+      # submodules: the Qodana inspection profile and the IDE overrides live in code-quality-config, and are
+      # hashed into the cache key below - without them they would hash to nothing and every submodule bump
+      # would silently reuse a stale index.
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Resolve the steps this job owns
+        id: gate
+        env:
+          # Via the environment rather than interpolated straight into the script: a `${{ }}` expansion is
+          # pasted in as TEXT before bash ever sees the line, so a dispatch input containing a quote would
+          # otherwise end the argument and run whatever followed it.
+          GATE_STEPS: ${{ inputs.gate-steps || 'docker,java' }}
+        run: |
+          set -euo pipefail
+          selected="$(.github/scripts/gate_job_steps.sh "${GATE_STEPS}" 'java:qodana')"
+          echo "selected=${selected}" >> "${GITHUB_OUTPUT}"
+          echo "Running: ${selected:-<nothing - not selected by gate-steps>}"
+
+      # Maven is here for ONE artifact, not to build anything: qodana_parent_guard refuses to start the scan
+      # unless the parent POM can be found, because without it there is no effective POM, no classpath, and
+      # the scan reports thousands of false "unused" findings instead of failing. `mvn -N validate` is what
+      # that guard's own message recommends - it resolves the parent into ~/.m2 and nothing else, so there is
+      # no repository worth caching here (cache-enabled is off for the same reason it is off in gate-build).
+      - name: Setup Maven Action
+        if: steps.gate.outputs.selected != ''
+        uses: s4u/setup-maven-action@v1.21.0
+        with:
+          checkout-enabled: false
+          cache-enabled: false
+          java-distribution: 'temurin'
+          java-version: '26'
+          maven-version: '3.9.16'
+
+      - name: Seed the parent POM for the scan's resolution guard
+        if: steps.gate.outputs.selected != ''
+        run: mvn -N validate
 
       # Cache Qodana's IntelliJ index, its downloaded JBR and the Maven repository it resolves into. A cold
       # scan builds the whole index from scratch and pulls the JBR before it inspects a single file, which
@@ -186,10 +441,8 @@ jobs:
       #
       # Keyed on everything that decides what a cached index means: the pinned linter image (in
       # code-quality-config-overrides/qodana.yaml), the inspection profile, the IDE overrides, and the POM.
-      # The profile and the overrides live in the code-quality-config submodule, which the checkout step
-      # above pulls with `submodules: true` - without that they would hash to nothing and every submodule
-      # bump would silently reuse a stale index. A run whose key already exists restores and does NOT
-      # re-upload, so one entry is reused rather than a new one written every run.
+      # A run whose key already exists restores and does NOT re-upload, so one entry is reused rather than a
+      # new one written every run.
       #
       # There is deliberately NO `restore-keys` fallback, unlike the Grype step above. A cache written
       # before ExternalStorageConfigurationManager was dropped from the overrides carries a module model
@@ -202,12 +455,14 @@ jobs:
       # not a second `hashFiles(...)` argument. bump_version.sh rewrites that element to the next
       # -SNAPSHOT and commits it at the end of EVERY release, so the pom is guaranteed to differ from the
       # one the previous release cached against - hashing the file as-is meant the key never matched on a
-      # release run, and every release paid the full cold ~10m scan. Nothing the scan indexes depends on
-      # this project's own version string. Everything that genuinely changes the index still changes the
-      # key: the awk below blanks only the FIRST <version> after </parent>, so the parent-pom version,
-      # every dependency and the whole plugin configuration are still hashed.
+      # release run, and every release paid the full cold ~10m scan AND left another ~420MB orphan in the
+      # 10GB budget (seven of them accumulated in a single day before this was fixed). Nothing the scan
+      # indexes depends on this project's own version string. Everything that genuinely changes the index
+      # still changes the key: the awk below blanks only the FIRST <version> after </parent>, so the
+      # parent-pom version, every dependency and the whole plugin configuration are still hashed.
       - name: Resolve the Qodana cache key
         id: qodana_key
+        if: steps.gate.outputs.selected != ''
         run: |
           # -euo pipefail is explicit: the Actions default shell is `bash -e` WITHOUT pipefail, so a
           # missing submodule file would otherwise let `cat` fail inside the pipeline and still hash the
@@ -222,34 +477,18 @@ jobs:
           } | sha256sum | cut -d' ' -f1 | sed 's/^/key=/' >> "${GITHUB_OUTPUT}"
 
       - name: Cache Qodana index
+        if: steps.gate.outputs.selected != ''
         uses: actions/cache@v6.1.0
         with:
           path: .qodana/cache
           key: ${{ runner.os }}-qodana-${{ steps.qodana_key.outputs.key }}
 
-      # Executes the full gate one place.
-      # Needs the host toolchain set up above: JDK+Maven, Node deps, Playwright, and Docker.
-      - name: Run full test and lint gate
+      - name: Run the whole-program analysis
+        if: steps.gate.outputs.selected != ''
         env:
-          # Absolute path => the wrapper's `docker run -v` bind-mounts this cached dir as Grype's DB
-          # cache (instead of the default named volume), so the actions/cache step above persists it.
-          GRYPE_DB_CACHE_VOLUME: /home/runner/.cache/grype-db
-          # Not a perf knob: how much of each failing TIER's log the wrapper re-prints before its summary.
-          # Wider here than the local default of 40 because this excerpt is all a red run leaves behind -
-          # the logs themselves live in the runner's /tmp and die with the job, so anything the tail cuts
-          # off is gone rather than one `grep` away. 150 covers a Maven reactor summary with its whole
-          # failing-test list, or a Playwright failure with its diff.
           GATE_FAILURE_TAIL_LINES: "150"
-        # `|| 'docker,java'` is the push path: `inputs` is null for a push event, so the default on the
-        # dispatch input above is not applied and the expression would otherwise expand to nothing.
-        run: .github/scripts/lint_and_tests.sh ${{ inputs.gate-steps || 'docker,java' }} -v -e
-
-      # The Grype scanner runs as root, so the cached DB files are root-owned; hand them back to the
-      # runner user so actions/cache's post-job tar can read them when saving. `always()` so the cache
-      # is still saved (and the next run stays warm) even if the gate above failed.
-      - name: Fix Grype DB cache ownership
-        if: always()
-        run: sudo chown -R "$USER" /home/runner/.cache/grype-db || true
+          GATE_SELECTED: ${{ steps.gate.outputs.selected }}
+        run: .github/scripts/lint_and_tests.sh "${GATE_SELECTED}" -v -e
 
   # The k6 performance/load suite, run BESIDE the gate rather than serially after it.
   #
@@ -388,9 +627,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
 
+      # cache-enabled: see the note in `gate-build`. This job runs `mvn versions:set` alone, so it has no
+      # repository worth caching, and the action's pom-hash key changed on every release anyway.
       - name: Setup Maven Action
         uses: s4u/setup-maven-action@v1.21.0
         with:
+          checkout-enabled: false
+          cache-enabled: false
           java-distribution: 'temurin'
           java-version: '26'
           maven-version: '3.9.16'
@@ -434,11 +677,18 @@ jobs:
   # preview image build are all green.
   publish:
     name: Publish release
-    needs: [ version, translations, test, perf, preview ]
-    # Skipped on a dry run - every irreversible act of the release lives in this job, so switching it off
-    # is the whole of the dry run. `!= true` rather than `== false` because on a PUSH `inputs` is null and
-    # this must still evaluate true.
-    if: ${{ inputs.dry-run != true }}
+    needs: [ version, translations, gate-build, gate-image, gate-qodana, perf, preview ]
+    # Every irreversible act of the release lives in this job, which is what lets both of these conditions
+    # be expressed as one `if:` rather than being threaded through the steps:
+    #
+    #   event_name  - a PUSH runs the gate and releases nothing (see the header). This is the whole of that
+    #                 change: the gate jobs above are untouched and still run on every qualifying push, so
+    #                 no coverage moves - only the decision to spend a version number, which is now a
+    #                 deliberate button press. Reverting is deleting this one clause.
+    #   dry-run     - switching this job off is the whole of the dry run.
+    #
+    # `!= true` rather than `== false` because `inputs` is null on a push, where dry-run is neither.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -463,10 +713,14 @@ jobs:
       # Maven is needed by the version-bump step (bump_version.sh), which runs `mvn versions:set` on
       # every release. Pinning it here (rather than relying on the runner's pre-installed Maven) keeps
       # the toolchain consistent with the `test` job.
+      # cache-enabled: this job runs `mvn versions:set` and nothing else, so it resolves a handful of POMs
+      # and has no repository worth a ~440MB cache entry. Left on, the action wrote one every run under a
+      # key ending in hashFiles('**/pom.xml') that a release always changes - see the note in `gate-build`.
       - name: Setup Maven Action
         uses: s4u/setup-maven-action@v1.21.0
         with:
-          checkout-fetch-depth: 0
+          checkout-enabled: false
+          cache-enabled: false
           java-distribution: 'temurin'
           java-version: '26'
           maven-version: '3.9.16'
