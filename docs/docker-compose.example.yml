@@ -37,7 +37,7 @@ services:
       NOTE_ENCRYPTION_KEY: "change-me-strong-password"  # <--- TODO: Change this, generate using `openssl rand -base64 32`
       TZ: "UTC"
       # Authentication config
-      ENABLE_REGISTRATION: "true"
+      ENABLE_LOCAL_REGISTRATION: "true"
       PASSWORD_AUTH_ENABLED: "true"
       # OIDC config
       OIDC_CLIENT_ID: "diurnal"
@@ -47,8 +47,8 @@ services:
       OIDC_LOGOUT_URL: "https://auth.example.com/logout"
       OIDC_PROVIDER_NAME: "Authelia"
       # Reverse proxy config
-      # Set to "true" ONLY when this container sits behind a TLS-terminating reverse proxy (Traefik, nginx, Caddy) that sets X-Forwarded-*
-      TRUST_X_FORWARDED_HEADERS: "false"
+      TRUST_CLOUDFLARE_HEADER: "false"    # Set to "true" ONLY if the origin is reachable solely through Cloudflare
+      TRUST_X_FORWARDED_HEADERS: "false"  # Set to "true" if this container sits behind a TLS-terminating reverse proxy
     logging:
       driver: json-file
       options:
@@ -59,9 +59,7 @@ services:
       - diurnal-network   # egress for OIDC discovery + the GitHub update-check
     ports:
       - "127.0.0.1:8080:8080"
-    # Immutable root filesystem - the app writes nothing outside /tmp (session state is in Postgres,
-    # logs go to stdout), so the rootfs is read-only and /tmp stays writable via the tmpfs mount below.
-    read_only: true
+    read_only: true  # Immutable root filesystem - the app writes nothing outside /tmp
     restart: unless-stopped
     security_opt:
       - no-new-privileges=true
