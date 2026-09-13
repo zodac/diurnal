@@ -150,11 +150,17 @@ boot_env=(
 # password-only one, so the app has to boot with OIDC enabled. The issuer is a DUMMY that is never
 # contacted - the button renders from OIDC_ENABLED alone - and OIDC_VERIFY_ON_STARTUP=false stops the
 # startup discovery probe failing the boot against it. Same throwaway config scripts/dev-up.sh applies
-# under OIDC_PREVIEW=1; keep the two in step.
+# under OIDC_PREVIEW=1; keep the two in step EXCEPT for the port, which must differ - see below.
+#
+# THE ISSUER PORT MUST NOT BE THE APP'S OWN PORT. dev-up.sh can use 8080 because the dev app listens on
+# 8081 (application-dev.properties), so 8080 is a dead address there. In THIS stage the app is on 8080,
+# so the same value points the issuer at the app itself, and any OIDC discovery becomes an app-to-app
+# request that stalls the generator indefinitely rather than failing. 9999 is listened on by nothing in
+# this stage (only Postgres on 5432 and the app on 8080), so a discovery attempt is refused at once.
 if [[ "${DOC_SCREENSHOTS}" == "true" ]]; then
   boot_env+=(
     OIDC_ENABLED=true
-    OIDC_ISSUER_URL=http://127.0.0.1:8080
+    OIDC_ISSUER_URL=http://127.0.0.1:9999
     OIDC_CLIENT_ID=diurnal
     OIDC_CLIENT_SECRET=preview-dummy-secret
     OIDC_PROVIDER_NAME=Authelia
@@ -204,8 +210,27 @@ fi
 
 echo "→ Generating the screenshots (${gen_mode} mode)…"
 cd "${GEN_DIR}"
+
+# Hard cap on the whole capture run. A stalled shot - a wedged page, or an app waiting on something it
+# can never get - produces NO output at all: the generator's own per-action timeouts do not cover every
+# wait, so without this the stage sits silent until the CI job's 45-minute limit kills it, with the log
+# ending mid-capture and nothing saying why. 900s is roughly 6x the observed `all` runtime on a CI
+# runner, so it only ever fires on a genuine hang. The app log is dumped either way, since a stall is
+# usually visible there (an OIDC discovery retry loop, a connection that never completes).
+gen_status=0
 TEST_DB_HOST=127.0.0.1 PW_CHROMIUM_ARGS="--no-sandbox" BASE_URL="http://127.0.0.1:8080" \
-  node scripts/generate-screenshots.cjs "${gen_mode}"
+  timeout --kill-after=30s 900 node scripts/generate-screenshots.cjs "${gen_mode}" || gen_status=$?
+
+if [[ "${gen_status}" -ne 0 ]]; then
+  if [[ "${gen_status}" -eq 124 || "${gen_status}" -eq 137 ]]; then
+    echo "✗ screenshot generation TIMED OUT after 900s in ${gen_mode} mode." >&2
+  else
+    echo "✗ screenshot generation failed (exit ${gen_status}) in ${gen_mode} mode." >&2
+  fi
+  echo "  last app log lines:" >&2
+  tail -40 /tmp/app.log >&2 || true
+  exit 1
+fi
 
 # Sanity-check the expected outputs exist so a silent capture failure fails the build here.
 verify_outputs
