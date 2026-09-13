@@ -203,7 +203,7 @@ QODANA_CONFIG_FILE="${OVERRIDES_DIR}/qodana.yaml"
 SONAR_CONFIG_FILE="${OVERRIDES_DIR}/sonar.properties"
 
 ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
-ESLINT_NODE_IMAGE="node:26.8.1-alpine"
+ESLINT_NODE_IMAGE="node:26.8.2-alpine"
 
 # Exact pins for the linting toolchain baked into ESLINT_BUILD_IMAGE. Pinned, rather than the floating
 # majors this used to install, because the versions resolve when the IMAGE is built: a developer's image
@@ -213,7 +213,7 @@ ESLINT_NODE_IMAGE="node:26.8.1-alpine"
 # .github/scripts/update_dependency_versions.sh, like every other pin in this file.
 ESLINT_VERSION="10.10.0"
 ESLINT_JS_VERSION="10.0.1"
-TYPESCRIPT_ESLINT_VERSION="8.69.0"
+TYPESCRIPT_ESLINT_VERSION="8.70.0"
 ESLINT_GLOBALS_VERSION="17.12.0"
 TYPESCRIPT_VERSION="7.0.2"
 # The JVM gate's own toolchain image, built locally like ESLINT_BUILD_IMAGE. The `java` step used to run
