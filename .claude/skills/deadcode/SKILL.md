@@ -1,6 +1,6 @@
 ---
 name: deadcode
-description: Find production code that only the tests keep alive - a class, method or constant in src/main that nothing in src/main, no template and no script ever reaches. Use for: dead code, unused method, is this still used, test-only code, can I delete this, unreferenced, tidy up.
+description: "Find production code that only the tests keep alive - a class, method or constant in src/main that nothing in src/main, no template and no script ever reaches. Use for: dead code, unused method, is this still used, test-only code, can I delete this, unreferenced, tidy up."
 ---
 
 # Finding production code that only the tests use

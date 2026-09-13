@@ -1,6 +1,6 @@
 ---
 name: perf
-description: The measured performance history - what was optimised, what was measured and REJECTED, and the trigger to revisit each. Read before proposing any optimisation. Use for: make it faster, this is slow, add an index or a cache, optimise, N+1, startup time, profiling.
+description: "The measured performance history - what was optimised, what was measured and REJECTED, and the trigger to revisit each. Read before proposing any optimisation. Use for: make it faster, this is slow, add an index or a cache, optimise, N+1, startup time, profiling."
 ---
 
 # Performance: what has already been measured

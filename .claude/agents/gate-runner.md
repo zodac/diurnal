@@ -1,6 +1,6 @@
 ---
 name: gate-runner
-description: Runs a quality-gate step and returns only the verdict. Use when a gate run is needed and its output would otherwise flood the conversation - especially the java step, which is ~10 minutes and thousands of lines. Give it the step to run (e.g. "java", "java:mvn", "markdown,shellcheck"); it returns green, or the triaged cause of a failure.
+description: "Runs a quality-gate step and returns only the verdict. Use when a gate run is needed and its output would otherwise flood the conversation - especially the java step, which is ~10 minutes and thousands of lines. Give it the step to run (e.g. \"java\", \"java:mvn\", \"markdown,shellcheck\"); it returns green, or the triaged cause of a failure."
 tools: Bash, Read, Grep, Glob
 ---
 

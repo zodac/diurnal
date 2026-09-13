@@ -1,6 +1,6 @@
 ---
 name: db
-description: Procedure for any database change - Flyway migrations, queries, indexes, entities, or net.zodac.diurnal.persistence. Use for: add a column or table, new migration, JPQL or native SQL, add an index, schema change, Panache entity, upsert, parameter binding.
+description: "Procedure for any database change - Flyway migrations, queries, indexes, entities, or net.zodac.diurnal.persistence. Use for: add a column or table, new migration, JPQL or native SQL, add an index, schema change, Panache entity, upsert, parameter binding."
 ---
 
 # Making a database change

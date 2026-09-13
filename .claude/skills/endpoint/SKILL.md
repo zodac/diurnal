@@ -1,6 +1,6 @@
 ---
 name: endpoint
-description: Adding or changing an endpoint or user-facing capability - namespace, shared service with a sealed result, API parity, OpenAPI contract, transactions, and the full chain for a new user preference. Use for: add an endpoint, new API or route, /api/v1, HTMX fragment, add a setting, OpenAPI, Swagger.
+description: "Adding or changing an endpoint or user-facing capability - namespace, shared service with a sealed result, API parity, OpenAPI contract, transactions, and the full chain for a new user preference. Use for: add an endpoint, new API or route, /api/v1, HTMX fragment, add a setting, OpenAPI, Swagger."
 ---
 
 # Adding or changing an endpoint

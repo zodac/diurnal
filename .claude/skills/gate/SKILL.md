@@ -1,6 +1,6 @@
 ---
 name: gate
-description: Run and triage this project's quality gate (.github/scripts/lint_and_tests.sh) - which step to run, and whether a red run is your change, pre-existing debt on master, or sandbox contention. Use for: run the tests, run the gate, lint, the build failed, Checkstyle/PMD/PITest/Qodana/ErrorProne failures, E2E flakes, port 8081 conflicts.
+description: "Run and triage this project's quality gate (.github/scripts/lint_and_tests.sh) - which step to run, and whether a red run is your change, pre-existing debt on master, or sandbox contention. Use for: run the tests, run the gate, lint, the build failed, Checkstyle/PMD/PITest/Qodana/ErrorProne failures, E2E flakes, port 8081 conflicts."
 ---
 
 # Running and triaging the quality gate

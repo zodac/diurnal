@@ -1,6 +1,6 @@
 ---
 name: ui
-description: Building or changing UI - templates, partials, CSS and the JS that drives them - plus how to verify it without being misled. Use for: add a card or page, Qute, htmx, tooltip, table, Settings page, Tailwind, dark mode, RTL, responsive, screenshots, Playwright specs.
+description: "Building or changing UI - templates, partials, CSS and the JS that drives them - plus how to verify it without being misled. Use for: add a card or page, Qute, htmx, tooltip, table, Settings page, Tailwind, dark mode, RTL, responsive, screenshots, Playwright specs."
 ---
 
 # Building UI
