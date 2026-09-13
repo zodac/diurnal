@@ -305,6 +305,31 @@ jobs:
             zodac/diurnal:${{ env.VERSION }}
             zodac/diurnal:latest
 
+      # Pull the freshly-captured README screenshots out of the image build (the `docscreenshots` stage is
+      # FROM scratch, so the export is the WebP files plus buildx's own provenance.json, which the `*.webp`
+      # glob in the upload step at the end of this job leaves behind). They land in docs/screenshots, which
+      # is gitignored, so nothing exported here can ride along on the version-bump commit.
+      #
+      # THIS MUST RUN BEFORE `bump_version.sh`, which is the whole reason it sits here rather than beside
+      # the upload step that consumes it. That script rewrites VERSION (to the NEXT patch) and pom.xml (to
+      # the matching -SNAPSHOT) in the working tree, and the Dockerfile COPYs both into `previewbuild` - so
+      # a build run after it misses the cache at that COPY, rebuilds the fast-jar, and boots an app whose
+      # footer reads the packaged VERSION resource as the version AFTER this release. Every screenshot
+      # shipped for 1.0.6 would read 1.0.7. Run here, against the same context the two builds above used,
+      # the expensive Postgres + Chromium `screenshots` stage is a cache hit and the footer in the captured
+      # pixels is the released version.
+      - name: Export the README screenshots from the image build
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          target: docscreenshots
+          build-args: |
+            GENERATE_PREVIEWS=true
+            DOC_SCREENSHOTS=true
+          outputs: type=local,dest=docs/screenshots
+          cache-from: type=registry,ref=zodac/diurnal:cache
+
       - name: Get previous tag
         id: prev_tag
         run: |
@@ -362,9 +387,9 @@ jobs:
           prerelease: false
           makeLatest: true
 
-      # Pull the freshly-captured README screenshots out of the image build (the `docscreenshots` stage is
-      # FROM scratch, so the export is the WebP files plus buildx's own provenance.json, which the `*.webp`
-      # glob below leaves behind) and replace the assets on the standalone `readme-assets` release in place.
+      # Replace the assets on the standalone `readme-assets` release in place, with the screenshots the
+      # export step above pulled out of the image build (the `*.webp` glob leaves buildx's own
+      # provenance.json behind).
       #
       # That release is an ASSET HOST, not a software release: it carries no version, is never marked
       # Latest, and --clobber overwrites its assets, so exactly ONE set of screenshots exists no matter how
@@ -385,19 +410,9 @@ jobs:
       #
       # Created on first use, so this needs no manual setup on a fresh fork. It is deliberately NOT
       # continue-on-error - a silently stale README is exactly the drift this step exists to remove - but
-      # it is placed after the release above, so a failure here cannot strand a half-published release.
-      - name: Export the README screenshots from the image build
-        uses: docker/build-push-action@v7.3.0
-        with:
-          context: .
-          file: ./Dockerfile
-          target: docscreenshots
-          build-args: |
-            GENERATE_PREVIEWS=true
-            DOC_SCREENSHOTS=true
-          outputs: type=local,dest=docs/screenshots
-          cache-from: type=registry,ref=zodac/diurnal:cache
-
+      # it is the half of the screenshot flow that acts OUTWARDS, so it stays here, after the release
+      # above: a failure uploading assets cannot strand a half-published release. Only the export had to
+      # move earlier, and it writes nothing but local files.
       - name: Refresh the screenshot release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
