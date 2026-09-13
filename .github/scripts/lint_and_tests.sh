@@ -49,6 +49,12 @@
 #                    happens, which is rarely the moment you can read it: during the parallel phase the java
 #                    gate is still streaming over it, the other lanes are replayed after it, and the serial
 #                    tail (a CVE scan, the perf suite) can run for minutes more.
+#                    A step made of tiers ALSO captures each of them on its own, as <step>-<substep>.log, and
+#                    the report excerpts the FAILING TIER rather than the step. A step log is everything the
+#                    terminal saw in the order it saw it, which for concurrent tiers is not the order they
+#                    finished in: a `java` run that died in the Maven build replays its PASSING smoke suite
+#                    on top of it, so the step log's tail is five green Playwright specs and the reactor
+#                    summary is thousands of lines further up.
 #                    GATE_FAILURE_TAIL_LINES (default 40) sets how much of each log is re-printed; the whole
 #                    log is left on disk and its path named beside the excerpt either way.
 #
@@ -398,7 +404,8 @@ cancelled_steps=()
 # Where each step's output is captured for the run, so the end-of-run report can re-print WHY a step failed
 # (see report_failure_details). A fixed directory rather than a mktemp one, so the path printed in that
 # report is the same every run and can be opened or grepped without hunting for a random suffix. Each
-# selected step's log is cleared before the run starts, and only the FAILING steps' logs survive it.
+# selected step's logs - its own and its tiers' - are cleared before the run starts, and only the FAILING
+# ones survive it.
 GATE_LOG_DIR="${GATE_LOG_DIR:-${TMPDIR:-/tmp}/lint_and_tests}"
 
 # How many trailing lines of a failed step's log that report prints. A tail rather than the whole file:
@@ -415,6 +422,19 @@ failed_step_logs=()
 # words, so nothing here needs escaping.
 step_log_path() {
     printf '%s/%s.log' "${GATE_LOG_DIR}" "${1}"
+}
+
+# Path of the file holding step ${1}'s ${2} TIER output, for a step made of tiers (see STEP_SUBSTEPS).
+# Beside the step's own log rather than instead of it: the step log is what the terminal saw, in the order
+# it saw it, while this is what the end-of-run report excerpts.
+#
+# A flat per-step log cannot answer "why did it go red" for a step whose tiers run CONCURRENTLY. The java
+# gate writes four of them into one file - the Maven build's thousands of lines, then a passing smoke
+# suite's replay on top - so its tail is simply whatever printed last, which is very often a tier that
+# PASSED. One file per tier makes the excerpt the failing tier's own ending, which is where every tool the
+# gate drives puts its verdict.
+substep_log_path() {
+    printf '%s/%s-%s.log' "${GATE_LOG_DIR}" "${1}" "${2}"
 }
 
 # Yellow highlight for the copy/paste-ready "re-run …" command in failure messages, so it stands out
@@ -511,6 +531,32 @@ run_quietly() {
     return "${rc}"
 }
 
+# Run ${@:2} with its output going exactly where it already went, and a copy appended to the log named in
+# ${1}. For a tier that runs in the FOREGROUND: its progress lines are the step's only live feedback while it
+# runs, so it cannot simply be redirected into a file the way a background tier is - yet it still needs a log
+# of its own for the end-of-run report. Returns the command's own exit status.
+#
+# Three details are load-bearing, the same three the serial step loop documents:
+#   - the tee's pid is read immediately after the `exec`, before anything the command backgrounds can
+#     overwrite $!;
+#   - `{fd}>&-` closes the spare descriptor INSIDE the command, so the tee sees EOF once it is done;
+#   - the wait is what makes the log complete before the report reads it.
+# `|| true` on the tee: a copy that cannot be written (a full disk, an unwritable GATE_LOG_DIR) must not take
+# the gate down with it - the output is already on its way to the terminal either way. It also satisfies the
+# linter, which flags the substitution's masked return value otherwise (SC2312).
+run_teed() {
+    local log="${1}"
+    shift
+
+    local fd rc=0 tee_pid
+    exec {fd}> >(tee -a "${log}" || true)
+    tee_pid=$!
+    "$@" >&"${fd}" 2>&1 {fd}>&- || rc=$?
+    exec {fd}>&-
+    wait "${tee_pid}" 2>/dev/null || true
+    return "${rc}"
+}
+
 # Per-substep timings of the step currently running, as "<name> <natural-time>" entries in run order.
 # Appended to by run_timed_substep and reset by the step that uses it; a step folds the joined list
 # into its own summary line, so a multi-tier step reports where its time actually went.
@@ -567,6 +613,51 @@ substep_breakdown() {
     printf '  [%s]' "${joined# | }"
 }
 
+# The "where to find the rest of it" tail of a step's own failure line. ${1} is the step, ${2} the tier that
+# failed - empty for a step with no tiers, or for a failure outside all of them, in which case the step's own
+# log is named.
+#
+# Re-running is only an answer when this run did not already produce the output. Under -v it did - and -v is
+# how publish.yml invokes the gate - so telling a 20-minute red CI run to re-run itself with the flag it
+# already used is worse than saying nothing. Name the log already on disk instead.
+failure_output_hint() {
+    local log=""
+    [[ -n "${2:-}" ]] && log="$(substep_log_path "${1}" "${2}")"
+    [[ -s "${log}" ]] || log="$(step_log_path "${1}")"
+
+    if [[ "${VERBOSE}" == true ]]; then
+        printf 'full output in %s%s%s' "${YELLOW}" "${log}" "${RESET}"
+        return
+    fi
+
+    # Assigned on its own line so the command substitution's exit status isn't masked (SC2312).
+    local invocation
+    invocation="$(step_invocation "${1}")"
+    printf "re-run %s'%s -v %s'%s for the full output" "${YELLOW}" "${SCRIPT_PATH}" "${invocation}" "${RESET}"
+}
+
+# Print the tail of one captured log, headed by the ${1} it belongs to and the path it was read from.
+#
+# An excerpt rather than the whole log, because a failing Maven or E2E tier's output is thousands of lines
+# on its own and re-printing it would recreate the problem this exists to solve. The TAIL is the useful end
+# of it: every tool the gate drives reports its verdict at the bottom, and the tier's own failure line - which
+# names what died and the scoped command to re-run - is the last line of all. The full log stays on disk and
+# is named beside each excerpt, for the cases where the tail is not enough.
+print_log_excerpt() {
+    local label="${1}"
+    local log="${2}"
+
+    local total shown
+    total="$(wc -l < "${log}")"
+    shown="${GATE_FAILURE_TAIL_LINES}"
+    [[ "${total}" -lt "${shown}" ]] && shown="${total}"
+
+    echo
+    echo "──── ${RED}${label}${RESET}: last ${shown} of ${total} captured lines (full log: ${YELLOW}${log}${RESET}) ────"
+    tail -n "${GATE_FAILURE_TAIL_LINES}" "${log}"
+    echo "──── end of ${RED}${label}${RESET} ────"
+}
+
 # Re-print the tail of every failed step's captured output, once the whole run is over.
 #
 # A failure is printed the moment it is known, which is rarely the moment you can read it: during the
@@ -575,28 +666,35 @@ substep_breakdown() {
 # the end of a red run the reason it went red is thousands of lines back, and with two failures you are
 # hunting for both. This puts each of them in front of the summary instead.
 #
-# An excerpt rather than the whole log, because a failing Maven or E2E tier's output is thousands of lines
-# on its own and re-printing it would recreate the problem this exists to solve. The TAIL is the useful end
-# of it: every tool the gate drives reports its verdict at the bottom, and the step's own failure line -
-# which names the tier that died and the scoped command to re-run - is the last line of all. The full log
-# stays on disk and is named beside each excerpt, for the cases where the tail is not enough.
+# What is excerpted is each failing TIER, not the step, wherever the step has them - which is the whole point
+# of the per-tier logs (see substep_log_path). Only a FAILING tier's log survives the run, so whichever of
+# them are still on disk are exactly the ones worth printing; the step's own log is the fallback, for a step
+# with no tiers and for a failure outside all of them (a preflight, a toolchain image that would not build).
 report_failure_details() {
-    local i name log total shown printed=false
+    local i name step tier log printed=false excerpted
+    local -a tiers=()
     for i in "${!failed_steps[@]}"; do
+        # The failed entry is the INVOCATION ("java:mvn"), while a log is per STEP - scoping narrows what a
+        # step runs, not which step it is.
         name="${failed_steps[i]}"
+        step="${name%%:*}"
+
+        excerpted=false
+        read -ra tiers <<< "${STEP_SUBSTEPS[${step}]:-}"
+        for tier in "${tiers[@]}"; do
+            log="$(substep_log_path "${step}" "${tier}")"
+            [[ -s "${log}" ]] || continue
+            print_log_excerpt "${step}:${tier}" "${log}"
+            excerpted=true
+            printed=true
+        done
+        [[ "${excerpted}" == true ]] && continue
+
         log="${failed_step_logs[i]}"
         # Empty or missing only if the step failed before it printed anything at all; the summary line
         # above has already named it, so there is nothing to add.
         [[ -s "${log}" ]] || continue
-
-        total="$(wc -l < "${log}")"
-        shown="${GATE_FAILURE_TAIL_LINES}"
-        [[ "${total}" -lt "${shown}" ]] && shown="${total}"
-
-        echo
-        echo "──── ${RED}${name}${RESET}: last ${shown} of ${total} captured lines (full log: ${YELLOW}${log}${RESET}) ────"
-        tail -n "${GATE_FAILURE_TAIL_LINES}" "${log}"
-        echo "──── end of ${RED}${name}${RESET} ────"
+        print_log_excerpt "${name}" "${log}"
         printed=true
     done
     # Separate the last excerpt from the summary lines that follow, but only when there was one - a run
@@ -695,6 +793,21 @@ build_mvn_docker_cmd() {
         -e "DB_HOST=${DEV_DB_SERVICE}"
         -u "${host_uid}:${host_gid}")
     [[ -n "${socket_gid}" ]] && MVN_DOCKER_RUN+=(--group-add "${socket_gid}")
+
+    # The SonarQube analysis runs INSIDE this container - it is a goal of the same `mvn ... -Dsonarqube`
+    # invocation, bound to the `install` phase, so it is the LAST thing the build does. The parent POM
+    # resolves its two credentials straight from the environment (`<sonar.host.url>${env.SONARQUBE_HOST_URL}`,
+    # `<sonar.token>${env.SONARQUBE_PAT}`), which stopped being the host's environment the moment mvn was
+    # containerised: unforwarded, both resolve to nothing and the analysis fails after the whole build has
+    # already passed. The host-side reachability pre-flight cannot catch it - that curl runs out here, where
+    # the variables do exist.
+    #
+    # Forwarded by NAME (`-e VAR`, which takes the value from this shell) rather than as `-e VAR=value`: the
+    # token would otherwise sit in the container's argv, readable by `ps` and by `docker inspect`. Only when
+    # set, so a local run - where SONARQUBE_ANALYSIS is false and there are no credentials - adds neither.
+    [[ -n "${SONARQUBE_HOST_URL}" ]] && MVN_DOCKER_RUN+=(-e SONARQUBE_HOST_URL)
+    [[ -n "${SONARQUBE_PAT}" ]] && MVN_DOCKER_RUN+=(-e SONARQUBE_PAT)
+
     MVN_DOCKER_RUN+=("${MVN_BUILD_IMAGE}" mvn "-Dmaven.repo.local=${HOME}/.m2/repository" -Ddb.lifecycle.skip=true)
 }
 
@@ -852,7 +965,10 @@ run_docker() {
     # java gate's Qodana tier documents at its launch).
     local hadolint_pid="" hadolint_log="" hadolint_end_file="" hadolint_start_ns="" hadolint_rc=""
     if [[ "${run_hadolint}" == true ]]; then
-        hadolint_log="$(mktemp)"
+        # The tier's own log under GATE_LOG_DIR rather than a mktemp one, so a failing tier's output is still
+        # addressable - by TIER - once the run is over (see substep_log_path); it is removed below if it passed.
+        hadolint_log="$(substep_log_path docker hadolint)"
+        : > "${hadolint_log}"
         hadolint_end_file="$(mktemp)"
         hadolint_start_ns="$(date +%s%N)"
         substep "hadolint  (Dockerfile, sandbox/Dockerfile via ${HADOLINT_DOCKER_IMAGE})"
@@ -871,13 +987,18 @@ run_docker() {
         hadolint_pid=$!
     fi
 
-    # Tier 2, in the foreground so its progress lines (and, under -v, its output) stream live.
-    local grype_rc="" grype_start_ns
+    # Tier 2, in the foreground so its progress lines (and, under -v, its output) stream live. Live AND
+    # captured, hence run_teed: a foreground tier cannot be redirected into a file the way the background one
+    # above is, but it still needs a log of its own for the end-of-run report.
+    local grype_rc="" grype_start_ns grype_log=""
     if [[ "${run_grype}" == true ]]; then
+        grype_log="$(substep_log_path docker grype)"
+        : > "${grype_log}"
         grype_start_ns="$(date +%s%N)"
         grype_rc=0
-        run_grype_tier || grype_rc=$?
+        run_teed "${grype_log}" run_grype_tier || grype_rc=$?
         record_substep_time "grype" "${grype_start_ns}" "${grype_rc}"
+        [[ "${grype_rc}" == "0" ]] && rm -f "${grype_log}"
     fi
 
     # Join tier 1. Its captured output is printed when it failed (or under -v), and only then - a clean
@@ -893,15 +1014,24 @@ run_docker() {
         if [[ "${hadolint_rc}" != "0" || "${VERBOSE}" == true ]] && [[ -s "${hadolint_log}" ]]; then
             cat "${hadolint_log}"
         fi
-        rm -f "${hadolint_log}" "${hadolint_end_file}"
+        rm -f "${hadolint_end_file}"
+        [[ "${hadolint_rc}" == "0" ]] && rm -f "${hadolint_log}"
     fi
 
     # Every failing tier is named, not just the first: both ran to completion, so both answers are known.
     # String comparisons, not -eq: an empty value compares equal to 0 in bash's arithmetic context, so a
     # tier whose exit code was somehow never captured would be reported as a pass.
-    local failed_tiers=""
-    [[ -n "${hadolint_rc}" && "${hadolint_rc}" != "0" ]] && failed_tiers+=" + hadolint"
-    [[ -n "${grype_rc}" && "${grype_rc}" != "0" ]] && failed_tiers+=" + grype"
+    # first_failed is the tier the failure line points at; the end-of-run report excerpts EVERY failing tier's
+    # log, so naming one here loses nothing.
+    local failed_tiers="" first_failed=""
+    if [[ -n "${hadolint_rc}" && "${hadolint_rc}" != "0" ]]; then
+        failed_tiers+=" + hadolint"
+        first_failed="hadolint"
+    fi
+    if [[ -n "${grype_rc}" && "${grype_rc}" != "0" ]]; then
+        failed_tiers+=" + grype"
+        [[ -z "${first_failed}" ]] && first_failed="grype"
+    fi
     failed_tiers="${failed_tiers# + }"
 
     local done_in breakdown
@@ -910,7 +1040,9 @@ run_docker() {
     if [[ -z "${failed_tiers}" ]]; then
         echo "✅ Docker gate [${invocation}] passed (${tier_list}), finished in ${GREEN}${done_in}${RESET}${breakdown}"
     else
-        echo "❌ Docker gate [${invocation}] failed at [${failed_tiers}] after ${RED}${done_in}${RESET}${breakdown}: re-run ${YELLOW}'${SCRIPT_PATH} -v ${invocation}'${RESET} for the full output"
+        local hint
+        hint="$(failure_output_hint docker "${first_failed}")"
+        echo "❌ Docker gate [${invocation}] failed at [${failed_tiers}] after ${RED}${done_in}${RESET}${breakdown}: ${hint}"
         overall_exit_code=1
     fi
 }
@@ -1003,10 +1135,12 @@ report_smoke_completion() {
 # failure abort the Maven build (rather than being discovered only after it finishes) so the step can move
 # on to the next one. ${1} short name, ${2} progress label, the rest the command.
 #
-# Output goes to a temp file, because run_quietly buffers in a variable in THIS shell, which a background
-# child cannot write to. It is printed if the tier failed; in verbose mode it is streamed live instead
-# (`tail -f`), which is why it is not re-printed at the end. Smoke's own output is never streamed - two
-# live streams would interleave line-by-line and make both unreadable.
+# Output goes to a file, because run_quietly buffers in a variable in THIS shell, which a background child
+# cannot write to. It is printed if the tier failed; in verbose mode it is streamed live instead (`tail -f`),
+# which is why it is not re-printed at the end. Smoke's own output is never streamed - two live streams would
+# interleave line-by-line and make both unreadable. The file is the tier's own log under GATE_LOG_DIR rather
+# than a mktemp one, so a FAILING tier's output outlives the step and the end-of-run report can excerpt it by
+# tier (see substep_log_path); every other outcome removes it on the way out.
 #
 # Returns the tier's own exit code, or 0 when it was stopped early (the caller reports smoke instead).
 run_supervised_tier() {
@@ -1015,7 +1149,8 @@ run_supervised_tier() {
     shift 2
 
     local log start_ns pid tail_pid="" rc=""
-    log="$(mktemp)"
+    log="$(substep_log_path java "${name}")"
+    : > "${log}"
     substep "${label}"
     start_ns="$(date +%s%N)"
     "$@" > "${log}" 2>&1 &
@@ -1057,14 +1192,19 @@ run_supervised_tier() {
 
     if [[ "${TIER_STOPPED_EARLY}" == true ]]; then
         substep "${name} stopped early (tests/run-smoke.sh failed)"
+        # However far it got says nothing about a result it never produced - the same reason a cancelled
+        # lane's log is dropped rather than reported.
+        rm -f "${log}"
     else
         record_substep_time "${name}" "${start_ns}" "${rc}"
         if [[ "${rc}" != "0" && "${VERBOSE}" != true && -s "${log}" ]]; then
             cat "${log}"
         fi
+        # Only a failing tier's log survives, so what is left in GATE_LOG_DIR when the run ends is exactly
+        # the set report_failure_details should excerpt.
+        [[ "${rc}" == "0" ]] && rm -f "${log}"
     fi
 
-    rm -f "${log}"
     return "${rc}"
 }
 
@@ -1244,7 +1384,11 @@ run_java() {
     # Each tier is timed individually and the durations - green when the tier passed, red when it failed -
     # are folded into the summary line below, because "the java step took 31 minutes" is not actionable on
     # its own; which tier owns those minutes, and which one died, is.
-    local failed_at=""
+    # failed_at is the LABEL of what died ("tests/run-smoke.sh"), for the summary line; failed_tier is the
+    # substep name behind it ("smoke"), which is what names the log to point at. Empty when the failure was
+    # outside every tier - a preflight, a toolchain image that would not build - in which case the hint falls
+    # back to the step's own log.
+    local failed_at="" failed_tier=""
     TIMED_SUBSTEPS=()
     MVN_DOCKER_RUN=()
 
@@ -1299,7 +1443,8 @@ run_java() {
     SMOKE_RC=""
     SMOKE_LOG=""
     if [[ "${run_smoke}" == true ]]; then
-        SMOKE_LOG="$(mktemp)"
+        SMOKE_LOG="$(substep_log_path java smoke)"
+        : > "${SMOKE_LOG}"
         SMOKE_START_NS="$(date +%s%N)"
         substep "tests/run-smoke.sh  (on :${SMOKE_HTTP_PORT})"
         "${PWD}/tests/run-smoke.sh" "${SMOKE_HTTP_PORT}" "${PWD}" > "${SMOKE_LOG}" 2>&1 &
@@ -1311,7 +1456,8 @@ run_java() {
     QODANA_LOG=""
     QODANA_END_NS_FILE=""
     if [[ "${run_qodana}" == true ]]; then
-        QODANA_LOG="$(mktemp)"
+        QODANA_LOG="$(substep_log_path java qodana)"
+        : > "${QODANA_LOG}"
         QODANA_END_NS_FILE="$(mktemp)"
         QODANA_START_NS="$(date +%s%N)"
         qodana_prepare
@@ -1354,10 +1500,14 @@ run_java() {
 
     if [[ "${run_mvn}" == true && -z "${failed_at}" ]]; then
         build_mvn_docker_cmd
-        run_supervised_tier "mvn" "${mvn_label}" \
-            "${MVN_DOCKER_RUN[@]}" "${mvn_args[@]}" || failed_at="${mvn_label}"
+        if ! run_supervised_tier "mvn" "${mvn_label}" \
+                "${MVN_DOCKER_RUN[@]}" "${mvn_args[@]}"; then
+            failed_at="${mvn_label}"
+            failed_tier="mvn"
+        fi
         if [[ "${TIER_STOPPED_EARLY}" == true ]]; then
             failed_at="tests/run-smoke.sh"
+            failed_tier="smoke"
             # Maven was signalled mid-flight, so its post-integration-test teardown never ran (see
             # sweep_test_db); remove the IT database it may have left standing.
             sweep_test_db
@@ -1373,11 +1523,14 @@ run_java() {
     fi
 
     if [[ "${run_e2e}" == true && -z "${failed_at}" ]]; then
-        run_supervised_tier "e2e" "tests/run-e2e.sh  (on :${E2E_HTTP_PORT}, reusing the mvn jar)" \
-            "${PWD}/tests/run-e2e.sh" "${E2E_HTTP_PORT}" "${PWD}/target" "${PWD}" \
-            || failed_at="tests/run-e2e.sh"
+        if ! run_supervised_tier "e2e" "tests/run-e2e.sh  (on :${E2E_HTTP_PORT}, reusing the mvn jar)" \
+                "${PWD}/tests/run-e2e.sh" "${E2E_HTTP_PORT}" "${PWD}/target" "${PWD}"; then
+            failed_at="tests/run-e2e.sh"
+            failed_tier="e2e"
+        fi
         if [[ "${TIER_STOPPED_EARLY}" == true ]]; then
             failed_at="tests/run-smoke.sh"
+            failed_tier="smoke"
         fi
     fi
 
@@ -1396,13 +1549,18 @@ run_java() {
         fi
         if [[ -n "${SMOKE_RC}" && "${SMOKE_RC}" != "0" ]]; then
             failed_at="tests/run-smoke.sh"
+            failed_tier="smoke"
             if [[ -s "${SMOKE_LOG}" ]]; then
                 cat "${SMOKE_LOG}"
             fi
-        elif [[ "${VERBOSE}" == true && -s "${SMOKE_LOG}" ]]; then
-            cat "${SMOKE_LOG}"
+        else
+            if [[ "${VERBOSE}" == true && -s "${SMOKE_LOG}" ]]; then
+                cat "${SMOKE_LOG}"
+            fi
+            # A pass leaves nothing for the report, and a tier stopped early leaves only however far it got;
+            # only a failure's log survives (see run_supervised_tier).
+            rm -f "${SMOKE_LOG}"
         fi
-        rm -f "${SMOKE_LOG}"
     fi
 
     # Join tier 4. An earlier failure means the scan's answer is moot and its remaining minutes are pure
@@ -1424,6 +1582,7 @@ run_java() {
             record_substep_time "qodana" "${QODANA_START_NS}" "${QODANA_RC}" "${qodana_end_ns}"
             if [[ "${QODANA_RC}" != "0" ]]; then
                 failed_at="qodana"
+                failed_tier="qodana"
                 [[ -s "${QODANA_LOG}" ]] && cat "${QODANA_LOG}"
                 if qodana_dependency_guard; then
                     qodana_failure_hint
@@ -1431,11 +1590,15 @@ run_java() {
             elif ! qodana_dependency_guard; then
                 # A pass the scan could have produced with no source on the classpath at all is not a pass.
                 failed_at="qodana"
+                failed_tier="qodana"
             elif [[ "${VERBOSE}" == true && -s "${QODANA_LOG}" ]]; then
                 cat "${QODANA_LOG}"
             fi
         fi
-        rm -f "${QODANA_LOG}" "${QODANA_END_NS_FILE}"
+        rm -f "${QODANA_END_NS_FILE}"
+        # Kept only when the scan is the failure being reported - including the classpath case just above,
+        # where the log is the only thing that explains a "pass" the gate refused to accept.
+        [[ "${failed_tier}" == "qodana" ]] || rm -f "${QODANA_LOG}"
     fi
 
     local done_in breakdown
@@ -1444,7 +1607,9 @@ run_java() {
     if [[ -z "${failed_at}" ]]; then
         echo "✅ Java gate [${invocation}] passed (${tier_list}), finished in ${GREEN}${done_in}${RESET}${breakdown}"
     else
-        echo "❌ Java gate [${invocation}] failed at [${failed_at}] after ${RED}${done_in}${RESET}${breakdown}: re-run ${YELLOW}'${SCRIPT_PATH} -v ${invocation}'${RESET} for the full output"
+        local hint
+        hint="$(failure_output_hint java "${failed_tier}")"
+        echo "❌ Java gate [${invocation}] failed at [${failed_at}] after ${RED}${done_in}${RESET}${breakdown}: ${hint}"
         overall_exit_code=1
     fi
 }
@@ -2137,8 +2302,10 @@ run_shellcheck() {
     TIMED_SUBSTEPS=()
 
     # Sequential, not parallel like the docker/java gates: both tiers are seconds, so the machinery to
-    # overlap them would cost more to read than it could ever save.
-    local failed=false output start_ns rc
+    # overlap them would cost more to read than it could ever save. Each still writes its own log when it
+    # fails, so the end-of-run report names the tier rather than the step (see substep_log_path); a passing
+    # tier writes nothing at all, which is what leaves only the failures on disk.
+    local failed=false first_failed="" output start_ns rc tier_log
 
     if [[ "${run_lint}" == true ]]; then
         substep "shellcheck  (every *.sh, via ${SHELLCHECK_DOCKER_IMAGE})"
@@ -2148,7 +2315,10 @@ run_shellcheck() {
         record_substep_time "shellcheck" "${start_ns}" "${rc}"
         if [[ "${rc}" -ne 0 ]]; then
             echo "${output}"
+            tier_log="$(substep_log_path shellcheck lint)"
+            printf '%s\n' "${output}" > "${tier_log}"
             failed=true
+            first_failed="lint"
         elif [[ "${VERBOSE}" == true && -n "${output}" ]]; then
             echo "${output}"
         fi
@@ -2162,7 +2332,10 @@ run_shellcheck() {
         record_substep_time "hooks" "${start_ns}" "${rc}"
         if [[ "${rc}" -ne 0 ]]; then
             echo "${output}"
+            tier_log="$(substep_log_path shellcheck hooks)"
+            printf '%s\n' "${output}" > "${tier_log}"
             failed=true
+            [[ -z "${first_failed}" ]] && first_failed="hooks"
         elif [[ "${VERBOSE}" == true && -n "${output}" ]]; then
             echo "${output}"
         fi
@@ -2172,7 +2345,9 @@ run_shellcheck() {
     done_in="$(step_time)"
     breakdown="$(substep_breakdown)"
     if [[ "${failed}" == true ]]; then
-        echo "❌ Shell-script gate [${invocation}] failed after ${RED}${done_in}${RESET}${breakdown}: re-run ${YELLOW}'${SCRIPT_PATH} -v ${invocation}'${RESET} for the full output"
+        local hint
+        hint="$(failure_output_hint shellcheck "${first_failed}")"
+        echo "❌ Shell-script gate [${invocation}] failed after ${RED}${done_in}${RESET}${breakdown}: ${hint}"
         overall_exit_code=1
     else
         echo "✅ Shell-script gate [${invocation}] passed (${tier_list}), finished in ${GREEN}${done_in}${RESET}${breakdown}"
@@ -2735,16 +2910,24 @@ fi
 overall_start=""
 overall_start="$(date +%s%N)"
 
-# One log per step, for the end-of-run failure report. A log left by a PREVIOUS run must not survive into
-# this one - it would be re-printed as though it were this run's failure - so each SELECTED step's log is
-# cleared here. Only the selected ones, and only the exact filenames this script writes: the directory comes
-# from GATE_LOG_DIR, so a wildcard sweep would both obey a mistyped override and pull the log out from under
-# a `… markdown` run happening alongside a long `… java` one.
+# One log per step, plus one per TIER of a step that has them, for the end-of-run failure report. A log left
+# by a PREVIOUS run must not survive into this one - it would be re-printed as though it were this run's
+# failure - so each SELECTED step's logs are cleared here. Every tier of it, not just the selected ones: a
+# `java:mvn` run that leaves yesterday's java-qodana.log standing would report a scan it never ran. Only the
+# selected steps though, and only the exact filenames this script writes: the directory comes from
+# GATE_LOG_DIR, so a wildcard sweep would both obey a mistyped override and pull the log out from under a
+# `… markdown` run happening alongside a long `… java` one.
 mkdir -p "${GATE_LOG_DIR}"
 step_log=""
+step_tiers=()
 for step in "${steps[@]}"; do
     step_log="$(step_log_path "${step}")"
     rm -f "${step_log}"
+    read -ra step_tiers <<< "${STEP_SUBSTEPS[${step}]:-}"
+    for tier in "${step_tiers[@]}"; do
+        step_log="$(substep_log_path "${step}" "${tier}")"
+        rm -f "${step_log}"
+    done
 done
 
 # Split the selected steps into the parallel lane set and the serial tail, keeping the order they were
@@ -2872,6 +3055,12 @@ if [[ "${final_exit_code}" -ne 0 ]]; then
         cancelled_list="$(IFS=','; echo "${cancelled_steps[*]}")"
         echo "⏹  Cancelled steps (${#cancelled_steps[@]}): ${cancelled_list} - stopped by -e, result unknown"
     fi
-    echo "   Re-run with: ${YELLOW}'${SCRIPT_PATH} -v ${failed_list}'${RESET} for the full output"
+    # Same reasoning as failure_output_hint: under -v this run already produced every line, so suggesting a
+    # re-run with the flag it was invoked with is noise. Name where the output was kept instead.
+    if [[ "${VERBOSE}" == true ]]; then
+        echo "   Full output of each failure is under ${YELLOW}${GATE_LOG_DIR}${RESET} (<step>.log, and <step>-<substep>.log per failing tier)"
+    else
+        echo "   Re-run with: ${YELLOW}'${SCRIPT_PATH} -v ${failed_list}'${RESET} for the full output"
+    fi
     exit 1
 fi
