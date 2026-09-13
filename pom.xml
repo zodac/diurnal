@@ -17,11 +17,6 @@
              in the Docker build, which compiles the stylesheet in its own Node stage and copies it in,
              so the Maven JVM image needs no Node toolchain. -->
         <css.build.skip>false</css.build.skip>
-
-        <!-- Parallel minions for the PITest mutation run (see the pitest-maven configuration below).
-             4 rather than a bigger number so a 2-4 core CI runner is not heavily oversubscribed while a
-             developer box still gets most of the win. -->
-        <pitest-threads>4</pitest-threads>
         <!-- Whether the two exec executions below stand the IT database up and tear it down. The default is
              false, so `mvn clean install -Dall` by hand manages its own database exactly as it always has.
              The quality gate sets it TRUE: it runs Maven inside a container (MVN_BUILD_IMAGE in
@@ -211,7 +206,7 @@
         </dependency>
         <!-- What makes the ITs count towards coverage at all. Quarkus loads application classes through its
              own augmented classloader, which the plain JaCoCo -javaagent cannot attribute, so without this
-             extension all 966 ITs contribute NOTHING and the report reads 42.9% with every resource class
+             extension all 966 ITs contribution NOTHING and the report reads 42.9% with every resource class
              at 0%. With it, the same report reads 93.3%.
 
              It generates no report of its own in this configuration: an agent is already attached (see
@@ -335,7 +330,7 @@
                  It does NOT measure the ITs by itself: its -javaagent cannot attribute Quarkus's augmented
                  classloader, and measured on this project it reported 42.9% line coverage with every
                  @QuarkusTest-covered class at 0% - AdminWebResource, AuthResource, ActionsApiResource and
-                 LogWebResource all 0/N despite the ITs that drive them. The quarkus-jacoco test dependency
+                 LogWebResource all 0/N despite the integration tests that drive them. The quarkus-jacoco test dependency
                  is what fixes that, and the two are NOT independent: because this plugin has already
                  attached an agent, quarkus-jacoco writes into the same target/jacoco.exec instead of its
                  own file, so the report generated here covers BOTH tiers at 93.3%. Drop either one and the
@@ -491,7 +486,8 @@
                          pure static helpers (see the record-vs-Extensions rule in CLAUDE.md), so the unit tests
                          share no state and parallel minions are safe. Override per-run with -Dpitest-threads=N;
                          drop it to 1 if a mutation result ever looks order-dependent. -->
-                    <threads>${pitest-threads}</threads>
+                    <threads>4</threads>
+                    <verbosity>QUIET</verbosity>
                 </configuration>
                 <!-- Re-bound install -> prepare-package (see checkstyle note: lints before IT/e2e). -->
                 <executions>
