@@ -350,6 +350,37 @@ jobs:
           prerelease: false
           makeLatest: true
 
+      # Push the Docker Hub "Repository overview" from docs/dockerhub-overview.md. That file exists rather
+      # than pointing this at README.md because Docker Hub resolves no relative paths: every
+      # `docs/screenshots/...` reference in the README renders as a broken image there, and the field
+      # sanitises the README's inline `<p align="center">`/`width=` HTML away. The overview file is the same
+      # content written in absolute-URL, no-HTML form.
+      #
+      # short-description mirrors `org.opencontainers.image.description` in the Dockerfile - the same sentence
+      # in the two places a user meets it, the image's own metadata and the Hub listing. It is a SECOND COPY of
+      # that string, so the two drift unless both move together. Docker Hub HARD-CAPS this field at 100
+      # characters and the sentence is 98, so there is room for two more and no more: a longer label cannot
+      # simply be pasted across.
+      #
+      # LAST on purpose. The description is cosmetic, but this step is the one most likely to fail
+      # (see the scope note below) - and every irreversible act of the release is already done by this point:
+      # the image is pushed, the tag and version-bump commit are pushed, the GitHub Release exists. Run any
+      # earlier, a credential failure here would strand a half-published release with an image on Docker Hub
+      # and no tag behind it. It is deliberately NOT continue-on-error: a stale overview should show up as a
+      # red run rather than be swallowed, and by here a red run costs nothing but the notification.
+      #
+      # SCOPE: this action calls the Docker Hub API, which needs a password or a PAT with read/write/DELETE
+      # scope - strictly more than the read/write `docker/login-action` above gets by on. If this step 401s,
+      # that is why, and DOCKERHUB_TOKEN needs regenerating with the wider scope rather than debugging here.
+      - name: Update the Docker Hub repository overview
+        uses: peter-evans/dockerhub-description@v5.0.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: zodac/diurnal
+          readme-filepath: ./docs/dockerhub-overview.md
+          short-description: 'Self-hosted application for tracking daily habits, with calendar views, statistics and daily notes'
+
       - name: Summary
         run: |
           echo "Created GitHub release for version: ${VERSION}"
