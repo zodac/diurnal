@@ -16,9 +16,8 @@ on:
   workflow_dispatch: # allows manual trigger
 
 jobs:
-  # Resolve the release version and decide whether the Docker image should be published. A GitHub
-  # release is always created; only the Docker image publish is gated — versions below 1.0.0 are
-  # pre-releases and their image is not pushed.
+  # Resolve the release version. Every run is a full release: the GitHub release is created and the
+  # Docker image is pushed, unconditionally.
   version:
     name: Resolve version
     runs-on: ubuntu-latest
@@ -27,26 +26,16 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
-      should_publish: ${{ steps.version.outputs.should_publish }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
 
-      - name: Read version and check release eligibility
+      - name: Read version
         id: version
         run: |
           version="$(cat VERSION)"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "Read version: ${version}"
-
-          # Push the Docker image only for stable releases (>= 1.0.0). Major version 0 == pre-release.
-          major="${version%%.*}"
-          if [ "${major}" -ge 1 ] 2>/dev/null; then
-            echo "should_publish=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "should_publish=false" >> "${GITHUB_OUTPUT}"
-            echo "::notice::Version ${version} is a pre-release (< 1.0.0); the GitHub release will still be created, but the Docker image will not be pushed."
-          fi
 
   translations:
     name: Check translation bundles
@@ -78,6 +67,11 @@ jobs:
     # makes lint_and_tests.sh append -Dsonarqube to its `mvn clean install -Dall`, and the parent-pom
     # reads the host URL + token straight from these env vars (sonar.host.url / sonar.token). Because a
     # release only ever runs on a master push / manual dispatch, every release is analysed and uploaded.
+    #
+    # The analysis is filed under the VERSION file's release version rather than the pom's -SNAPSHOT,
+    # which the scanner would otherwise default to: lint_and_tests.sh passes -Dsonar.projectVersion
+    # itself. It has to be done there and not here - the `publish` job's `mvn versions:set` is a
+    # separate job on its own checkout, and runs only once this one is already green.
     env:
       SONARQUBE_ANALYSIS: 'true'
       SONARQUBE_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
@@ -94,7 +88,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7.0.0
         with:
-          node-version: '26.8.1'
+          node-version: '26.8.2'
 
       - name: Setup Maven Action
         uses: s4u/setup-maven-action@v1.21.0
@@ -183,7 +177,7 @@ jobs:
         # lighter load so we measure service time, and widen the latency budget with PERF_P95_TOLERANCE —
         # while the error-rate budgets stay strict, so a genuinely broken path still fails. These are
         # forwarded through lint_and_tests.sh -> run-perf.sh into the k6 container; tune against the
-        # observed CI numbers. (Only the `perf` step reads them; every other step ignores them.)
+        # observed CI numbers. (Only the `perf` step reads the PERF_* ones; every other step ignores them.)
         env:
           PERF_RATE: "5"
           PERF_VUS: "10"
@@ -195,6 +189,12 @@ jobs:
           # Absolute path => the wrapper's `docker run -v` bind-mounts this cached dir as Grype's DB
           # cache (instead of the default named volume), so the actions/cache step above persists it.
           GRYPE_DB_CACHE_VOLUME: /home/runner/.cache/grype-db
+          # Not a perf knob: how much of each failing TIER's log the wrapper re-prints before its summary.
+          # Wider here than the local default of 40 because this excerpt is all a red run leaves behind -
+          # the logs themselves live in the runner's /tmp and die with the job, so anything the tail cuts
+          # off is gone rather than one `grep` away. 150 covers a Maven reactor summary with its whole
+          # failing-test list, or a Playwright failure with its diff.
+          GATE_FAILURE_TAIL_LINES: "150"
         run: .github/scripts/lint_and_tests.sh docker,java,perf -v -e
 
       # The Grype scanner runs as root, so the cached DB files are root-owned; hand them back to the
@@ -204,8 +204,8 @@ jobs:
         if: always()
         run: sudo chown -R "$USER" /home/runner/.cache/grype-db || true
 
-  # Always tag the release, publish a GitHub Release and bump the patch version for the next cycle.
-  # The Docker image is built & pushed only for stable (>= 1.0.0) versions. Runs after `test` is green.
+  # Tag the release, build and push the Docker image, publish a GitHub Release and bump the patch
+  # version for the next cycle. Runs after `test` is green.
   publish:
     name: Publish release
     needs: [ version, test ]
@@ -215,7 +215,6 @@ jobs:
       contents: write # push the version-bump commit + release tag, create the GitHub Release
     env:
       VERSION: ${{ needs.version.outputs.version }}
-      SHOULD_PUBLISH: ${{ needs.version.outputs.should_publish }}
 
     steps:
       - name: Checkout repository
@@ -231,10 +230,9 @@ jobs:
           git config user.name "publisher"
           git config user.email "github-actions@github.com"
 
-      # Maven is always needed: the version-bump step (bump_version.sh) runs `mvn versions:set` on
-      # every release, pre-release or not. Only the image-specific Maven step below is gated. Pinning
-      # it here (rather than relying on the runner's pre-installed Maven) keeps the toolchain
-      # consistent with the `test` job.
+      # Maven is needed by the version-bump step (bump_version.sh), which runs `mvn versions:set` on
+      # every release. Pinning it here (rather than relying on the runner's pre-installed Maven) keeps
+      # the toolchain consistent with the `test` job.
       - name: Setup Maven Action
         uses: s4u/setup-maven-action@v1.21.0
         with:
@@ -247,11 +245,9 @@ jobs:
         run: mvn versions:set -DnewVersion="${VERSION}" -DgenerateBackupPoms=false
 
       - name: Set up Docker Buildx
-        if: needs.version.outputs.should_publish == 'true'
         uses: docker/setup-buildx-action@v4.3.0
 
       - name: Log in to Docker Hub
-        if: needs.version.outputs.should_publish == 'true'
         uses: docker/login-action@v4.6.0
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
@@ -265,7 +261,6 @@ jobs:
       # no tag created, rather than surfacing as a failure of the publish step; it also warms the layer
       # cache the push then reuses, so it is close to free.
       - name: Verify the preview-generation image build
-        if: needs.version.outputs.should_publish == 'true'
         uses: docker/build-push-action@v7.3.0
         with:
           context: .
@@ -278,7 +273,6 @@ jobs:
       # the build - a Dockerfile cannot read the clock.
       - name: Resolve the image build date
         id: build_date
-        if: needs.version.outputs.should_publish == 'true'
         run: echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${GITHUB_OUTPUT}"
 
       # The three build-args feed the OCI labels on the runtime stage (see the end of the Dockerfile) and
@@ -287,7 +281,6 @@ jobs:
       # full hit and no layer is re-pushed. Only THIS build passes them: the verification build above is
       # thrown away, and leaving it unlabelled keeps its (identical) layers reusable here.
       - name: Build and push Docker image
-        if: needs.version.outputs.should_publish == 'true'
         uses: docker/build-push-action@v7.3.0
         with:
           context: .
@@ -328,11 +321,9 @@ jobs:
       # The Quick Start tells a user to download this file and run it, so the tag it names has to be a release
       # that actually exists - it is pinned rather than :latest so an upgrade is deliberate (a MAJOR bump can
       # break a deployment; see README.md's Versioning section). Rewritten here, after the push above has put
-      # that tag on Docker Hub, so the file on master never names a version nobody can pull. Only rewritten for
-      # a version that was actually published; a pre-release (< 1.0.0) pushes no image and must leave the pin on
-      # the last real release. Staged, not committed: bump_version.sh below commits the whole index.
+      # that tag on Docker Hub, so the file on master never names a version nobody can pull. Staged, not
+      # committed: bump_version.sh below commits the whole index.
       - name: Pin the example Compose file to the released version
-        if: needs.version.outputs.should_publish == 'true'
         run: |
           sed -i -E "s|^(\s*image: zodac/diurnal:).*|\1${VERSION}|" docs/docker-compose.example.yml
           git add -- docs/docker-compose.example.yml
@@ -355,16 +346,12 @@ jobs:
           name: v${{ env.VERSION }}
           tag: ${{ env.VERSION }}
           body: ${{ steps.release_body.outputs.body }}
-          # A sub-1.0.0 version is a pre-release: flag it as such and don't mark it "Latest".
-          prerelease: ${{ needs.version.outputs.should_publish != 'true' }}
-          makeLatest: ${{ needs.version.outputs.should_publish == 'true' }}
+          # Every publish is a full release: never flagged as a pre-release, always marked "Latest".
+          prerelease: false
+          makeLatest: true
 
       - name: Summary
         run: |
           echo "Created GitHub release for version: ${VERSION}"
-          if [ "${SHOULD_PUBLISH}" = "true" ]; then
-            echo "Published Docker image. Pull it using:"
-            echo "  docker pull zodac/diurnal:${VERSION}"
-          else
-            echo "Skipped Docker image publish (pre-release version < 1.0.0)."
-          fi
+          echo "Published Docker image. Pull it using:"
+          echo "  docker pull zodac/diurnal:${VERSION}"
