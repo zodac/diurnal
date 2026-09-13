@@ -320,8 +320,8 @@ jobs:
       # natural follow-up once one run has established a baseline - read the measured p95s out of this
       # job's output and the "Record the runner size" step above.
       #
-      # THE SUITE IS RUN ONLY IF AUTO-DETECTION SELECTS IT, and the script is asked rather than second-
-      # guessed. `perf` triggers on the same file set as `java` (anything feeding the runtime, the app
+      # THE SUITE IS RUN ONLY IF AUTO-DETECTION SELECTS IT, and the script is asked rather than second-guessed.
+      # `perf` triggers on the same file set as `java` (anything feeding the runtime, the app
       # code or the dependencies) plus the suite's own files, with java's comment-only and version-bump
       # suppression applied - rules that live in detect_changed_steps and nowhere else. Restating them in
       # an `if:` here would be a second copy free to drift; `--list-steps` reports the real verdict.
@@ -663,7 +663,7 @@ jobs:
       # scope - strictly more than the read/write `docker/login-action` above gets by on. If this step 401s
       # or 403s, that is why, and DOCKERHUB_TOKEN needs regenerating with the wider scope rather than being
       # debugged here. Observed once for real on the v1.0.1 release: `Sending PATCH request / Error:
-      # Forbidden`, with every preceding step - including the image push on the same token - green.
+      # Forbidden`, with every preceding step - including the image push on the same API token - green.
       - name: Update the Docker Hub repository overview
         uses: peter-evans/dockerhub-description@v5.0.0
         with:

@@ -47,9 +47,8 @@ PROJECT="diurnal-smoke"
 # real (Playwright/Maven) exit code.
 sweep_stack() {
   docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" down -v --remove-orphans --timeout 10 >/dev/null 2>&1 || true
-  local leftovers
-  leftovers="$(docker ps -aq --filter "label=com.docker.compose.project=${PROJECT}" 2>/dev/null || true)"
-  [[ -n "${leftovers}" ]] && echo "${leftovers}" | xargs -r docker rm -f >/dev/null 2>&1 || true
+  docker ps -aq --filter "label=com.docker.compose.project=${PROJECT}" 2>/dev/null \
+    | xargs -r docker rm -f >/dev/null 2>&1 || true
 }
 
 cleanup() {

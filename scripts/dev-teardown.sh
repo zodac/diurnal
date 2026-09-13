@@ -91,7 +91,9 @@ echo "→ Stopping this project's quarkus:dev wrapper(s) on port ${PORT}…"
 # Kill the dev-mode wrapper(s) FIRST so dev mode can't relaunch the app after we free the port. Only
 # this project's wrappers — belongs_to_project filters out any other project's quarkus:dev.
 for pid in $(pgrep -f "quarkus:dev" 2>/dev/null || true); do
-  [[ -e "/proc/${pid}" ]] && belongs_to_project "${pid}" && kill "${pid}" 2>/dev/null || true
+  [[ -e "/proc/${pid}" ]] || continue       # exited between pgrep and here
+  belongs_to_project "${pid}" || continue   # another project's dev server - never ours to kill
+  kill "${pid}" 2>/dev/null || true         # raced us to exit; the port sweep below is the backstop
 done
 sleep 1   # let a graceful wrapper take its forked app JVM down before we check the port
 
@@ -114,8 +116,8 @@ echo "→ Removing any leftover deployment-smoke stack (diurnal-smoke)…"
 # Namespaced project, so this only ever touches the smoke app + DB — never the prod `diurnal` stack.
 # `down` first; then a label-based force-remove sweeps any container a killed run-smoke.sh left behind.
 docker compose -p diurnal-smoke -f docker-compose.smoke.yml down -v --remove-orphans --timeout 10 >/dev/null 2>&1 || true
-smoke_left="$(docker ps -aq --filter "label=com.docker.compose.project=diurnal-smoke" 2>/dev/null || true)"
-[[ -n "${smoke_left}" ]] && echo "${smoke_left}" | xargs -r docker rm -f >/dev/null 2>&1 || true
+docker ps -aq --filter "label=com.docker.compose.project=diurnal-smoke" 2>/dev/null \
+  | xargs -r docker rm -f >/dev/null 2>&1 || true
 
 # ── Verify and report ─────────────────────────────────────────────────────────
 sleep 1

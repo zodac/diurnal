@@ -20,7 +20,7 @@ Helpful things to include, as far as you have them:
 
 - The version you are running (the footer shows it, as does `GET /api/v1/status`)
 - Whether the deployment is behind a reverse proxy or Cloudflare, and whether `TRUST_X_FORWARDED_HEADERS` and `TRUST_CLOUDFLARE_HEADER`
-  are on - between them they decide which client IP the per-IP auth lockout counts against
+  are on - between them, they decide which client IP the per-IP auth lockout counts against
 - Which sign-in methods are enabled (`PASSWORD_AUTH_ENABLED`, `OIDC_ENABLED`)
 - The steps to reproduce, and what an attacker gains
 
