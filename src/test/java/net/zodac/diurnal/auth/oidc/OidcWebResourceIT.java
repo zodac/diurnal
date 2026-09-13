@@ -56,7 +56,7 @@ class OidcWebResourceIT extends IntegrationTestBase {
     private static final String CALLBACK_PATH = "/oauth2/callback/oidc";
 
     @Inject
-    SessionConfig sessionConfig;
+    private SessionConfig sessionConfig;
 
     @Override
     protected void createDbState() {

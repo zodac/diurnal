@@ -54,13 +54,13 @@ class OidcUserProvisionerIT extends IntegrationTestBase {
     // Injects the very config the bean under test reads, so these tests stay environment-agnostic: SmallRye resolves .env at a higher priority
     // than the %test profile, so a specific value cannot be forced here - each expectation is instead derived from the same source the bean uses.
     @Inject
-    OidcConfig oidcConfig;
+    private OidcConfig oidcConfig;
 
     @Inject
-    QuarkusOidcConfig quarkusOidcConfig;
+    private QuarkusOidcConfig quarkusOidcConfig;
 
     @Inject
-    OidcUserProvisioner oidcUserProvisioner;
+    private OidcUserProvisioner oidcUserProvisioner;
 
     // ── The callback route the revocation guard exempts ───────────────────────
 

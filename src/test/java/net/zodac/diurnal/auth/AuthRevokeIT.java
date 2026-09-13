@@ -44,7 +44,7 @@ class AuthRevokeIT extends IntegrationTestBase {
     private static final Instant SESSION_INSTANT = Instant.parse("2026-06-15T00:00:00Z");
 
     @Inject
-    SessionStore sessionStore;
+    private SessionStore sessionStore;
 
     private User user;
     private User otherUser;

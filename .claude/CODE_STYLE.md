@@ -1,6 +1,6 @@
 # CODE_STYLE.md
 
-> **This file is ~44 KB. Read only the section you need** - `grep -n '^#' .claude/CODE_STYLE.md` for its
+> **This file is ~49 KB. Read only the section you need** - `grep -n '^#' .claude/CODE_STYLE.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Java** — Format with the IDE formatter (Checkstyle-aligned), Javadoc must use the multi-line form, Block comments and Javadoc fill the line
@@ -11,10 +11,10 @@
 >   their own line, Enum constants are separated by a blank line, Narrow a type with `instanceof final`, never a cast, An unread pattern binding is
 >   `_`, never a placeholder name, Validate a value ONCE per request, then treat it as settled, Suppress PMD rules with a `NOPMD:` line comment, never
 >   `@SuppressWarnings`, AssertJ assertions must be fluent-chained across multiple lines, Multi-argument terminal assertions use an extracted `List`,
->   Configuration is read through typed `@ConfigMapping`, never scattered property lookups, Panache statics are called on the entity, NEVER on
->   `PanacheEntityBase`, A request DTO's constraints are `@Schema` attributes, NEVER Jakarta Bean Validation, A constant regex is a `static final
->   Pattern`, never `String.matches`/`replaceAll`, Production code kept alive only by its test is dead
->   code
+>   A test's `@Inject` fields are `private`, A placeholder id is `DummyValues.DUMMY_UUID`, never `UUID.randomUUID()`, A test helper takes no parameter
+>   it is always handed the same value, Configuration is read through typed `@ConfigMapping`, never scattered property lookups, Panache statics are
+>   called on the entity, NEVER on `PanacheEntityBase`, A request DTO's constraints are `@Schema` attributes, NEVER Jakarta Bean Validation, A
+>   constant regex is a `static final Pattern`, never `String.matches`/`replaceAll`, Production code kept alive only by its test is dead code
 
 Project-specific conventions **on top of** the inherited linter suite (Checkstyle / PMD / SpotBugs / Javadoc / NullAway). Every rule here is *
 *mandatory**. Re-read before a task; keep it in sync when conventions change.
@@ -289,6 +289,8 @@ Rules:
   value.
 - Test doubles for injected collaborators live in the shared `net.zodac.diurnal.stub` test package (`StubAppConfig`, `StubOidcConfig`, …) and are
   passed to the constructor — reuse them rather than re-declaring an anonymous/nested stub per test.
+- **This is a `src/main` rule.** A `@QuarkusTest`/`*IT` class is built by JUnit rather than CDI and so must use `@Inject` fields; those fields are
+  `private` — see "A test's `@Inject` fields are `private`" below.
 
 ❌ **Wrong** — `@Inject` fields:
 
@@ -675,6 +677,106 @@ line-wrap and method-call-child agree at `+4`). The same swap applies to any oth
 > **More generally:** any *multi-line arguments on a chained method call* hit this same strict-`Indentation` wall (e.g.
 `.collect(Collectors.groupingBy(a, b))` split across lines). Fix it by collapsing the call onto one line when it fits within 150 chars, or by
 extracting the inner call/arguments to a local variable at statement level.
+
+### A test's `@Inject` fields are `private`
+
+The constructor-injection rule above is a `src/main` rule: a `@QuarkusTest`/`*IT` class is instantiated by JUnit, not by CDI, so field injection is
+the only option there and is expected. **What is not optional is the visibility — every injected field in a test class is `private`.** ArC injects
+a private field perfectly well (it already does across the suite), so the default package-private visibility buys nothing and costs the one thing
+visibility is for: a reader cannot tell whether a sibling test in the package is meant to reach in, and Qodana's "member could be narrower" check
+stays quiet on injected fields, so nothing catches the drift.
+
+The one exception is `IntegrationTestBase`, whose `clock` is `protected` **because subclasses in other packages read it**. That is the whole point:
+
+- **Never re-inject something the base class already holds.** A subclass declaring its own `@Inject AppClock clock` *shadows* the inherited field
+  rather than overriding it - two fields, and a reader with no way to tell which one a given method used. Four ITs carried their own copy while the
+  base's was still package-private (and so invisible to them, which is what made the duplication look necessary); widening it to `protected` removed
+  all four.
+- A base-class field that subclasses genuinely need is `protected` **with Javadoc saying why**; everything else in the base is `private`.
+
+❌ **Wrong** - default visibility, and a field the base already provides:
+
+```java
+@Inject
+IpLockoutService ipLockoutService;
+
+@Inject
+AppClock clock; // IntegrationTestBase already injects this
+```
+
+✅ **Right:**
+
+```java
+@Inject
+private IpLockoutService ipLockoutService;
+```
+
+### A placeholder id is `DummyValues.DUMMY_UUID`, never `UUID.randomUUID()`
+
+**A test needing an id it will never look up takes `DUMMY_UUID`** - the "row that does not exist" 404/409 case, or a field a value object must carry
+that the assertion ignores. Never call `UUID.randomUUID()` for it, and never hand-roll a local `UUID.fromString("…")` constant (`SOME_ID`,
+`MISSING_ID`, …) that means the same thing.
+
+`randomUUID()` is the real problem: a test that generates its own id is one whose failure cannot be reproduced from the output alone, because the
+value in the stack trace or the logged request path differs on every run and names something nobody can look up afterwards. A fixed value is also
+recognisable as the placeholder wherever it surfaces. **It must never be persisted** - every use is a lookup meant to miss. A test needing an id a row
+DOES hold takes it from the row it created.
+
+A hand-rolled *named, distinct* constant is still right where a test needs **several** identities to tell apart (`USER_ID` vs `OTHER_USER_ID` in
+`ActionLogIdTest`, `FIRST`/`SECOND`/`THIRD` in `FrequencyChartExtensionsTest`) - `DUMMY_UUID` is a single shared value and cannot express that.
+
+❌ **Wrong:**
+
+```java
+given().get("/internal/admin/ip-lockouts/" + UUID.randomUUID() + "/row")
+
+private static final UUID SOME_ID = UUID.fromString("00000000-0000-0000-0000-0000000000ff");
+```
+
+✅ **Right:**
+
+```java
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
+
+given().get("/internal/admin/ip-lockouts/" + DUMMY_UUID + "/row")
+```
+
+### A test helper takes no parameter it is always handed the same value
+
+**If every call site passes a helper the same constant, that parameter is not a parameter - inline it into the body** and drop it from the signature.
+A parameter that never varies is false generality: it reads as a dimension the test exercises, so each call site restates the same value and the
+reader checks all of them to confirm they agree.
+
+This applies to the value a fixture field holds just as much as to a literal - `rewrapUnderRetiredKey(owner.id)` at seven call sites, where `owner`
+is the one user the class seeds, is the same finding.
+
+Keep the parameter when the call sites genuinely differ (including one differing call), and when a helper is **overloaded** - there the parameter is
+carrying the distinction between the overloads. A helper left with no parameters is usually worth renaming to say what it now fixes
+(`freezeDate(FIXED_TODAY)` → `freezeToFixedToday()`).
+
+❌ **Wrong** - `ip` is `LOCKED_IP` at every call site:
+
+```java
+lockIp(LOCKED_IP);
+...
+private void lockIp(final String ip) {
+    for (int i = 0; i < MAX_ATTEMPTS; i++) {
+        ipLockoutService.recordFailure(ip, clock.now());
+    }
+}
+```
+
+✅ **Right:**
+
+```java
+lockIp();
+...
+private void lockIp() {
+    for (int i = 0; i < MAX_ATTEMPTS; i++) {
+        ipLockoutService.recordFailure(LOCKED_IP, clock.now());
+    }
+}
+```
 
 ### Configuration is read through typed `@ConfigMapping`, never scattered property lookups
 

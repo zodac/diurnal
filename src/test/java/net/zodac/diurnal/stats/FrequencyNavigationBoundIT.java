@@ -48,7 +48,7 @@ class FrequencyNavigationBoundIT extends IntegrationTestBase {
     private static final Language LANGUAGE = Language.DEFAULT;
 
     @Inject
-    StatsService statsService;
+    private StatsService statsService;
 
     private static String monthKey(final LocalDate date) {
         return YearMonth.from(date).toString();

@@ -18,11 +18,11 @@
 package net.zodac.diurnal.web.admin;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
-import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.user.Role;
 import org.junit.jupiter.api.Test;
@@ -39,7 +39,6 @@ class AdminIpLockoutsDisabledInternalIT extends IntegrationTestBase {
     static final String ADMIN_EMAIL = "iplock-disabled-internal@lt.test";
 
     private static final String SOME_IP = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - test IP
-    private static final UUID SOME_ID = UUID.fromString("00000000-0000-0000-0000-0000000000ff");
 
     @Override
     protected void createDbState() {
@@ -54,13 +53,13 @@ class AdminIpLockoutsDisabledInternalIT extends IntegrationTestBase {
 
     @Test
     void confirmUnlock_whenDisabled_isNotFound() {
-        given().get("/internal/admin/ip-lockouts/" + SOME_ID + "/confirm-unlock")
+        given().get("/internal/admin/ip-lockouts/" + DUMMY_UUID + "/confirm-unlock")
                 .then().statusCode(NOT_FOUND);
     }
 
     @Test
     void row_whenDisabled_isNotFound() {
-        given().get("/internal/admin/ip-lockouts/" + SOME_ID + "/row")
+        given().get("/internal/admin/ip-lockouts/" + DUMMY_UUID + "/row")
                 .then().statusCode(NOT_FOUND);
     }
 

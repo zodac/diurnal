@@ -53,13 +53,13 @@ import org.junit.jupiter.api.Test;
 class BulkWriteIT extends IntegrationTestBase {
 
     @Inject
-    LogStatements statements;
+    private LogStatements statements;
 
     private static final LocalDate FIRST_DAY = LocalDate.of(2026, 3, 1);
     private static final int ENTRY_COUNT = 40;
 
     @Inject
-    NoteService noteService;
+    private NoteService noteService;
 
     @Test
     void setCounts_writesEveryEntryAgainstItsOwnDayAndAction() {

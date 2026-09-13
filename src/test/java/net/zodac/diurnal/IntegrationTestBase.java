@@ -97,14 +97,21 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
     protected static final String NOTES_MASTER_KEY = "ZGl1cm5hbC10ZXN0LW5vdGVzLWtleS0zMi1ieXRlcyE=";
 
     @Inject
-    UserTransaction tx;
+    private UserTransaction tx;
 
+    /**
+     * The application clock, frozen to {@link #FIXED_TODAY} for the duration of every test.
+     *
+     * <p>
+     * Protected rather than private because a subclass in another package regularly needs the same "now" the request under test will see - reading
+     * it here rather than re-injecting an {@link AppClock} of its own keeps one field, and stops a subclass shadowing this one.
+     */
     @Inject
-    AppClock clock;
+    protected AppClock clock;
 
     @BeforeEach
     void setUp() throws Exception {
-        freezeDate(FIXED_TODAY);
+        freezeToFixedToday();
         tx.begin();
         try {
             SubjectStatsCache.deleteAll();
@@ -126,10 +133,10 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
         AppClocks.restore(clock);
     }
 
-    private void freezeDate(final LocalDate date) {
+    private void freezeToFixedToday() {
         // Pin the zone to the "UTC" region (id "UTC"), matching application-test.properties and
         // production, rather than ZoneOffset.UTC (id "Z") — same instant, but a representative zone id.
-        AppClocks.freeze(clock, Clock.fixed(date.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneId.of("UTC")));
+        AppClocks.freeze(clock, Clock.fixed(FIXED_TODAY.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneId.of("UTC")));
     }
 
     /**

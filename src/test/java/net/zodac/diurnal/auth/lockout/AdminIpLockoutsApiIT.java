@@ -32,7 +32,6 @@ import java.time.Instant;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.auth.session.Session;
 import net.zodac.diurnal.auth.session.SessionStore;
-import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,16 +54,13 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
     private static final Instant SESSION_INSTANT = Instant.parse("2026-06-15T00:00:00Z");
 
     @Inject
-    IpThrottle ipThrottle;
+    private IpThrottle ipThrottle;
 
     @Inject
-    IpLockoutService ipLockoutService;
+    private IpLockoutService ipLockoutService;
 
     @Inject
-    SessionStore sessionStore;
-
-    @Inject
-    AppClock clock;
+    private SessionStore sessionStore;
 
     private User admin;
     private User regularUser;

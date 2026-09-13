@@ -40,10 +40,10 @@ class SessionActivityServiceIT extends IntegrationTestBase {
     private static final Instant NOW = Instant.parse("2026-06-15T12:00:00Z");
 
     @Inject
-    SessionActivityService sessionActivityService;
+    private SessionActivityService sessionActivityService;
 
     @Inject
-    SessionStore sessionStore;
+    private SessionStore sessionStore;
 
     private User active;
     private User inactive;

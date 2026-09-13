@@ -31,7 +31,6 @@ import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.auth.session.Session;
 import net.zodac.diurnal.auth.session.SessionStore;
-import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
@@ -47,10 +46,7 @@ class LogsApiAuthIT extends IntegrationTestBase {
     private static final LocalDate DAY = LocalDate.of(2026, 6, 15);
 
     @Inject
-    SessionStore sessionStore;
-
-    @Inject
-    AppClock clock;
+    private SessionStore sessionStore;
 
     private User user;
     private Action action;

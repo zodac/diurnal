@@ -66,7 +66,7 @@ class AppLifecycleIT extends IntegrationTestBase {
     private static final String PRIMARY = "lifecycle-it@lt.test";
 
     @Inject
-    AppLifecycle appLifecycle;
+    private AppLifecycle appLifecycle;
 
     @Override
     protected void createDbState() {

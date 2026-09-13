@@ -57,7 +57,7 @@ class OidcGroupProvisioningIT extends IntegrationTestBase {
     private static final String EXISTING_ADMIN = "existing-admin@example.com";
 
     @Inject
-    OidcUserProvisioner oidcUserProvisioner;
+    private OidcUserProvisioner oidcUserProvisioner;
 
     @Override
     protected void createDbState() {

@@ -49,10 +49,10 @@ class AuthenticationQueryCountIT extends IntegrationTestBase {
     private static final Instant SESSION_INSTANT = Instant.parse("2026-06-15T00:00:00Z");
 
     @Inject
-    EntityManagerFactory entityManagerFactory;
+    private EntityManagerFactory entityManagerFactory;
 
     @Inject
-    SessionStore sessionStore;
+    private SessionStore sessionStore;
 
     private User user;
 

@@ -39,12 +39,15 @@ import org.junit.jupiter.api.Test;
 class NotePagesTest {
 
     private static final LocalDate DAY = LocalDate.of(2026, 6, 15);
+    // Contains the "5k" the highlighting tests search for.
+    private static final String HIT_CONTENT = "Ran a 5k";
+    private static final int PAGE_OF_HITS = 5;
     private static final Locale EN_GB = Locale.forLanguageTag("en-GB");
     private static final AppPaths PATHS = new AppPaths(StubAppConfig.empty());
 
     @Test
     void of_buildsRowPerHitWithBothFormsOfTheDate() {
-        final PaginatedNotes page = NotePages.of(oneHit("Ran a 5k"), "", EN_GB, PATHS);
+        final PaginatedNotes page = NotePages.of(oneHit(), "", EN_GB, PATHS);
 
         assertThat(page.items())
             .as("one hit produces one row")
@@ -59,7 +62,7 @@ class NotePagesTest {
 
     @Test
     void of_highlightsTheSearchTermInEachRow() {
-        final PaginatedNotes page = NotePages.of(oneHit("Ran a 5k"), "5k", EN_GB, PATHS);
+        final PaginatedNotes page = NotePages.of(oneHit(), "5k", EN_GB, PATHS);
 
         assertThat(page.items().getFirst().snippet())
             .as("the row's snippet flags the matched run so the template can mark it")
@@ -68,7 +71,7 @@ class NotePagesTest {
 
     @Test
     void of_rendersEveryHitOnThePageInOrder() {
-        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(5), 12L, 12L, 3, 2, null), "", EN_GB, PATHS);
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(), 12L, 12L, 3, 2, null), "", EN_GB, PATHS);
 
         assertThat(page.items())
             .as("every hit handed in becomes a row - the page was already selected upstream")
@@ -80,7 +83,7 @@ class NotePagesTest {
 
     @Test
     void of_carriesTheWholeResultsFiguresThroughToTheFooter() {
-        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(5), 12L, 12L, 3, 2, null), "", EN_GB, PATHS);
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(), 12L, 12L, 3, 2, null), "", EN_GB, PATHS);
 
         assertThat(page.totalCount())
             .as("the count is of every match, not just the page")
@@ -120,7 +123,7 @@ class NotePagesTest {
 
     @Test
     void of_hasNoSuggestionWhenTheSearchFoundSomething() {
-        final PaginatedNotes page = NotePages.of(oneHit("Ran a 5k"), "5k", EN_GB, PATHS);
+        final PaginatedNotes page = NotePages.of(oneHit(), "5k", EN_GB, PATHS);
 
         assertThat(page.suggestion())
             .as("nothing is suggested beside results the user can actually read")
@@ -155,12 +158,12 @@ class NotePagesTest {
             .isEqualTo("&q=5k+run");
     }
 
-    private static PaginatedHits oneHit(final String content) {
-        return new PaginatedHits(List.of(new NoteHit(DAY, content)), 1L, 1L, 1, 1, null);
+    private static PaginatedHits oneHit() {
+        return new PaginatedHits(List.of(new NoteHit(DAY, HIT_CONTENT)), 1L, 1L, 1, 1, null);
     }
 
-    private static List<NoteHit> hits(final int count) {
-        return IntStream.range(0, count)
+    private static List<NoteHit> hits() {
+        return IntStream.range(0, PAGE_OF_HITS)
             .mapToObj(i -> new NoteHit(DAY.minusDays(i), "Note " + i))
             .toList();
     }

@@ -51,7 +51,7 @@ class UserMeApiIT extends IntegrationTestBase {
     private static final String PRIMARY = "me-api-it@lt.test";
 
     @Inject
-    SessionStore sessionStore;
+    private SessionStore sessionStore;
 
     private User user;
 

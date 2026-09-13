@@ -64,7 +64,7 @@ class IpThrottleIT extends IntegrationTestBase {
     private static final Instant FROZEN_NOW = FIXED_TODAY.atStartOfDay(ZoneOffset.UTC).toInstant();
 
     @Inject
-    IpThrottle ipThrottle;
+    private IpThrottle ipThrottle;
 
     // IpThrottle is @ApplicationScoped, so its in-memory state survives across tests — wipe it.
     @BeforeEach

@@ -18,6 +18,7 @@
 package net.zodac.diurnal.web.admin;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
 import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.containsString;
@@ -35,7 +36,6 @@ import net.zodac.diurnal.auth.lockout.IpLockout;
 import net.zodac.diurnal.auth.lockout.IpLockoutService;
 import net.zodac.diurnal.auth.lockout.IpThrottle;
 import net.zodac.diurnal.auth.lockout.IpThrottleProfile;
-import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,13 +58,10 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
     private static final String OTHER_IP = "198.51.100.9"; // NOPMD: AvoidUsingHardCodedIP - test IP
 
     @Inject
-    IpThrottle ipThrottle;
+    private IpThrottle ipThrottle;
 
     @Inject
-    IpLockoutService ipLockoutService;
-
-    @Inject
-    AppClock clock;
+    private IpLockoutService ipLockoutService;
 
     // IpThrottle is @ApplicationScoped, so its in-memory state survives across tests. The package-private
     // clear() hook is not visible from this package, so reset via the public unlock of every live lockout.
@@ -84,7 +81,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
 
     @Test
     void adminPage_rendersTheLockoutSectionWithTheLockedIp() {
-        lockIp(LOCKED_IP);
+        lockIp();
 
         given().get("/admin/users")
                 .then().statusCode(OK)
@@ -95,7 +92,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
 
     @Test
     void historyPartial_rendersTheLockoutRow() {
-        lockIp(LOCKED_IP);
+        lockIp();
 
         given().get("/internal/admin/ip-lockouts/history")
                 .then().statusCode(OK)
@@ -105,8 +102,8 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
 
     @Test
     void confirmUnlock_turnsTheRowIntoTheConfirmRow() {
-        lockIp(LOCKED_IP);
-        final UUID id = lockoutIdFor(LOCKED_IP);
+        lockIp();
+        final UUID id = lockoutId();
 
         given().get("/internal/admin/ip-lockouts/" + id + "/confirm-unlock")
                 .then().statusCode(OK)
@@ -117,8 +114,8 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
 
     @Test
     void row_restoresThePlainActiveRow() {
-        lockIp(LOCKED_IP);
-        final UUID id = lockoutIdFor(LOCKED_IP);
+        lockIp();
+        final UUID id = lockoutId();
 
         given().get("/internal/admin/ip-lockouts/" + id + "/row")
                 .then().statusCode(OK)
@@ -129,7 +126,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
 
     @Test
     void unlock_reRendersTheTableWithTheIpCleared() {
-        lockIp(LOCKED_IP);
+        lockIp();
 
         given().post("/internal/admin/ip-lockouts/" + LOCKED_IP + "/unlock")
                 .then().statusCode(OK)
@@ -150,14 +147,14 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
     // that has since gone must answer with a banner rather than a 500 from dereferencing nothing.
     @Test
     void confirmUnlock_lockoutNoLongerExists_returnsTheNotFoundBanner() {
-        given().get("/internal/admin/ip-lockouts/" + UUID.randomUUID() + "/confirm-unlock")
+        given().get("/internal/admin/ip-lockouts/" + DUMMY_UUID + "/confirm-unlock")
                 .then().statusCode(CONFLICT)
                 .body(containsString("no longer exists"));
     }
 
     @Test
     void row_lockoutNoLongerExists_returnsTheNotFoundBanner() {
-        given().get("/internal/admin/ip-lockouts/" + UUID.randomUUID() + "/row")
+        given().get("/internal/admin/ip-lockouts/" + DUMMY_UUID + "/row")
                 .then().statusCode(CONFLICT)
                 .body(containsString("no longer exists"));
     }
@@ -170,15 +167,15 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
                 .body(not(containsString(LOCKED_IP)));
     }
 
-    private void lockIp(final String ip) {
+    private void lockIp() {
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            ipLockoutService.recordFailure(ip, clock.now());
+            ipLockoutService.recordFailure(LOCKED_IP, clock.now());
         }
     }
 
-    private UUID lockoutIdFor(final String ip) {
+    private UUID lockoutId() {
         final UUID[] holder = new UUID[1];
-        runInTx(() -> holder[0] = IpLockout.<IpLockout>find("ipAddress", ip).firstResult().id);
+        runInTx(() -> holder[0] = IpLockout.<IpLockout>find("ipAddress", LOCKED_IP).firstResult().id);
         return holder[0];
     }
 }

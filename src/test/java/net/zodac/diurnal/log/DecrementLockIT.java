@@ -48,7 +48,7 @@ class DecrementLockIT extends IntegrationTestBase {
     private static final LocalDate DAY = FIXED_TODAY;
 
     @Inject
-    LogStatements statements;
+    private LogStatements statements;
 
     @Test
     void decrement_afterNativeIncrementInSameTransaction_subtractsFromTheFreshCount() {

@@ -101,7 +101,7 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
     private static final java.util.regex.Pattern LOWERCASE_ID = java.util.regex.Pattern.compile("\\bid\\b");
 
     @Inject
-    SessionStore sessionStore;
+    private SessionStore sessionStore;
 
     private User adminUser;
 

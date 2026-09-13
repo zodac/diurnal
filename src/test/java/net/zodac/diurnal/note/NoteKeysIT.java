@@ -54,10 +54,10 @@ class NoteKeysIT extends IntegrationTestBase {
     private static final String NEW_ACCOUNT = "note-keys-it@lt.test";
 
     @Inject
-    NoteKeys noteKeys;
+    private NoteKeys noteKeys;
 
     @Inject
-    NoteService noteService;
+    private NoteService noteService;
 
     @Override
     protected void createDbState() {

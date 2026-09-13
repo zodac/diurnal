@@ -42,7 +42,7 @@ class NotesStatsIT extends IntegrationTestBase {
     private static final LocalDate TODAY = FIXED_TODAY;   // 2026-06-15
 
     @Inject
-    StatsService statsService;
+    private StatsService statsService;
 
     private UUID userId;
 

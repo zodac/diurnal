@@ -39,7 +39,7 @@ class SessionStoreIT extends IntegrationTestBase {
     private static final Instant NOW = Instant.parse("2026-06-15T12:00:00Z");
 
     @Inject
-    SessionStore sessionStore;
+    private SessionStore sessionStore;
 
     private User user;
 

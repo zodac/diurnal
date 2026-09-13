@@ -41,7 +41,7 @@ import org.junit.jupiter.api.Test;
 class NoteIT extends IntegrationTestBase {
 
     @Inject
-    NoteStatements statements;
+    private NoteStatements statements;
 
     private static final LocalDate DAY = FIXED_TODAY;
 

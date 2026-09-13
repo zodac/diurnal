@@ -57,7 +57,7 @@ import org.junit.jupiter.api.Test;
 class SurfaceParityIT extends IntegrationTestBase {
 
     @Inject
-    LogStatements statements;
+    private LogStatements statements;
 
     private static final String PRIMARY = "parity-it@lt.test";
 

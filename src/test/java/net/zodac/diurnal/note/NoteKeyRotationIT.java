@@ -24,7 +24,6 @@ import jakarta.inject.Inject;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.note.crypto.Aes256Gcm;
 import net.zodac.diurnal.note.crypto.DataKeyEnvelope;
@@ -46,7 +45,7 @@ import org.junit.jupiter.api.Test;
 class NoteKeyRotationIT extends IntegrationTestBase {
 
     @Inject
-    NoteStatements statements;
+    private NoteStatements statements;
 
     // A retired master, standing in for "the key this deployment used before today".
     private static final String RETIRED_KEY = Base64.getEncoder().encodeToString("retired-notes-master-key-32bytes".getBytes(
@@ -61,7 +60,7 @@ class NoteKeyRotationIT extends IntegrationTestBase {
 
     @Test
     void reconcile_movesAnAccountFromARetiredKeyOntoTheCurrentOne() {
-        final byte[] dataKey = rewrapUnderRetiredKey(owner.id);
+        final byte[] dataKey = rewrapUnderRetiredKey();
         runInTx(() -> Note.upsert(statements, owner.id, FIXED_TODAY, NoteContent.seal(dataKey, owner.id, FIXED_TODAY, "Written under the old key")));
 
         final KeyReconciliation outcome = reconcileWith(List.of(RETIRED_KEY));
@@ -79,7 +78,7 @@ class NoteKeyRotationIT extends IntegrationTestBase {
 
     @Test
     void reconcile_bumpsTheKeyVersionOfWhatItRotates() {
-        rewrapUnderRetiredKey(owner.id);
+        rewrapUnderRetiredKey();
 
         reconcileWith(List.of(RETIRED_KEY));
 
@@ -90,7 +89,7 @@ class NoteKeyRotationIT extends IntegrationTestBase {
 
     @Test
     void reconcile_isIdempotent() {
-        rewrapUnderRetiredKey(owner.id);
+        rewrapUnderRetiredKey();
         reconcileWith(List.of(RETIRED_KEY));
 
         assertThat(reconcileWith(List.of(RETIRED_KEY)).rotated())
@@ -107,7 +106,7 @@ class NoteKeyRotationIT extends IntegrationTestBase {
 
     @Test
     void reconcile_reportsAKeyNoConfiguredMasterOpens() {
-        rewrapUnderRetiredKey(owner.id);
+        rewrapUnderRetiredKey();
 
         final String unrelated = Base64.getEncoder().encodeToString(Aes256Gcm.randomKey());
 
@@ -118,7 +117,7 @@ class NoteKeyRotationIT extends IntegrationTestBase {
 
     @Test
     void reconcile_ignoresTheBlankPreviousKeyRatherThanFailingToDecodeIt() {
-        rewrapUnderRetiredKey(owner.id);
+        rewrapUnderRetiredKey();
 
         // A trailing comma in NOTE_ENCRYPTION_PREVIOUS_KEYS is what produces this. A blank entry is not a key, and
         // decoding it would fail the boot of the very deployment the real entry beside it was configured to rotate.
@@ -129,7 +128,7 @@ class NoteKeyRotationIT extends IntegrationTestBase {
 
     @Test
     void reconcile_withNoPreviousKeyConfigured_reportsTheRowTheCurrentMasterCannotOpen() {
-        rewrapUnderRetiredKey(owner.id);
+        rewrapUnderRetiredKey();
 
         // The single-row fit check rather than the full pass: with nothing to rotate onto, reconcile only proves the
         // current master opens what is stored. A deployment that changed NOTE_ENCRYPTION_KEY without listing the old one
@@ -141,7 +140,7 @@ class NoteKeyRotationIT extends IntegrationTestBase {
 
     @Test
     void forUser_reportsNoKeyWhenTheConfiguredMasterDoesNotOpenTheStoredOne() {
-        rewrapUnderRetiredKey(owner.id);
+        rewrapUnderRetiredKey();
 
         final NoteKeys currentMasterOnly = new NoteKeys(new StubNotesEncryptionConfig(NOTES_MASTER_KEY, List.of()));
 
@@ -152,12 +151,12 @@ class NoteKeyRotationIT extends IntegrationTestBase {
 
     // Re-wraps the user's existing data key under RETIRED_KEY, leaving the data key itself (and therefore every note
     // sealed under it) untouched - exactly the state a deployment is in the moment before it rotates.
-    private byte[] rewrapUnderRetiredKey(final UUID userId) {
+    private byte[] rewrapUnderRetiredKey() {
         final byte[][] dataKey = new byte[1][];
         runInTx(() -> {
-            final UserNotesKey stored = Objects.requireNonNull(UserNotesKey.findForUser(userId));
-            dataKey[0] = DataKeyEnvelope.unwrap(stored.dekWrapped, Base64.getDecoder().decode(NOTES_MASTER_KEY), userId).orElseThrow();
-            stored.dekWrapped = DataKeyEnvelope.wrap(dataKey[0], Base64.getDecoder().decode(RETIRED_KEY), userId);
+            final UserNotesKey stored = Objects.requireNonNull(UserNotesKey.findForUser(owner.id));
+            dataKey[0] = DataKeyEnvelope.unwrap(stored.dekWrapped, Base64.getDecoder().decode(NOTES_MASTER_KEY), owner.id).orElseThrow();
+            stored.dekWrapped = DataKeyEnvelope.wrap(dataKey[0], Base64.getDecoder().decode(RETIRED_KEY), owner.id);
             stored.persist();
         });
         return dataKey[0];

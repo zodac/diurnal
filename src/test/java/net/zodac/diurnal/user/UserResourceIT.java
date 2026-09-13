@@ -33,7 +33,6 @@ import java.time.Instant;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.auth.session.Session;
 import net.zodac.diurnal.auth.session.SessionStore;
-import net.zodac.diurnal.time.AppClock;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -43,10 +42,7 @@ class UserResourceIT extends IntegrationTestBase {
     private static final Instant LAST_LOGIN = Instant.parse("2026-06-15T09:14:00Z");
 
     @Inject
-    SessionStore sessionStore;
-
-    @Inject
-    AppClock clock;
+    private SessionStore sessionStore;
 
     private User user;
 

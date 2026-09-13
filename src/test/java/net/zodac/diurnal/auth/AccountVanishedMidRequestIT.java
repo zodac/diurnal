@@ -35,10 +35,10 @@ import org.junit.jupiter.api.Test;
 class AccountVanishedMidRequestIT extends IntegrationTestBase {
 
     @Inject
-    AuthenticationService authenticationService;
+    private AuthenticationService authenticationService;
 
     @Inject
-    PasswordChangeService passwordChangeService;
+    private PasswordChangeService passwordChangeService;
 
     @Test
     void recordLogin_accountNoLongerExists_returnsInvalidCredentials() {

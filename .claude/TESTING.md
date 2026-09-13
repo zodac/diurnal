@@ -1,6 +1,6 @@
 # Testing Tiers & Conventions
 
-> **This file is ~21 KB. Read only the section you need** - `grep -n '^#' .claude/TESTING.md` for its
+> **This file is ~22 KB. Read only the section you need** - `grep -n '^#' .claude/TESTING.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Testing conventions**
@@ -24,6 +24,18 @@ production jar for exactly that reason — no `src/main` caller, only test ones.
 guards span more than one feature package. Nothing catches this automatically: Qodana's dead-code check sees the test callers and stays quiet, so it
 is a review habit, not a gate.
 
+**Three conventions the linters do not enforce, stated in full in [`CODE_STYLE.md`](CODE_STYLE.md)** (its "A test's `@Inject` fields are `private`",
+"A placeholder id is `DummyValues.DUMMY_UUID`, never `UUID.randomUUID()`" and "A test helper takes no parameter it is always handed the same value"
+sections). Each was swept clean across the suite once and will drift back silently, because nothing fails on any of them:
+
+- **Every `@Inject` field in a test class is `private`** — the constructor-injection rule is a `src/main` rule, but the *visibility* half applies
+  here too. The lone exception is `IntegrationTestBase.clock`, which is `protected` **so a subclass reads it instead of re-injecting an `AppClock` of
+  its own** — a subclass that declares one shadows the inherited field rather than overriding it.
+- **A placeholder id is `DummyValues.DUMMY_UUID`** — never `UUID.randomUUID()` (a failure whose id differs every run cannot be reproduced from the
+  output) and never a hand-rolled `SOME_ID` constant meaning the same thing. It must never be persisted; several distinct *named* ids are still right
+  where a test needs identities to tell apart.
+- **A helper takes no parameter every call site passes the same value for** — inline it and drop it from the signature. Overloads keep theirs.
+
 Integration tests extend `IntegrationTestBase` (clears `subject_stats_cache → notes → user_notes_keys → action_logs → actions →
 users` before each test, in that FK order). Helpers: `newUser()`, `newAction()`,
 `newLog()`, `runInTx()`. Tests use `@TestSecurity`. The `test` profile forces `app.timezone=UTC`. Password hashing runs at minimal cost in tests:
@@ -31,8 +43,8 @@ seeded users (`newUser()`) get a cheap Argon2id hash whose parameters mirror the
 login does not trigger a re-hash).
 
 **Deterministic time:** `IntegrationTestBase` freezes `AppClock` in `@BeforeEach` to `FIXED_TODAY = 2026-06-15`, restoring in `@AfterEach`. Use
-`freezeInstant(Instant, ZoneId)` for boundary cases (`freezeDate` is the base class's own, and is private — nothing outside it calls it, and the
-Qodana gate reports any member that could be narrower). `AppClock`'s two mutators are **package-private**, so both routes go through
+`freezeInstant(Instant, ZoneId)` for boundary cases (`freezeToFixedToday()` is the base class's own, and is private — nothing outside it calls it,
+and the Qodana gate reports any member that could be narrower). `AppClock`'s two mutators are **package-private**, so both routes go through
 `net.zodac.diurnal.time.AppClocks` — a test-tree relay that exists only because `IntegrationTestBase` sits in `net.zodac.diurnal` and so cannot
 reach them itself; that is what stops a production caller from moving "today" for every user in the deployment. Unit tests pass a fixed `today`
 directly. Surefire/failsafe pin `-Duser.timezone=UTC`. E2E specs use UTC date APIs (`setUTCDate`/`getUTCDate`/`toISOString`) and `timezoneId: 'UTC'`
