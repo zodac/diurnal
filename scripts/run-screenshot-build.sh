@@ -9,6 +9,12 @@
 # nothing committed. Smoke/perf image builds skip this stage (GENERATE_PREVIEWS=false) — they don't use
 # the previews and don't want the extra build cost.
 #
+# DOC_SCREENSHOTS=true (the Dockerfile build arg, default false) additionally generates the 17 README
+# screenshots from the SAME Postgres + app + Chromium boot, into /gen/docs/screenshots. Only the release
+# workflow sets it: it exports them from the `docscreenshots` stage and replaces the assets on the
+# standalone `screenshots` GitHub release, which the README and docs/dockerhub-overview.md embed by
+# absolute URL. Doing it in this one boot is why the release regenerates both sets for the cost of one.
+#
 # The stage is based on the official Postgres image, so Postgres is started with initdb + pg_ctl (not
 # the Debian pg_ctlcluster) against a throwaway data dir. Node (for the generator + a readiness probe)
 # and a jlink JRE (for the app) are copied in by the Dockerfile.
@@ -19,6 +25,7 @@
 #   /gen/tests/node_modules — playwright + pg (npm ci from the committed tests/ manifest)
 #   /gen/key                — the rendering inputs, copied in ONLY to be hashed (see the cache below)
 # Output: /gen/src/main/resources/META-INF/resources/img/settings/*.webp
+#         /gen/docs/screenshots/*.webp  (DOC_SCREENSHOTS=true only)
 #
 # PREVIEW_CACHE=true (the Dockerfile build arg, default false, local iteration only) short-circuits all
 # of the above when a previous run's thumbnails for the same rendering inputs are still in the build
@@ -29,10 +36,16 @@ set -euo pipefail
 APP_DIR=/gen/app
 GEN_DIR=/gen
 OUT_DIR="${GEN_DIR}/src/main/resources/META-INF/resources/img/settings"
+DOCS_DIR="${GEN_DIR}/docs/screenshots"
 KEY_DIR="${GEN_DIR}/key"
 CACHE_DIR=/preview-cache
 PREVIEW_CACHE="${PREVIEW_CACHE:-false}"
+DOC_SCREENSHOTS="${DOC_SCREENSHOTS:-false}"
 export PGDATA=/tmp/pgdata
+
+# Always present, even when no README shots are generated, so the `docscreenshots` export stage's COPY
+# resolves either way rather than failing the build on a missing path.
+mkdir -p "${DOCS_DIR}"
 
 # Every expected output must exist before a set is shipped OR stored in the cache. Each preview is
 # written twice - the picker tile and, under full/, the lightbox image - so BOTH sets are checked:
@@ -52,11 +65,26 @@ verify_outputs() {
   echo "✓ ${count} preview thumbnails + ${full_count} full-size previews"
 }
 
+# The README set is all-or-nothing in the same way: a capture that silently failed would otherwise be
+# published as a missing image on the README rather than failing the release here.
+verify_doc_outputs() {
+  local count
+  count="$(find "${DOCS_DIR}" -maxdepth 1 -name '*.webp' | wc -l)"
+  if [[ "${count}" -lt 17 ]]; then
+    echo "✗ expected 17 README screenshots in ${DOCS_DIR}, found ${count}." >&2
+    return 1
+  fi
+  echo "✓ ${count} README screenshots"
+}
+
 # On when the build arg says so AND the cache mount is actually there (it is absent for a hand-run of
 # this script outside the build, which then simply always generates). Resolved once into a flag rather
 # than a predicate function, which `set -e` would disable inside an `if` (SC2310).
+# DOC_SCREENSHOTS disables it outright: a cache HIT restores the thumbnails and exits before the app is
+# ever booted, so the README shots would silently not be generated. The release passes no PREVIEW_CACHE
+# anyway, so this only guards a hand-run that sets both.
 cache_enabled=false
-if [[ "${PREVIEW_CACHE}" == "true" && -d "${CACHE_DIR}" ]]; then
+if [[ "${PREVIEW_CACHE}" == "true" && -d "${CACHE_DIR}" && "${DOC_SCREENSHOTS}" != "true" ]]; then
   cache_enabled=true
 fi
 
@@ -112,9 +140,31 @@ echo "→ Booting the app…"
 PREVIEW_NOTE_KEY='ZGl1cm5hbC1wcmV2aWV3LWJ1aWxkLWtleS0zMmJ5dGU='
 
 # DB_HOST=127.0.0.1 matches the trust host rule; the throttle is disabled so seeding is never limited.
+boot_env=(
+  DB_HOST=127.0.0.1
+  AUTH_IP_THROTTLE_ENABLED=false
+  "NOTE_ENCRYPTION_KEY=${PREVIEW_NOTE_KEY}"
+)
+
+# The README login shot shows BOTH sign-in methods, and the generator throws rather than capture a
+# password-only one, so the app has to boot with OIDC enabled. The issuer is a DUMMY that is never
+# contacted - the button renders from OIDC_ENABLED alone - and OIDC_VERIFY_ON_STARTUP=false stops the
+# startup discovery probe failing the boot against it. Same throwaway config scripts/dev-up.sh applies
+# under OIDC_PREVIEW=1; keep the two in step.
+if [[ "${DOC_SCREENSHOTS}" == "true" ]]; then
+  boot_env+=(
+    OIDC_ENABLED=true
+    OIDC_ISSUER_URL=http://127.0.0.1:8080
+    OIDC_CLIENT_ID=diurnal
+    OIDC_CLIENT_SECRET=preview-dummy-secret
+    OIDC_PROVIDER_NAME=Authelia
+    "OIDC_SCOPES=email,profile"
+    OIDC_VERIFY_ON_STARTUP=false
+  )
+fi
+
 cd "${APP_DIR}"
-DB_HOST=127.0.0.1 AUTH_IP_THROTTLE_ENABLED=false NOTE_ENCRYPTION_KEY="${PREVIEW_NOTE_KEY}" \
-  java -jar quarkus-run.jar >/tmp/app.log 2>&1 &
+env "${boot_env[@]}" java -jar quarkus-run.jar >/tmp/app.log 2>&1 &
 app_pid=$!
 
 cleanup() {
@@ -143,12 +193,25 @@ if [[ "${ready}" -ne 1 ]]; then
 fi
 
 # ── Generate ───────────────────────────────────────────────────────────────────────────────────────
-echo "→ Generating the in-app preview thumbnails…"
+# `all` rather than a second `documentation` run: one process, one browser launch and one seeding of the
+# demo account produce BOTH sets. TEST_DB_* is set unconditionally but only `all` uses it - that mode
+# reaches the database directly to grant the demo user the administrator role for the Admin-page shot,
+# there being no HTTP endpoint for it. 127.0.0.1 again matches the trust host rule.
+gen_mode=app
+if [[ "${DOC_SCREENSHOTS}" == "true" ]]; then
+  gen_mode=all
+fi
+
+echo "→ Generating the screenshots (${gen_mode} mode)…"
 cd "${GEN_DIR}"
-PW_CHROMIUM_ARGS="--no-sandbox" BASE_URL="http://127.0.0.1:8080" node scripts/generate-screenshots.cjs app
+TEST_DB_HOST=127.0.0.1 PW_CHROMIUM_ARGS="--no-sandbox" BASE_URL="http://127.0.0.1:8080" \
+  node scripts/generate-screenshots.cjs "${gen_mode}"
 
 # Sanity-check the expected outputs exist so a silent capture failure fails the build here.
 verify_outputs
+if [[ "${DOC_SCREENSHOTS}" == "true" ]]; then
+  verify_doc_outputs
+fi
 
 # Store the verified set for the next build with these same rendering inputs. Written to a temporary
 # directory and moved into place, so an interrupted build can never leave a half-populated entry that a

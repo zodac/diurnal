@@ -217,14 +217,32 @@ COPY --from=previewbuild /pbuild/target/quarkus-app /gen/app
 # copied above). /gen/key holds the copies that exist purely to be hashed - the app itself renders
 # from the fast-jar, not from these.
 ARG PREVIEW_CACHE=false
+# DOC_SCREENSHOTS: also capture the 17 README screenshots from this same Postgres + app + Chromium boot,
+# into /gen/docs/screenshots for the `docscreenshots` stage below to export. Default false, so an
+# ordinary build pays nothing for it; only publish.yml sets it, and it passes the SAME value to every
+# build in the release so all three share this one (expensive) stage execution rather than re-running it.
+# It also forces PREVIEW_CACHE off inside the runner - a cache hit returns before the app is booted.
+ARG DOC_SCREENSHOTS=false
 COPY src/main/resources/templates /gen/key/templates
 COPY src/main/resources/messages /gen/key/messages
 COPY src/main/resources/META-INF/resources /gen/key/resources
 COPY --from=css /css/src/main/resources/META-INF/resources/css/app.css /gen/key/app.css
-# Boots pg + app, runs the generator (app mode) → /gen/src/main/resources/META-INF/resources/img/settings/*.webp
+# Boots pg + app, runs the generator → /gen/src/main/resources/META-INF/resources/img/settings/*.webp
+# (`app` mode), plus /gen/docs/screenshots/*.webp when DOC_SCREENSHOTS=true (`all` mode).
 # sharing=locked: two concurrent builds must not write the same cache entry at once.
 RUN --mount=type=cache,target=/preview-cache,sharing=locked \
-    PREVIEW_CACHE="${PREVIEW_CACHE}" bash /gen/scripts/run-screenshot-build.sh
+    PREVIEW_CACHE="${PREVIEW_CACHE}" DOC_SCREENSHOTS="${DOC_SCREENSHOTS}" \
+    bash /gen/scripts/run-screenshot-build.sh
+
+# ── Stage 5c: export-only stage for the README screenshots ───────────────────
+# Nothing depends on this, so it is pruned from every ordinary build; the release workflow builds it
+# directly (--target docscreenshots --output type=local) to pull the WebP files out onto the runner,
+# which then replaces the assets on the standalone `screenshots` GitHub release. FROM scratch so the
+# exported directory is the screenshots ALONE, with no base-image files around them. The runner always
+# creates the source directory, so this COPY resolves even when DOC_SCREENSHOTS was false (exporting an
+# empty directory rather than failing).
+FROM scratch AS docscreenshots
+COPY --from=screenshots /gen/docs/screenshots/ /
 
 # ── Stage 6: select the previews source (real, or an empty dir) ──────────────
 # `previews` aliases the screenshots stage when GENERATE_PREVIEWS=true, or an empty directory when

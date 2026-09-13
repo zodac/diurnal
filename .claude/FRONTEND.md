@@ -1,6 +1,6 @@
 # Front-end: Build, Assets, CSS & Calendar
 
-> **This file is ~74 KB. Read only the section you need** - `grep -n '^#' .claude/FRONTEND.md` for its
+> **This file is ~75 KB. Read only the section you need** - `grep -n '^#' .claude/FRONTEND.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **CSS build & colour tokens**
@@ -418,8 +418,8 @@ Theme, Calendar style, and Font pickers show real dashboard screenshots (via `pa
 > Chromium); the **smoke/perf** compose files pass the `GENERATE_PREVIEWS=false` build arg to skip the whole preview
 > toolchain (those tiers don't use the previews), and `hash-static-assets.sh` then skips them (`AppInfo.settingsImage` falls
 > back to the un-hashed `<base>.webp` name). A dev / `mvn package` run likewise has none — the `<img>` attribute is still
-> present (fallback name), the file just 404s locally. The committed README shots live under `docs/screenshots/` instead (see
-> below).
+> present (fallback name), the file just 404s locally. The README shots are a separate, also-uncommitted set under
+> `docs/screenshots/` (see below).
 
 > **When the stage actually re-runs, and the opt-in cache.** Its layer-cache key is the *bytes* of the `previewbuild` fast-jar, and
 > Maven output is not reproducible (no `project.build.outputTimestamp`), so **any** edit under `src/main` - plus a `pom.xml`/`VERSION`
@@ -550,7 +550,8 @@ first, `scripts/dev-teardown.sh` after). There are **two independent sets**, spl
 ```bash
 scripts/dev-up.sh
 node scripts/generate-screenshots.cjs app             # the 8 in-app thumbnails (img/settings/, UNCOMMITTED)
-node scripts/generate-screenshots.cjs documentation   # the 17 README shots (docs/screenshots/, COMMITTED)
+node scripts/generate-screenshots.cjs documentation   # the 17 README shots (docs/screenshots/, UNCOMMITTED)
+                                                      # (the release regenerates these; by hand = review only)
 node scripts/generate-screenshots.cjs all             # both (default)
 scripts/dev-teardown.sh
 ```
@@ -561,11 +562,22 @@ scripts/dev-teardown.sh
 >   These are **uncommitted build artifacts** — you rarely run this by hand; the Docker build's `screenshots` stage runs
 >   `generate-screenshots.cjs app` for you (see the note under "Settings preview thumbnails"), so every image has current
 >   previews. Running it manually just writes them into the (gitignored) `img/settings/` for a local eyeball.
-> - **`documentation`** → the **17** committed README screenshots in `docs/screenshots/`: `dashboard-{system,dark,light}`,
+> - **`documentation`** → the **17** README screenshots in `docs/screenshots/`: `dashboard-{system,dark,light}`,
 >   `dashboard-mobile`, `dashboard-arabic-dark` (the RTL demonstration), `cal-{full,minimal,stacked}-dark`,
 >   `{actions,stats,admin,settings}-dark`, `stats-graph-dark` (the frequency-graph modal with three actions compared),
->   `stats-notes-dark`, `note-box-dark`, `language-dropdown-dark` and `login-dark`. These are allowed to **lag**;
->   regenerate and commit them manually when a README-visible page changes.
+>   `stats-notes-dark`, `note-box-dark`, `language-dropdown-dark` and `login-dark`. These are **not committed either** -
+>   they are assets on the standalone `screenshots` GitHub release, which the README and `docs/dockerhub-overview.md`
+>   embed by absolute URL, and `docs/screenshots/` is gitignored. **`publish.yml` recaptures them on every release** and
+>   replaces those assets in place, so they no longer **lag** and exactly ONE set exists however many releases are cut.
+>   Run this mode by hand only to REVIEW what a change will publish; to refresh the published set between releases,
+>   `gh release upload screenshots --clobber docs/screenshots/*.webp` (`--clobber` is what keeps it to one set).
+>
+>   The release captures them from the **same** Postgres + app + Chromium boot as the `app` previews - the Dockerfile
+>   `screenshots` stage takes a `DOC_SCREENSHOTS=true` build arg and runs the generator in `all` mode rather than `app`,
+>   so both sets cost one stage execution, one browser launch and one seeding. `publish.yml` passes that arg to all
+>   three of its builds so they share it rather than re-running the stage; a `docscreenshots` stage (`FROM scratch`)
+>   exists purely to export the files onto the runner. Note the arg also forces `PREVIEW_CACHE` off in the runner: a
+>   cache hit returns before the app is ever booted.
 >
 > So when asked to "regenerate the in-app previews" run `app`; to "update the README screenshots" run `documentation`; only
 > "regenerate everything" means `all`. Only the `documentation` (or `all`) output is committed — the `app` output is gitignored.

@@ -260,13 +260,20 @@ jobs:
       # that stage is built. Building it here first fails on the stage itself, with nothing pushed and
       # no tag created, rather than surfacing as a failure of the publish step; it also warms the layer
       # cache the push then reuses, so it is close to free.
+      #
+      # DOC_SCREENSHOTS=true is passed HERE, on the push below, and on the screenshot export - the same
+      # value on all three on purpose. A build arg is part of the stage's cache key, so a build passing a
+      # different value would re-run the whole Postgres + Chromium + app-boot stage instead of hitting the
+      # cache. One execution then serves the published image and the exported README screenshots both.
       - name: Verify the preview-generation image build
         uses: docker/build-push-action@v7.3.0
         with:
           context: .
           file: ./Dockerfile
           push: false
-          build-args: GENERATE_PREVIEWS=true
+          build-args: |
+            GENERATE_PREVIEWS=true
+            DOC_SCREENSHOTS=true
           cache-from: type=registry,ref=zodac/diurnal:cache
 
       # org.opencontainers.image.created must be RFC 3339, and must be resolved here rather than inside
@@ -290,6 +297,8 @@ jobs:
             BUILD_DATE=${{ steps.build_date.outputs.build_date }}
             GIT_REVISION=${{ github.sha }}
             VERSION=${{ env.VERSION }}
+            GENERATE_PREVIEWS=true
+            DOC_SCREENSHOTS=true
           cache-from: type=registry,ref=zodac/diurnal:cache
           cache-to: type=registry,ref=zodac/diurnal:cache,mode=max
           tags: |
@@ -299,8 +308,11 @@ jobs:
       - name: Get previous tag
         id: prev_tag
         run: |
-          # Latest existing tag (empty on the very first release; the changelog script handles that).
-          prev_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          # Latest existing VERSION tag (empty on the very first release; the changelog script handles
+          # that). --match is load-bearing: the standalone `screenshots` asset-host release carries a git
+          # tag of that name on the branch tip, which an unfiltered describe returns in preference to the
+          # release tags - silently generating every later changelog from the wrong range.
+          prev_tag="$(git describe --tags --abbrev=0 --match='[0-9]*' 2>/dev/null || true)"
           echo "prev_tag=${prev_tag}" >> "${GITHUB_OUTPUT}"
 
       - name: Generate categorised changelog
@@ -350,11 +362,51 @@ jobs:
           prerelease: false
           makeLatest: true
 
+      # Pull the freshly-captured README screenshots out of the image build (the `docscreenshots` stage is
+      # FROM scratch and holds nothing else, so the export is the WebP files alone) and replace the assets
+      # on the standalone `screenshots` release in place.
+      #
+      # That release is an ASSET HOST, not a software release: it carries no version, is never marked
+      # Latest, and --clobber overwrites its assets, so exactly ONE set of screenshots exists no matter how
+      # many releases are cut. That is what lets README.md and docs/dockerhub-overview.md embed a permanent
+      # URL - `releases/download/screenshots/<name>.webp` - that never needs rewriting. Pinning them to a
+      # version tag instead would mean editing 16 URLs on every refresh; `releases/latest/download` would
+      # break every image the moment a release shipped without them.
+      #
+      # Created on first use, so this needs no manual setup on a fresh fork. It is deliberately NOT
+      # continue-on-error - a silently stale README is exactly the drift this step exists to remove - but
+      # it is placed after the release above, so a failure here cannot strand a half-published release.
+      - name: Export the README screenshots from the image build
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          target: docscreenshots
+          build-args: |
+            GENERATE_PREVIEWS=true
+            DOC_SCREENSHOTS=true
+          outputs: type=local,dest=docs/screenshots
+          cache-from: type=registry,ref=zodac/diurnal:cache
+
+      - name: Refresh the screenshot release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ls -la docs/screenshots/
+          if ! gh release view screenshots >/dev/null 2>&1; then
+            gh release create screenshots \
+              --title 'Screenshots' \
+              --latest=false \
+              --notes 'Asset host for the screenshots embedded in README.md and the Docker Hub overview. Not a software release; its assets are replaced on every release.'
+          fi
+          gh release upload screenshots --clobber docs/screenshots/*.webp
+
       # Push the Docker Hub "Repository overview" from docs/dockerhub-overview.md. That file exists rather
-      # than pointing this at README.md because Docker Hub resolves no relative paths: every
-      # `docs/screenshots/...` reference in the README renders as a broken image there, and the field
-      # sanitises the README's inline `<p align="center">`/`width=` HTML away. The overview file is the same
-      # content written in absolute-URL, no-HTML form.
+      # than pointing this at README.md because Docker Hub resolves no relative paths (the README's
+      # `assets/wordmark-readme.svg` renders as a broken image there) and the field sanitises the README's
+      # inline `<p align="center">`/`width=` HTML away. The overview file is the same content written in
+      # absolute-URL, no-HTML form. The SCREENSHOTS in both files are now the same absolute URLs - assets on
+      # the standalone `screenshots` release - so only the wordmark still needs a per-file form.
       #
       # short-description mirrors `org.opencontainers.image.description` in the Dockerfile - the same sentence
       # in the two places a user meets it, the image's own metadata and the Hub listing. It is a SECOND COPY of
@@ -370,8 +422,10 @@ jobs:
       # red run rather than be swallowed, and by here a red run costs nothing but the notification.
       #
       # SCOPE: this action calls the Docker Hub API, which needs a password or a PAT with read/write/DELETE
-      # scope - strictly more than the read/write `docker/login-action` above gets by on. If this step 401s,
-      # that is why, and DOCKERHUB_TOKEN needs regenerating with the wider scope rather than debugging here.
+      # scope - strictly more than the read/write `docker/login-action` above gets by on. If this step 401s
+      # or 403s, that is why, and DOCKERHUB_TOKEN needs regenerating with the wider scope rather than being
+      # debugged here. Observed once for real on the v1.0.1 release: `Sending PATCH request / Error:
+      # Forbidden`, with every preceding step - including the image push on the same token - green.
       - name: Update the Docker Hub repository overview
         uses: peter-evans/dockerhub-description@v5.0.0
         with:
