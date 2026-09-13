@@ -65,36 +65,36 @@ public class AppLifecycle {
     private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(2L);
     private static final Duration PROBE_RETRY_BACKOFF = Duration.ofSeconds(1L);
 
+    private final ApplicationVersion applicationVersion;
+    private final NoteKeys noteKeys;
+    private final NotesConfig notesConfig;
+    private final NotesEncryptionConfig notesEncryptionConfig;
+    private final OidcConfig oidcConfig;
     private final PasswordAuthConfig passwordAuthConfig;
     private final QuarkusOidcConfig quarkusOidcConfig;
-    private final OidcConfig oidcConfig;
-    private final NotesEncryptionConfig notesEncryptionConfig;
-    private final NotesConfig notesConfig;
-    private final NoteKeys noteKeys;
-    private final ApplicationVersion applicationVersion;
 
     /**
      * Injects the authentication configuration views validated and logged at startup.
      *
+     * @param applicationVersion the running release version, announced in the startup banner
+     * @param noteKeys the notes key service, used to prove the configured key opens the stored data
+     * @param notesConfig the notes settings, whose configured maximum note length is range-checked at startup
+     * @param notesEncryptionConfig the notes encryption settings, whose key is validated at startup
+     * @param oidcConfig the application OIDC policy settings
      * @param passwordAuthConfig the password-auth settings
      * @param quarkusOidcConfig the Quarkus OIDC tenant settings
-     * @param oidcConfig the application OIDC policy settings
-     * @param notesEncryptionConfig the notes encryption settings, whose key is validated at startup
-     * @param notesConfig the notes settings, whose configured maximum note length is range-checked at startup
-     * @param noteKeys the notes key service, used to prove the configured key opens the stored data
-     * @param applicationVersion the running release version, announced in the startup banner
      */
     @Inject
-    public AppLifecycle(final PasswordAuthConfig passwordAuthConfig, final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig,
-        final NotesEncryptionConfig notesEncryptionConfig, final NotesConfig notesConfig, final NoteKeys noteKeys,
-        final ApplicationVersion applicationVersion) {
+    public AppLifecycle(final ApplicationVersion applicationVersion, final NoteKeys noteKeys, final NotesConfig notesConfig,
+        final NotesEncryptionConfig notesEncryptionConfig, final OidcConfig oidcConfig, final PasswordAuthConfig passwordAuthConfig,
+        final QuarkusOidcConfig quarkusOidcConfig) {
+        this.applicationVersion = applicationVersion;
+        this.noteKeys = noteKeys;
+        this.notesConfig = notesConfig;
+        this.notesEncryptionConfig = notesEncryptionConfig;
+        this.oidcConfig = oidcConfig;
         this.passwordAuthConfig = passwordAuthConfig;
         this.quarkusOidcConfig = quarkusOidcConfig;
-        this.oidcConfig = oidcConfig;
-        this.notesEncryptionConfig = notesEncryptionConfig;
-        this.notesConfig = notesConfig;
-        this.noteKeys = noteKeys;
-        this.applicationVersion = applicationVersion;
     }
 
     /**

@@ -53,41 +53,40 @@ import net.zodac.diurnal.web.PageShell;
 @RolesAllowed(Role.Values.ADMIN_INTERNAL_VALUE)
 public class AdminWebResource {
 
-    private final Template adminUsersTemplate;
     private final Template adminApiDocsTemplate;
-    private final CurrentUser currentUser;
     private final AdminUserService adminUserService;
-    private final SessionActivityService sessionActivityService;
+    private final Template adminUsersTemplate;
+    private final AppClock clock;
+    private final CurrentUser currentUser;
     private final IpLockoutService ipLockoutService;
     private final IpThrottleConfig ipThrottleConfig;
-    private final AppClock clock;
+    private final SessionActivityService sessionActivityService;
 
     /**
      * Injects the admin page templates, the current-user accessor, the shared admin-user service, the recently-active presence service, the shared
      * per-IP lockout service, the throttle settings (whether the lockout feature is enabled) and the application clock.
      *
-     * @param adminUsersTemplate the admin-users page template
      * @param adminApiDocsTemplate the admin API-docs page template
-     * @param currentUser the current-user accessor
      * @param adminUserService the shared admin-user-mutation service
-     * @param sessionActivityService the recently-active presence service
+     * @param adminUsersTemplate the admin-users page template
+     * @param clock the application clock for date-boundary logic
+     * @param currentUser the current-user accessor
      * @param ipLockoutService the shared per-IP lockout service
      * @param ipThrottleConfig the per-IP throttle settings (whether the lockout feature is enabled)
-     * @param clock the application clock for date-boundary logic
+     * @param sessionActivityService the recently-active presence service
      */
     @Inject
-    public AdminWebResource(@Location("admin-users") final Template adminUsersTemplate,
-        @Location("admin-api-docs") final Template adminApiDocsTemplate, final CurrentUser currentUser, final AdminUserService adminUserService,
-        final SessionActivityService sessionActivityService, final IpLockoutService ipLockoutService, final IpThrottleConfig ipThrottleConfig,
-        final AppClock clock) {
-        this.adminUsersTemplate = adminUsersTemplate;
+    public AdminWebResource(@Location("admin-api-docs") final Template adminApiDocsTemplate, final AdminUserService adminUserService,
+        @Location("admin-users") final Template adminUsersTemplate, final AppClock clock, final CurrentUser currentUser,
+        final IpLockoutService ipLockoutService, final IpThrottleConfig ipThrottleConfig, final SessionActivityService sessionActivityService) {
         this.adminApiDocsTemplate = adminApiDocsTemplate;
-        this.currentUser = currentUser;
         this.adminUserService = adminUserService;
-        this.sessionActivityService = sessionActivityService;
+        this.adminUsersTemplate = adminUsersTemplate;
+        this.clock = clock;
+        this.currentUser = currentUser;
         this.ipLockoutService = ipLockoutService;
         this.ipThrottleConfig = ipThrottleConfig;
-        this.clock = clock;
+        this.sessionActivityService = sessionActivityService;
     }
 
     /**

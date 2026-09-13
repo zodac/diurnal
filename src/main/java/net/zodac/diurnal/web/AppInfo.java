@@ -43,29 +43,29 @@ public class AppInfo {
     private static final String FALLBACK_YEAR = "2026";
     private static final String TAGLINE = "Make every day count";
 
-    private final ApplicationVersion applicationVersion;
     private final AppConfig appConfig;
+    private final ApplicationVersion applicationVersion;
+    private final AppPaths appPaths;
     private final AssetsConfig assetsConfig;
     private final UpdateCheckService updateCheckService;
-    private final AppPaths appPaths;
 
     /**
      * Injects the version accessor, the {@code app.*} settings and the one-shot startup update check that drive the footer metadata.
      *
-     * @param applicationVersion the single accessor for the running application's release version
      * @param appConfig the application-wide {@code app.*} settings (repository URL, build timestamp)
+     * @param applicationVersion the single accessor for the running application's release version
+     * @param appPaths the single builder of every application URL, which turns a served asset's filename into the URL a template links to
      * @param assetsConfig the served-asset filenames and image manifests
      * @param updateCheckService the one-shot startup update check, read (no I/O) to drive the footer's admin-only "update available" indicator
-     * @param appPaths the single builder of every application URL, which turns a served asset's filename into the URL a template links to
      */
     @Inject
-    public AppInfo(final ApplicationVersion applicationVersion, final AppConfig appConfig, final AssetsConfig assetsConfig,
-        final UpdateCheckService updateCheckService, final AppPaths appPaths) {
-        this.applicationVersion = applicationVersion;
+    public AppInfo(final AppConfig appConfig, final ApplicationVersion applicationVersion, final AppPaths appPaths, final AssetsConfig assetsConfig,
+        final UpdateCheckService updateCheckService) {
         this.appConfig = appConfig;
+        this.applicationVersion = applicationVersion;
+        this.appPaths = appPaths;
         this.assetsConfig = assetsConfig;
         this.updateCheckService = updateCheckService;
-        this.appPaths = appPaths;
     }
 
     /**

@@ -48,28 +48,28 @@ public class UpdateCheckService {
     private static final Logger LOGGER = LogManager.getLogger(UpdateCheckService.class);
     private static final String LOOKUP_THREAD_NAME = "diurnal-update-check";
 
-    private final UpdateCheckConfig config;
     private final AppConfig appConfig;
-    private final LatestReleaseClient releaseClient;
     private final ApplicationVersion applicationVersion;
+    private final UpdateCheckConfig config;
+    private final LatestReleaseClient releaseClient;
 
     private final AtomicReference<String> latestVersion = new AtomicReference<>();
 
     /**
      * Injects the update-check settings, the application config, the latest-release lookup seam and the resolved application version.
      *
-     * @param config the update-check settings
      * @param appConfig the application config supplying the repository URL
-     * @param releaseClient the outbound latest-release lookup seam
      * @param applicationVersion the resolved running application version
+     * @param config the update-check settings
+     * @param releaseClient the outbound latest-release lookup seam
      */
     @Inject
-    public UpdateCheckService(final UpdateCheckConfig config, final AppConfig appConfig, final LatestReleaseClient releaseClient,
-        final ApplicationVersion applicationVersion) {
-        this.config = config;
+    public UpdateCheckService(final AppConfig appConfig, final ApplicationVersion applicationVersion, final UpdateCheckConfig config,
+        final LatestReleaseClient releaseClient) {
         this.appConfig = appConfig;
-        this.releaseClient = releaseClient;
         this.applicationVersion = applicationVersion;
+        this.config = config;
+        this.releaseClient = releaseClient;
     }
 
     /**

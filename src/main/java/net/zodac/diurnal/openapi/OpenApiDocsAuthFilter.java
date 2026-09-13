@@ -57,29 +57,29 @@ public class OpenApiDocsAuthFilter {
     // route, so the guard decides before the Swagger UI / OpenAPI handlers ever see the request.
     private static final int GUARD_ROUTE_ORDER = Integer.MIN_VALUE + 1;
 
-    private final Router router;
-    private final SessionStore sessionStore;
-    private final SessionConfig sessionConfig;
     private final AppPaths appPaths;
     private final AppClock clock;
+    private final Router router;
+    private final SessionConfig sessionConfig;
+    private final SessionStore sessionStore;
 
     /**
      * Injects the Vert.x router (to register the guard route), the session store, the session settings and the application clock.
      *
-     * @param router the Vert.x router the guard route is registered on
-     * @param sessionStore the session store used to authenticate docs access
-     * @param sessionConfig the session settings
-     * @param clock the application clock for date-boundary logic
      * @param appPaths the single builder of every application URL, for the sign-in redirect an anonymous request is sent to
+     * @param clock the application clock for date-boundary logic
+     * @param router the Vert.x router the guard route is registered on
+     * @param sessionConfig the session settings
+     * @param sessionStore the session store used to authenticate docs access
      */
     @Inject
-    public OpenApiDocsAuthFilter(final Router router, final SessionStore sessionStore, final SessionConfig sessionConfig, final AppClock clock,
-        final AppPaths appPaths) {
-        this.router = router;
-        this.sessionStore = sessionStore;
-        this.sessionConfig = sessionConfig;
-        this.clock = clock;
+    public OpenApiDocsAuthFilter(final AppPaths appPaths, final AppClock clock, final Router router, final SessionConfig sessionConfig,
+        final SessionStore sessionStore) {
         this.appPaths = appPaths;
+        this.clock = clock;
+        this.router = router;
+        this.sessionConfig = sessionConfig;
+        this.sessionStore = sessionStore;
     }
 
     /**

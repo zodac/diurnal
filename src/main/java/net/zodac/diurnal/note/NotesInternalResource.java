@@ -84,31 +84,30 @@ public class NotesInternalResource {
 
     private static final Logger LOGGER = LogManager.getLogger(NotesInternalResource.class);
 
-    private final Template notesListTemplate;
-    private final TextFailureBanner textFailureBanner;
+    private final AppPaths appPaths;
     private final CurrentUser currentUser;
     private final NoteService noteService;
-    private final AppPaths appPaths;
+    private final Template notesListTemplate;
+    private final TextFailureBanner textFailureBanner;
 
     /**
      * Injects the notes-list partial template, the shared text-validation-pipeline rejection message partial, the current-user accessor and the
      * shared note service.
      *
-     * @param notesListTemplate the notes-page list partial
-     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
+     * @param appPaths the single builder of every application URL, for the "did you mean" link a search suggestion carries
      * @param currentUser       the current-user accessor
      * @param noteService       the shared note-mutation service
-     * @param appPaths the single builder of every application URL, for the "did you mean" link a search suggestion carries
+     * @param notesListTemplate the notes-page list partial
+     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
      */
     @Inject
-    public NotesInternalResource(@Location("partials/notes-list") final Template notesListTemplate,
-        final TextFailureBanner textFailureBanner, final CurrentUser currentUser,
-        final NoteService noteService, final AppPaths appPaths) {
-        this.notesListTemplate = notesListTemplate;
-        this.textFailureBanner = textFailureBanner;
+    public NotesInternalResource(final AppPaths appPaths, final CurrentUser currentUser, final NoteService noteService,
+        @Location("partials/notes-list") final Template notesListTemplate, final TextFailureBanner textFailureBanner) {
+        this.appPaths = appPaths;
         this.currentUser = currentUser;
         this.noteService = noteService;
-        this.appPaths = appPaths;
+        this.notesListTemplate = notesListTemplate;
+        this.textFailureBanner = textFailureBanner;
     }
 
     /**

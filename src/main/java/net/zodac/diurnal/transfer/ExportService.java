@@ -67,21 +67,21 @@ public class ExportService {
     // so a browser would silently rename the download. The 'T' is kept, which is what still makes it read as a timestamp rather than as five numbers.
     private static final DateTimeFormatter FILE_NAME_TIMESTAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss", Locale.ROOT);
 
-    private final NoteService noteService;
     private final AppClock clock;
+    private final NoteService noteService;
     private final TransferConfig transferConfig;
 
     /**
      * Injects the shared notes service, which opens the user's notes, the application clock, and the archive-shape settings.
      *
-     * @param noteService     the shared notes service
      * @param clock           the application clock for date-boundary logic
+     * @param noteService     the shared notes service
      * @param transferConfig  the archive-shape settings, read for which CSV writer each member is written with
      */
     @Inject
-    public ExportService(final NoteService noteService, final AppClock clock, final TransferConfig transferConfig) {
-        this.noteService = noteService;
+    public ExportService(final AppClock clock, final NoteService noteService, final TransferConfig transferConfig) {
         this.clock = clock;
+        this.noteService = noteService;
         this.transferConfig = transferConfig;
     }
 

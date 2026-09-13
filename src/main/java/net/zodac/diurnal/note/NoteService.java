@@ -87,21 +87,21 @@ public class NoteService {
 
     private static final Logger LOGGER = LogManager.getLogger(NoteService.class);
 
-    private final NoteKeys noteKeys;
     private final NoteField noteField;
+    private final NoteKeys noteKeys;
     private final NoteStatements statements;
 
     /**
      * Injects the notes key service, which opens the acting user's data key, the configured note field, and the database's native statements.
      *
-     * @param noteKeys   the shared notes key service
      * @param noteField  the configured day-note field every submission is validated against
+     * @param noteKeys   the shared notes key service
      * @param statements the native note statements for the configured database
      */
     @Inject
-    public NoteService(final NoteKeys noteKeys, final NoteField noteField, final NoteStatements statements) {
-        this.noteKeys = noteKeys;
+    public NoteService(final NoteField noteField, final NoteKeys noteKeys, final NoteStatements statements) {
         this.noteField = noteField;
+        this.noteKeys = noteKeys;
         this.statements = statements;
     }
 

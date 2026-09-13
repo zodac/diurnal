@@ -43,22 +43,22 @@ import net.zodac.diurnal.web.PageShell;
 @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 public class StatsWebResource {
 
-    private final Template statsTemplate;
     private final CurrentUser currentUser;
     private final StatsService statsService;
+    private final Template statsTemplate;
 
     /**
      * Injects the page template, the current-user accessor and the shared stats service.
      *
-     * @param statsTemplate the full stats-page template
      * @param currentUser the current-user accessor
      * @param statsService the shared stats service
+     * @param statsTemplate the full stats-page template
      */
     @Inject
-    public StatsWebResource(@Location("stats") final Template statsTemplate, final CurrentUser currentUser, final StatsService statsService) {
-        this.statsTemplate = statsTemplate;
+    public StatsWebResource(final CurrentUser currentUser, final StatsService statsService, @Location("stats") final Template statsTemplate) {
         this.currentUser = currentUser;
         this.statsService = statsService;
+        this.statsTemplate = statsTemplate;
     }
 
     /**

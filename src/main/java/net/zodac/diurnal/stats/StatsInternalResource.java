@@ -63,36 +63,35 @@ public class StatsInternalResource {
 
     private static final Logger LOGGER = LogManager.getLogger(StatsInternalResource.class);
 
-    private final Template statsCardsTemplate;
-    private final Template statsSummaryTemplate;
-    private final Template statsChartTemplate;
-    private final Template statsChartCandidatesTemplate;
     private final CurrentUser currentUser;
+    private final Template statsCardsTemplate;
+    private final Template statsChartCandidatesTemplate;
+    private final Template statsChartTemplate;
     private final StatsService statsService;
+    private final Template statsSummaryTemplate;
 
     /**
      * Injects the stats-cards, stats-summary, stats-chart and compare-picker partial templates, the current-user accessor and the shared stats
      * service.
      *
-     * @param statsCardsTemplate the stats-cards list partial template
-     * @param statsSummaryTemplate the dashboard stats-summary card partial template
-     * @param statsChartTemplate the frequency-chart partial template
-     * @param statsChartCandidatesTemplate the frequency chart's compare-picker candidate-list partial template
      * @param currentUser the current-user accessor
+     * @param statsCardsTemplate the stats-cards list partial template
+     * @param statsChartCandidatesTemplate the frequency chart's compare-picker candidate-list partial template
+     * @param statsChartTemplate the frequency-chart partial template
      * @param statsService the shared stats service
+     * @param statsSummaryTemplate the dashboard stats-summary card partial template
      */
     @Inject
-    public StatsInternalResource(@Location("partials/stats-cards") final Template statsCardsTemplate,
-        @Location("partials/stats-summary") final Template statsSummaryTemplate,
-        @Location("partials/stats-chart") final Template statsChartTemplate,
-        @Location("partials/stats-chart-candidates") final Template statsChartCandidatesTemplate, final CurrentUser currentUser,
-        final StatsService statsService) {
-        this.statsCardsTemplate = statsCardsTemplate;
-        this.statsSummaryTemplate = statsSummaryTemplate;
-        this.statsChartTemplate = statsChartTemplate;
-        this.statsChartCandidatesTemplate = statsChartCandidatesTemplate;
+    public StatsInternalResource(final CurrentUser currentUser, @Location("partials/stats-cards") final Template statsCardsTemplate,
+        @Location("partials/stats-chart-candidates") final Template statsChartCandidatesTemplate,
+        @Location("partials/stats-chart") final Template statsChartTemplate, final StatsService statsService,
+        @Location("partials/stats-summary") final Template statsSummaryTemplate) {
         this.currentUser = currentUser;
+        this.statsCardsTemplate = statsCardsTemplate;
+        this.statsChartCandidatesTemplate = statsChartCandidatesTemplate;
+        this.statsChartTemplate = statsChartTemplate;
         this.statsService = statsService;
+        this.statsSummaryTemplate = statsSummaryTemplate;
     }
 
     /**

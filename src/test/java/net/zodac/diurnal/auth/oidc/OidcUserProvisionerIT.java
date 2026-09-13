@@ -57,10 +57,10 @@ class OidcUserProvisionerIT extends IntegrationTestBase {
     private OidcConfig oidcConfig;
 
     @Inject
-    private QuarkusOidcConfig quarkusOidcConfig;
+    private OidcUserProvisioner oidcUserProvisioner;
 
     @Inject
-    private OidcUserProvisioner oidcUserProvisioner;
+    private QuarkusOidcConfig quarkusOidcConfig;
 
     // ── The callback route the revocation guard exempts ───────────────────────
 

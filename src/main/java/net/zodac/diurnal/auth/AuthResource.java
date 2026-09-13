@@ -68,39 +68,39 @@ public class AuthResource {
     private static final String SETUP_REQUIRED_MESSAGE = "The initial administrator account must be created via the setup page";
 
     private final AuthenticationService authenticationService;
+    private final ClientAddress clientAddress;
+    private final AppClock clock;
     private final CurrentUser currentUser;
+    private final LocalRegistrationConfig localRegistrationConfig;
+    private final PasswordAuthConfig passwordAuthConfig;
     private final RegistrationService registrationService;
     private final SessionStore sessionStore;
-    private final PasswordAuthConfig passwordAuthConfig;
-    private final LocalRegistrationConfig localRegistrationConfig;
-    private final AppClock clock;
-    private final ClientAddress clientAddress;
 
     /**
      * Injects the shared authentication and registration services, the session store, the current-user accessor, the relevant config views and the
      * application clock.
      *
      * @param authenticationService the shared credential-verification service
+     * @param clientAddress the resolver for the requesting client's IP
+     * @param clock the application clock for date-boundary logic
      * @param currentUser the current-user accessor
+     * @param localRegistrationConfig the local-registration settings
+     * @param passwordAuthConfig the password-auth settings
      * @param registrationService the shared registration service
      * @param sessionStore the session store used to mint and revoke session tokens
-     * @param passwordAuthConfig the password-auth settings
-     * @param localRegistrationConfig the local-registration settings
-     * @param clock the application clock for date-boundary logic
-     * @param clientAddress the resolver for the requesting client's IP
      */
     @Inject
-    public AuthResource(final AuthenticationService authenticationService, final CurrentUser currentUser,
-        final RegistrationService registrationService, final SessionStore sessionStore, final PasswordAuthConfig passwordAuthConfig,
-        final LocalRegistrationConfig localRegistrationConfig, final AppClock clock, final ClientAddress clientAddress) {
+    public AuthResource(final AuthenticationService authenticationService, final ClientAddress clientAddress, final AppClock clock,
+        final CurrentUser currentUser, final LocalRegistrationConfig localRegistrationConfig, final PasswordAuthConfig passwordAuthConfig,
+        final RegistrationService registrationService, final SessionStore sessionStore) {
         this.authenticationService = authenticationService;
+        this.clientAddress = clientAddress;
+        this.clock = clock;
         this.currentUser = currentUser;
+        this.localRegistrationConfig = localRegistrationConfig;
+        this.passwordAuthConfig = passwordAuthConfig;
         this.registrationService = registrationService;
         this.sessionStore = sessionStore;
-        this.passwordAuthConfig = passwordAuthConfig;
-        this.localRegistrationConfig = localRegistrationConfig;
-        this.clock = clock;
-        this.clientAddress = clientAddress;
     }
 
     /**

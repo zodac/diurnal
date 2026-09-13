@@ -370,7 +370,7 @@ jobs:
       # Latest, and --clobber overwrites its assets, so exactly ONE set of screenshots exists no matter how
       # many releases are cut. That is what lets README.md and docs/dockerhub-overview.md embed a permanent
       # URL - `releases/download/readme-assets/<name>.webp` - that never needs rewriting. Pinning them to a
-      # version tag instead would mean editing 14 URLs on every refresh; `releases/latest/download` would
+      # version tag instead would mean editing 19 URLs on every refresh; `releases/latest/download` would
       # break every image the moment a release shipped without them.
       #
       # THIS DESIGN REQUIRES THE REPOSITORY'S "Immutable releases" SETTING TO STAY OFF. A release published

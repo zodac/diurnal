@@ -64,34 +64,34 @@ public class RegistrationService {
 
     private static final Logger LOGGER = LogManager.getLogger(RegistrationService.class);
 
-    private final Instance<RegistrationService> self;
+    private final IpLockoutService ipLockoutService;
+    private final IpThrottle ipThrottle;
+    private final NoteKeys noteKeys;
     private final Passwords passwords;
     private final RoleAssigner roleAssigner;
-    private final IpThrottle ipThrottle;
-    private final IpLockoutService ipLockoutService;
-    private final NoteKeys noteKeys;
+    private final Instance<RegistrationService> self;
 
     /**
      * Injects collaborators and a lazy self-reference. The self {@link Instance} resolves the CDI client proxy on demand so the short
      * {@code @Transactional} {@link #createUser(String, String, String)} runs through the proxy (applying the interceptor) without a
      * construction-time cycle.
      *
-     * @param self a lazy self-reference used to invoke the transactional {@code createUser} through the CDI proxy
+     * @param ipLockoutService the shared per-IP lockout recorder (records the failure and persists a history row when a lockout trips)
+     * @param ipThrottle the per-IP registration throttle
+     * @param noteKeys the notes key service, which mints the new account's data key
      * @param passwords the Argon2id password service
      * @param roleAssigner the shared role-assignment policy
-     * @param ipThrottle the per-IP registration throttle
-     * @param ipLockoutService the shared per-IP lockout recorder (records the failure and persists a history row when a lockout trips)
-     * @param noteKeys the notes key service, which mints the new account's data key
+     * @param self a lazy self-reference used to invoke the transactional {@code createUser} through the CDI proxy
      */
     @Inject
-    public RegistrationService(final Instance<RegistrationService> self, final Passwords passwords, final RoleAssigner roleAssigner,
-        final IpThrottle ipThrottle, final IpLockoutService ipLockoutService, final NoteKeys noteKeys) {
-        this.self = self;
+    public RegistrationService(final IpLockoutService ipLockoutService, final IpThrottle ipThrottle, final NoteKeys noteKeys,
+        final Passwords passwords, final RoleAssigner roleAssigner, final Instance<RegistrationService> self) {
+        this.ipLockoutService = ipLockoutService;
+        this.ipThrottle = ipThrottle;
+        this.noteKeys = noteKeys;
         this.passwords = passwords;
         this.roleAssigner = roleAssigner;
-        this.ipThrottle = ipThrottle;
-        this.ipLockoutService = ipLockoutService;
-        this.noteKeys = noteKeys;
+        this.self = self;
     }
 
     /**

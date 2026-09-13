@@ -55,13 +55,13 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
     private FakeLatestReleaseClient releaseClient;
 
     @Inject
-    private UpdateCheckService updateCheckService;
-
-    @Inject
     private AppConfig appConfig;
 
     @Inject
     private UpdateCheckConfig updateCheckConfig;
+
+    @Inject
+    private UpdateCheckService updateCheckService;
 
     @Override
     protected void createDbState() {

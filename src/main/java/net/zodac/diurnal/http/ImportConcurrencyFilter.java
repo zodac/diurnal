@@ -76,11 +76,11 @@ public class ImportConcurrencyFilter {
     /**
      * Injects the Vert.x router the guard route is registered on, and reads the configured ceiling.
      *
-     * @param router    the Vert.x router
      * @param appConfig the typed view over {@code app.*}, carrying the maximum number of concurrent imports
+     * @param router    the Vert.x router
      */
     @Inject
-    public ImportConcurrencyFilter(final Router router, final AppConfig appConfig) {
+    public ImportConcurrencyFilter(final AppConfig appConfig, final Router router) {
         this.router = router;
         maxConcurrentImports = appConfig.maxConcurrentImports();
         // Never zero-sized: a value of zero or less turns the bound OFF rather than refusing every import, and that decision is made by the

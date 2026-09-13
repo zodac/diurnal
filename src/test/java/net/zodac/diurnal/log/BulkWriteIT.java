@@ -52,14 +52,14 @@ import org.junit.jupiter.api.Test;
 @QuarkusTest
 class BulkWriteIT extends IntegrationTestBase {
 
-    @Inject
-    private LogStatements statements;
-
     private static final LocalDate FIRST_DAY = LocalDate.of(2026, 3, 1);
     private static final int ENTRY_COUNT = 40;
 
     @Inject
     private NoteService noteService;
+
+    @Inject
+    private LogStatements statements;
 
     @Test
     void setCounts_writesEveryEntryAgainstItsOwnDayAndAction() {

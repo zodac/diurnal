@@ -80,9 +80,9 @@ public class TransferInternalResource {
     private static final String APPLICATION_ZIP = "application/zip";
 
     private final CurrentUser currentUser;
-    private final ImportService importService;
     private final Template importPanelTemplate;
     private final Template importReasonTemplate;
+    private final ImportService importService;
     private final TextFailureBanner textFailureBanner;
 
     /**
@@ -90,20 +90,19 @@ public class TransferInternalResource {
      * {@link ImportReason}.
      *
      * @param currentUser                the current-user accessor
-     * @param importService              the shared import service
      * @param importPanelTemplate        the import panel partial template
      * @param importReasonTemplate       the translated import-refusal-reason partial template
+     * @param importService              the shared import service
      * @param textFailureBanner the shared text-pipeline rejection sentence renderer
      */
     @Inject
-    public TransferInternalResource(final CurrentUser currentUser, final ImportService importService,
-        @Location("partials/import-panel") final Template importPanelTemplate,
-        @Location("partials/import-reason") final Template importReasonTemplate,
+    public TransferInternalResource(final CurrentUser currentUser, @Location("partials/import-panel") final Template importPanelTemplate,
+        @Location("partials/import-reason") final Template importReasonTemplate, final ImportService importService,
         final TextFailureBanner textFailureBanner) {
         this.currentUser = currentUser;
-        this.importService = importService;
         this.importPanelTemplate = importPanelTemplate;
         this.importReasonTemplate = importReasonTemplate;
+        this.importService = importService;
         this.textFailureBanner = textFailureBanner;
     }
 

@@ -1,20 +1,21 @@
 # CODE_STYLE.md
 
-> **This file is ~49 KB. Read only the section you need** - `grep -n '^#' .claude/CODE_STYLE.md` for its
+> **This file is ~53 KB. Read only the section you need** - `grep -n '^#' .claude/CODE_STYLE.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Java** — Format with the IDE formatter (Checkstyle-aligned), Javadoc must use the multi-line form, Block comments and Javadoc fill the line
 >   width, Paragraph tags (`<p>`) sit on their own line, No HTML entities in Javadoc, No comments on private members, Private constructors carry no
 >   comment, Private records keep a blank line between the braces, Validation lives in the static factory, never in the constructor, Data records hold
->   data; derived logic lives in a `<Type>Extensions` class, Dependency injection is constructor-based — NEVER field injection, Annotated fields are
->   separated by a blank line, Repeat a repeatable annotation — never wrap it in its container, Nullability annotations on a field or method sit on
->   their own line, Enum constants are separated by a blank line, Narrow a type with `instanceof final`, never a cast, An unread pattern binding is
->   `_`, never a placeholder name, Validate a value ONCE per request, then treat it as settled, Suppress PMD rules with a `NOPMD:` line comment, never
->   `@SuppressWarnings`, AssertJ assertions must be fluent-chained across multiple lines, Multi-argument terminal assertions use an extracted `List`,
->   A test's `@Inject` fields are `private`, A placeholder id is `DummyValues.DUMMY_UUID`, never `UUID.randomUUID()`, A test helper takes no parameter
->   it is always handed the same value, Configuration is read through typed `@ConfigMapping`, never scattered property lookups, Panache statics are
->   called on the entity, NEVER on `PanacheEntityBase`, A request DTO's constraints are `@Schema` attributes, NEVER Jakarta Bean Validation, A
->   constant regex is a `static final Pattern`, never `String.matches`/`replaceAll`, Production code kept alive only by its test is dead code
+>   data; derived logic lives in a `<Type>Extensions` class, Dependency injection is constructor-based — NEVER field injection, Injected dependencies
+>   are ordered alphabetically, Annotated fields are separated by a blank line, Repeat a repeatable annotation — never wrap it in its container,
+>   Nullability annotations on a field or method sit on their own line, Enum constants are separated by a blank line, Narrow a type with
+>   `instanceof final`, never a cast, An unread pattern binding is `_`, never a placeholder name, Validate a value ONCE per request, then treat it as
+>   settled, Suppress PMD rules with a `NOPMD:` line comment, never `@SuppressWarnings`, AssertJ assertions must be fluent-chained across multiple
+>   lines, Multi-argument terminal assertions use an extracted `List`, A test's `@Inject` fields are `private`, A placeholder id is
+>   `DummyValues.DUMMY_UUID`, never `UUID.randomUUID()`, A test helper takes no parameter it is always handed the same value, Configuration is read
+>   through typed `@ConfigMapping`, never scattered property lookups, Panache statics are called on the entity, NEVER on `PanacheEntityBase`, A
+>   request DTO's constraints are `@Schema` attributes, NEVER Jakarta Bean Validation, A constant regex is a `static final Pattern`, never
+>   `String.matches`/`replaceAll`, Production code kept alive only by its test is dead code
 
 Project-specific conventions **on top of** the inherited linter suite (Checkstyle / PMD / SpotBugs / Javadoc / NullAway). Every rule here is *
 *mandatory**. Re-read before a task; keep it in sync when conventions change.
@@ -303,22 +304,84 @@ Template statsTemplate;
 StatsService statsService;
 ```
 
-✅ **Right** — `private final` fields + one `@Inject` constructor (qualifier on the parameter):
+✅ **Right** — `private final` fields + one `@Inject` constructor (qualifier on the parameter), in the alphabetical order the next rule requires:
+
+```java
+private final StatsService statsService;
+private final Template statsTemplate;
+
+/**
+ * Injects the shared stats service and the page template.
+ *
+ * @param statsService the shared stats service
+ * @param statsTemplate the full stats-page template
+ */
+@Inject
+public StatsWebResource(final StatsService statsService, @Location("stats") final Template statsTemplate) {
+    this.statsService = statsService;
+    this.statsTemplate = statsTemplate;
+}
+```
+
+### Injected dependencies are ordered alphabetically
+
+**Every injected dependency is written in alphabetical order by VARIABLE name (case-insensitive), and that same order is repeated in each of the four
+places it appears**: the `private final` fields, the `@Inject` constructor's parameter list, that constructor's Javadoc `@param` tags, and the
+`this.x = x;` assignments. A `@QuarkusTest`/`*IT` class's `@Inject` fields are ordered the same way.
+
+There is no grouping by kind — a `Template` does not lead because it is a template, a config view does not trail because it is config, and the "most
+important" collaborator has no claim on first place. `self` sorts under `s`. A parameter the constructor only READS rather than stores (`IpThrottle`'s
+`config`, which is folded into a derived field) still takes its place in the sort, by its parameter name. The list is then wrapped by filling each
+line to the 150-column limit and continuing at +4 — never one parameter per line.
+
+Why: the constructor is deliberately unbounded here (the `ParameterNumber`/`ExcessiveParameterList` limits are off, and `AuthWebResource` takes
+eighteen), so "where does a new collaborator go" needs an answer that does not depend on who is writing it. Every other order is a convention only its
+author can reproduce: the next dependency lands at the end, someone regroups by kind, and the four lists drift out of step with each other — at which
+point nobody reading a diff can see that a bean is already injected a few lines up under a different name. Alphabetical is the one order a reader can
+predict without reading the class and a reviewer can check at a glance, and it is always safe to impose, because construction has no ordering
+semantics: a re-order changes the diff and nothing else.
+
+❌ **Wrong** — grouped by kind, and the fields, `@param` tags and assignments each in a different order:
 
 ```java
 private final Template statsTemplate;
 private final StatsService statsService;
+private final CurrentUser currentUser;
 
 /**
- * Injects the page template and the shared stats service.
+ * Injects the page template, the current-user accessor and the shared stats service.
  *
  * @param statsTemplate the full stats-page template
+ * @param currentUser the current-user accessor
  * @param statsService the shared stats service
  */
 @Inject
-public StatsWebResource(@Location("stats") final Template statsTemplate, final StatsService statsService) {
+public StatsWebResource(@Location("stats") final Template statsTemplate, final CurrentUser currentUser, final StatsService statsService) {
     this.statsTemplate = statsTemplate;
+    this.currentUser = currentUser;
     this.statsService = statsService;
+}
+```
+
+✅ **Right** — one alphabetical order, repeated in all four places:
+
+```java
+private final CurrentUser currentUser;
+private final StatsService statsService;
+private final Template statsTemplate;
+
+/**
+ * Injects the current-user accessor, the shared stats service and the page template.
+ *
+ * @param currentUser the current-user accessor
+ * @param statsService the shared stats service
+ * @param statsTemplate the full stats-page template
+ */
+@Inject
+public StatsWebResource(final CurrentUser currentUser, final StatsService statsService, @Location("stats") final Template statsTemplate) {
+    this.currentUser = currentUser;
+    this.statsService = statsService;
+    this.statsTemplate = statsTemplate;
 }
 ```
 
@@ -685,6 +748,8 @@ the only option there and is expected. **What is not optional is the visibility 
 a private field perfectly well (it already does across the suite), so the default package-private visibility buys nothing and costs the one thing
 visibility is for: a reader cannot tell whether a sibling test in the package is meant to reach in, and Qodana's "member could be narrower" check
 stays quiet on injected fields, so nothing catches the drift.
+
+They are ordered alphabetically, like every other injected dependency — see "Injected dependencies are ordered alphabetically" above.
 
 The one exception is `IntegrationTestBase`, whose `clock` is `protected` **because subclasses in other packages read it**. That is the whole point:
 

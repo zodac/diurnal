@@ -41,23 +41,22 @@ import net.zodac.diurnal.web.PageShell;
 @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 public class ActionsWebResource {
 
+    private final ActionService actionService;
     private final Template actionsTemplate;
     private final CurrentUser currentUser;
-    private final ActionService actionService;
 
     /**
      * Injects the page template, current-user accessor and the shared action service.
      *
+     * @param actionService the shared action service, for the new-action form's pre-filled colour
      * @param actionsTemplate the full actions-page template
      * @param currentUser the current-user accessor
-     * @param actionService the shared action service, for the new-action form's pre-filled colour
      */
     @Inject
-    ActionsWebResource(@Location("actions") final Template actionsTemplate, final CurrentUser currentUser,
-        final ActionService actionService) {
+    ActionsWebResource(final ActionService actionService, @Location("actions") final Template actionsTemplate, final CurrentUser currentUser) {
+        this.actionService = actionService;
         this.actionsTemplate = actionsTemplate;
         this.currentUser = currentUser;
-        this.actionService = actionService;
     }
 
     /**

@@ -72,25 +72,25 @@ public class ImportService {
 
     private static final Logger LOGGER = LogManager.getLogger(ImportService.class);
 
-    private final NoteService noteService;
-    private final NoteField noteField;
     private final AppClock clock;
+    private final NoteField noteField;
+    private final NoteService noteService;
     private final LogStatements statements;
 
     /**
      * Injects the shared notes service, which owns every note write, the configured note field, the application clock, and the database's native
      * statements.
      *
-     * @param noteService the shared notes service
-     * @param noteField   the configured day-note field every imported note row is validated against
      * @param clock       the application clock for date-boundary logic
+     * @param noteField   the configured day-note field every imported note row is validated against
+     * @param noteService the shared notes service
      * @param statements  the native action-log statements for the configured database
      */
     @Inject
-    public ImportService(final NoteService noteService, final NoteField noteField, final AppClock clock, final LogStatements statements) {
-        this.noteService = noteService;
-        this.noteField = noteField;
+    public ImportService(final AppClock clock, final NoteField noteField, final NoteService noteService, final LogStatements statements) {
         this.clock = clock;
+        this.noteField = noteField;
+        this.noteService = noteService;
         this.statements = statements;
     }
 

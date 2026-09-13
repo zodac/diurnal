@@ -49,30 +49,30 @@ public class AuthenticationService {
 
     private static final Logger LOGGER = LogManager.getLogger(AuthenticationService.class);
 
-    private final Instance<AuthenticationService> self;
-    private final IpThrottle ipThrottle;
     private final IpLockoutService ipLockoutService;
+    private final IpThrottle ipThrottle;
     private final PasswordAuthConfig passwordAuthConfig;
     private final Passwords passwords;
+    private final Instance<AuthenticationService> self;
 
     /**
      * Injects collaborators and a lazy self-reference. The self {@link Instance} resolves the CDI client proxy on demand so the short
      * {@code @Transactional} {@code recordLogin} methods are invoked through the proxy (applying the interceptor) without a construction-time cycle.
      *
-     * @param self a lazy self-reference used to invoke the transactional {@code recordLogin} methods through the CDI proxy
-     * @param ipThrottle the per-IP login throttle
      * @param ipLockoutService the shared per-IP lockout recorder (records the failure and persists a history row when a lockout trips)
+     * @param ipThrottle the per-IP login throttle
      * @param passwordAuthConfig the password-auth settings
      * @param passwords the Argon2id password service
+     * @param self a lazy self-reference used to invoke the transactional {@code recordLogin} methods through the CDI proxy
      */
     @Inject
-    public AuthenticationService(final Instance<AuthenticationService> self, final IpThrottle ipThrottle,
-        final IpLockoutService ipLockoutService, final PasswordAuthConfig passwordAuthConfig, final Passwords passwords) {
-        this.self = self;
-        this.ipThrottle = ipThrottle;
+    public AuthenticationService(final IpLockoutService ipLockoutService, final IpThrottle ipThrottle, final PasswordAuthConfig passwordAuthConfig,
+        final Passwords passwords, final Instance<AuthenticationService> self) {
         this.ipLockoutService = ipLockoutService;
+        this.ipThrottle = ipThrottle;
         this.passwordAuthConfig = passwordAuthConfig;
         this.passwords = passwords;
+        this.self = self;
     }
 
     /**

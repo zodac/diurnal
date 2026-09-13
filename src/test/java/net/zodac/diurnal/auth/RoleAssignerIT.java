@@ -31,13 +31,13 @@ import org.junit.jupiter.api.Test;
 @QuarkusTest
 class RoleAssignerIT extends IntegrationTestBase {
 
-    @Inject
-    private RoleAssigner roleAssigner;
-
     // Injects the very config the bean under test reads, so these tests stay environment-agnostic: SmallRye resolves .env at a higher priority
     // than the %test profile, so a specific value cannot be forced here - each expectation is instead derived from the same source the bean uses.
     @Inject
     private OidcConfig oidcConfig;
+
+    @Inject
+    private RoleAssigner roleAssigner;
 
     // createDbState() not overridden — users table is empty after setUp()
 

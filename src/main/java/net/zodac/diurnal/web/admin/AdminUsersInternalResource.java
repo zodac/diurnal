@@ -68,49 +68,47 @@ import net.zodac.diurnal.user.User;
 @RollbackOnErrorStatus
 public class AdminUsersInternalResource {
 
-    private final Template adminUsersListTemplate;
-    private final Template adminUserRowTemplate;
-    private final Template confirmDeleteRowTemplate;
     private final AdminConsole adminConsole;
-    private final SecurityIdentity identity;
-    private final CurrentUser currentUser;
+    private final Template adminUserRowTemplate;
     private final AdminUserService adminUserService;
-    private final SessionActivityService sessionActivityService;
+    private final Template adminUsersListTemplate;
     private final AppPaths appPaths;
     private final AppClock clock;
+    private final Template confirmDeleteRowTemplate;
+    private final CurrentUser currentUser;
+    private final SecurityIdentity identity;
+    private final SessionActivityService sessionActivityService;
 
     /**
      * Injects the HTMX partial templates, the security identity, the current-user accessor, the shared admin-user service, the session-activity
      * (recently-active presence) service and the application clock.
      *
-     * @param adminUsersListTemplate the paginated admin-users-list partial template
-     * @param adminUserRowTemplate the single admin-user-row partial template
-     * @param confirmDeleteRowTemplate the delete-confirmation row partial template
      * @param adminConsole the shared admin-console banner wording and timestamp format
-     * @param identity the calling administrator's security identity
-     * @param currentUser the current-user accessor
+     * @param adminUserRowTemplate the single admin-user-row partial template
      * @param adminUserService the shared admin-user-mutation service
-     * @param sessionActivityService the recently-active presence service
-     * @param clock the application clock for date-boundary logic
+     * @param adminUsersListTemplate the paginated admin-users-list partial template
      * @param appPaths the single builder of every application URL, for the row's delete/restore endpoints
+     * @param clock the application clock for date-boundary logic
+     * @param confirmDeleteRowTemplate the delete-confirmation row partial template
+     * @param currentUser the current-user accessor
+     * @param identity the calling administrator's security identity
+     * @param sessionActivityService the recently-active presence service
      */
     @Inject
-    public AdminUsersInternalResource(@Location("partials/admin-users-list") final Template adminUsersListTemplate,
-        @Location("partials/admin-user-row") final Template adminUserRowTemplate,
-        @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
-        final AdminConsole adminConsole, final SecurityIdentity identity,
-        final CurrentUser currentUser, final AdminUserService adminUserService, final SessionActivityService sessionActivityService,
-        final AppClock clock, final AppPaths appPaths) {
-        this.adminUsersListTemplate = adminUsersListTemplate;
-        this.adminUserRowTemplate = adminUserRowTemplate;
-        this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
+    public AdminUsersInternalResource(final AdminConsole adminConsole, @Location("partials/admin-user-row") final Template adminUserRowTemplate,
+        final AdminUserService adminUserService, @Location("partials/admin-users-list") final Template adminUsersListTemplate,
+        final AppPaths appPaths, final AppClock clock, @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
+        final CurrentUser currentUser, final SecurityIdentity identity, final SessionActivityService sessionActivityService) {
         this.adminConsole = adminConsole;
-        this.identity = identity;
-        this.currentUser = currentUser;
+        this.adminUserRowTemplate = adminUserRowTemplate;
         this.adminUserService = adminUserService;
-        this.sessionActivityService = sessionActivityService;
-        this.clock = clock;
+        this.adminUsersListTemplate = adminUsersListTemplate;
         this.appPaths = appPaths;
+        this.clock = clock;
+        this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
+        this.currentUser = currentUser;
+        this.identity = identity;
+        this.sessionActivityService = sessionActivityService;
     }
 
     /**

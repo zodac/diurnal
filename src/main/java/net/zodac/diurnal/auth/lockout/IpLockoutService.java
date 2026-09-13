@@ -47,20 +47,20 @@ public class IpLockoutService {
 
     private static final Logger LOGGER = LogManager.getLogger(IpLockoutService.class);
 
-    private final Instance<IpLockoutService> self;
     private final IpThrottle ipThrottle;
+    private final Instance<IpLockoutService> self;
 
     /**
      * Injects the per-IP throttle and a lazy self-reference. The self {@link Instance} resolves the CDI client proxy on demand so the short
      * {@code @Transactional} {@link #persistLockout} runs through the proxy (applying the interceptor) without a construction-time cycle.
      *
-     * @param self       a lazy self-reference used to invoke the transactional {@code persistLockout} through the CDI proxy
      * @param ipThrottle the shared per-IP lockout
+     * @param self       a lazy self-reference used to invoke the transactional {@code persistLockout} through the CDI proxy
      */
     @Inject
-    public IpLockoutService(final Instance<IpLockoutService> self, final IpThrottle ipThrottle) {
-        this.self = self;
+    public IpLockoutService(final IpThrottle ipThrottle, final Instance<IpLockoutService> self) {
         this.ipThrottle = ipThrottle;
+        this.self = self;
     }
 
     /**

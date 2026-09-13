@@ -96,9 +96,6 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
      */
     protected static final String NOTES_MASTER_KEY = "ZGl1cm5hbC10ZXN0LW5vdGVzLWtleS0zMi1ieXRlcyE=";
 
-    @Inject
-    private UserTransaction tx;
-
     /**
      * The application clock, frozen to {@link #FIXED_TODAY} for the duration of every test.
      *
@@ -108,6 +105,9 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
      */
     @Inject
     protected AppClock clock;
+
+    @Inject
+    private UserTransaction tx;
 
     @BeforeEach
     void setUp() throws Exception {

@@ -73,37 +73,37 @@ public class LogWebResource {
 
     private static final Logger LOGGER = LogManager.getLogger(LogWebResource.class);
 
-    private final Template dayPanelTemplate;
-    private final Template dayActionsListTemplate;
-    private final Template dayActionItemTemplate;
-    private final Template dayActionItemConfirmDeleteTemplate;
-    private final CurrentUser currentUser;
     private final AppClock clock;
+    private final CurrentUser currentUser;
+    private final Template dayActionItemConfirmDeleteTemplate;
+    private final Template dayActionItemTemplate;
+    private final Template dayActionsListTemplate;
+    private final Template dayPanelTemplate;
     private final LogService logService;
 
     /**
      * Injects the day-panel HTMX partial templates, the current-user accessor, the application clock and the shared log service.
      *
-     * @param dayPanelTemplate the day-panel partial template
-     * @param dayActionsListTemplate the day-actions-list partial template
-     * @param dayActionItemTemplate the single day-action-item partial template
-     * @param dayActionItemConfirmDeleteTemplate the day-action-item delete-confirmation partial template
-     * @param currentUser the current-user accessor
      * @param clock the application clock for date-boundary logic
+     * @param currentUser the current-user accessor
+     * @param dayActionItemConfirmDeleteTemplate the day-action-item delete-confirmation partial template
+     * @param dayActionItemTemplate the single day-action-item partial template
+     * @param dayActionsListTemplate the day-actions-list partial template
+     * @param dayPanelTemplate the day-panel partial template
      * @param logService the shared log-mutation service
      */
     @Inject
-    LogWebResource(@Location("partials/day-panel") final Template dayPanelTemplate,
-        @Location("partials/day-actions-list") final Template dayActionsListTemplate,
-        @Location("partials/day-action-item") final Template dayActionItemTemplate,
+    LogWebResource(final AppClock clock, final CurrentUser currentUser,
         @Location("partials/day-action-item-confirm-delete") final Template dayActionItemConfirmDeleteTemplate,
-        final CurrentUser currentUser, final AppClock clock, final LogService logService) {
-        this.dayPanelTemplate = dayPanelTemplate;
-        this.dayActionsListTemplate = dayActionsListTemplate;
-        this.dayActionItemTemplate = dayActionItemTemplate;
-        this.dayActionItemConfirmDeleteTemplate = dayActionItemConfirmDeleteTemplate;
-        this.currentUser = currentUser;
+        @Location("partials/day-action-item") final Template dayActionItemTemplate,
+        @Location("partials/day-actions-list") final Template dayActionsListTemplate, @Location("partials/day-panel") final Template dayPanelTemplate,
+        final LogService logService) {
         this.clock = clock;
+        this.currentUser = currentUser;
+        this.dayActionItemConfirmDeleteTemplate = dayActionItemConfirmDeleteTemplate;
+        this.dayActionItemTemplate = dayActionItemTemplate;
+        this.dayActionsListTemplate = dayActionsListTemplate;
+        this.dayPanelTemplate = dayPanelTemplate;
         this.logService = logService;
     }
 

@@ -36,23 +36,23 @@ import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 @ApplicationScoped
 public class NotFoundExceptionMapper {
 
+    private final AppPaths appPaths;
     private final Template errorTemplate;
     private final CurrentIdentityAssociation identityAssociation;
-    private final AppPaths appPaths;
 
     /**
      * Injects the 404 page template and the deferred-identity association.
      *
+     * @param appPaths the single builder of every application URL, for the anonymous redirect to the sign-in page
      * @param errorTemplate the styled 404 page template
      * @param identityAssociation the deferred security-identity association
-     * @param appPaths the single builder of every application URL, for the anonymous redirect to the sign-in page
      */
     @Inject
-    public NotFoundExceptionMapper(@Location("error-404") final Template errorTemplate, final CurrentIdentityAssociation identityAssociation,
-        final AppPaths appPaths) {
+    public NotFoundExceptionMapper(final AppPaths appPaths, @Location("error-404") final Template errorTemplate,
+        final CurrentIdentityAssociation identityAssociation) {
+        this.appPaths = appPaths;
         this.errorTemplate = errorTemplate;
         this.identityAssociation = identityAssociation;
-        this.appPaths = appPaths;
     }
 
     /**

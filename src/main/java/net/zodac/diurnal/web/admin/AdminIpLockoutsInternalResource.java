@@ -66,49 +66,48 @@ import net.zodac.diurnal.user.User;
 @RollbackOnErrorStatus
 public class AdminIpLockoutsInternalResource {
 
-    private final Template adminIpLockoutsTableTemplate;
-    private final Template adminIpLockoutRowTemplate;
-    private final Template confirmDeleteRowTemplate;
     private final AdminConsole adminConsole;
-    private final SecurityIdentity identity;
-    private final CurrentUser currentUser;
-    private final IpLockoutService ipLockoutService;
-    private final IpThrottleConfig ipThrottleConfig;
+    private final Template adminIpLockoutRowTemplate;
+    private final Template adminIpLockoutsTableTemplate;
     private final AppPaths appPaths;
     private final AppClock clock;
+    private final Template confirmDeleteRowTemplate;
+    private final CurrentUser currentUser;
+    private final SecurityIdentity identity;
+    private final IpLockoutService ipLockoutService;
+    private final IpThrottleConfig ipThrottleConfig;
 
     /**
      * Injects the HTMX partial templates, the security identity, the current-user accessor, the shared lockout service, the throttle settings (for
      * the enabled gate) and the application clock.
      *
-     * @param adminIpLockoutsTableTemplate the lockout-table partial template
-     * @param adminIpLockoutRowTemplate    the single lockout-row partial template
-     * @param confirmDeleteRowTemplate     the shared in-place confirm-row partial template (reused for the unlock confirmation)
      * @param adminConsole the shared admin-console banner wording and timestamp format
-     * @param identity                     the calling administrator's security identity
+     * @param adminIpLockoutRowTemplate    the single lockout-row partial template
+     * @param adminIpLockoutsTableTemplate the lockout-table partial template
+     * @param appPaths the single builder of every application URL, for the row's unlock/restore endpoints
+     * @param clock                        the application clock for date-boundary logic
+     * @param confirmDeleteRowTemplate     the shared in-place confirm-row partial template (reused for the unlock confirmation)
      * @param currentUser                  the current-user accessor
+     * @param identity                     the calling administrator's security identity
      * @param ipLockoutService             the shared per-IP lockout service
      * @param ipThrottleConfig             the per-IP throttle settings (whether the feature is enabled)
-     * @param clock                        the application clock for date-boundary logic
-     * @param appPaths the single builder of every application URL, for the row's unlock/restore endpoints
      */
     @Inject
-    public AdminIpLockoutsInternalResource(@Location("partials/admin-ip-lockouts-table") final Template adminIpLockoutsTableTemplate,
+    public AdminIpLockoutsInternalResource(final AdminConsole adminConsole,
         @Location("partials/admin-ip-lockout-row") final Template adminIpLockoutRowTemplate,
-        @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
-        final AdminConsole adminConsole, final SecurityIdentity identity,
-        final CurrentUser currentUser, final IpLockoutService ipLockoutService, final IpThrottleConfig ipThrottleConfig, final AppClock clock,
-        final AppPaths appPaths) {
-        this.adminIpLockoutsTableTemplate = adminIpLockoutsTableTemplate;
-        this.adminIpLockoutRowTemplate = adminIpLockoutRowTemplate;
-        this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
+        @Location("partials/admin-ip-lockouts-table") final Template adminIpLockoutsTableTemplate, final AppPaths appPaths, final AppClock clock,
+        @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate, final CurrentUser currentUser,
+        final SecurityIdentity identity, final IpLockoutService ipLockoutService, final IpThrottleConfig ipThrottleConfig) {
         this.adminConsole = adminConsole;
-        this.identity = identity;
+        this.adminIpLockoutRowTemplate = adminIpLockoutRowTemplate;
+        this.adminIpLockoutsTableTemplate = adminIpLockoutsTableTemplate;
+        this.appPaths = appPaths;
+        this.clock = clock;
+        this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
         this.currentUser = currentUser;
+        this.identity = identity;
         this.ipLockoutService = ipLockoutService;
         this.ipThrottleConfig = ipThrottleConfig;
-        this.clock = clock;
-        this.appPaths = appPaths;
     }
 
     /**

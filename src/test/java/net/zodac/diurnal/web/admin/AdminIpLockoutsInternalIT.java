@@ -58,10 +58,10 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
     private static final String OTHER_IP = "198.51.100.9"; // NOPMD: AvoidUsingHardCodedIP - test IP
 
     @Inject
-    private IpThrottle ipThrottle;
+    private IpLockoutService ipLockoutService;
 
     @Inject
-    private IpLockoutService ipLockoutService;
+    private IpThrottle ipThrottle;
 
     // IpThrottle is @ApplicationScoped, so its in-memory state survives across tests. The package-private
     // clear() hook is not visible from this package, so reset via the public unlock of every live lockout.

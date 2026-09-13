@@ -65,42 +65,41 @@ import org.jspecify.annotations.Nullable;
 @RollbackOnErrorStatus
 public class ActionsInternalResource {
 
-    private final Template actionsListTemplate;
-    private final Template actionRowTemplate;
-    private final Template confirmDeleteRowTemplate;
     private final Template actionMessagesTemplate;
-    private final TextFailureBanner textFailureBanner;
-    private final CurrentUser currentUser;
+    private final Template actionRowTemplate;
     private final ActionService actionService;
+    private final Template actionsListTemplate;
     private final AppPaths appPaths;
+    private final Template confirmDeleteRowTemplate;
+    private final CurrentUser currentUser;
+    private final TextFailureBanner textFailureBanner;
 
     /**
      * Injects the HTMX partial templates, the current-user accessor and the shared action service.
      *
-     * @param actionsListTemplate the paginated actions-list partial template
-     * @param actionRowTemplate the single action-row partial template
-     * @param confirmDeleteRowTemplate the delete-confirmation row partial template
      * @param actionMessagesTemplate the fixed-shape ActionResult/delete-prompt message partial template
-     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
-     * @param currentUser the current-user accessor
+     * @param actionRowTemplate the single action-row partial template
      * @param actionService the shared action-mutation service
+     * @param actionsListTemplate the paginated actions-list partial template
      * @param appPaths the single builder of every application URL, for the row's delete/restore endpoints
+     * @param confirmDeleteRowTemplate the delete-confirmation row partial template
+     * @param currentUser the current-user accessor
+     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
      */
     @Inject
-    ActionsInternalResource(@Location("partials/actions-list") final Template actionsListTemplate,
-        @Location("partials/action-row") final Template actionRowTemplate,
-        @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
-        @Location("partials/action-messages") final Template actionMessagesTemplate,
-        final TextFailureBanner textFailureBanner,
-        final CurrentUser currentUser, final ActionService actionService, final AppPaths appPaths) {
-        this.actionsListTemplate = actionsListTemplate;
-        this.actionRowTemplate = actionRowTemplate;
-        this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
+    ActionsInternalResource(@Location("partials/action-messages") final Template actionMessagesTemplate,
+        @Location("partials/action-row") final Template actionRowTemplate, final ActionService actionService,
+        @Location("partials/actions-list") final Template actionsListTemplate, final AppPaths appPaths,
+        @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate, final CurrentUser currentUser,
+        final TextFailureBanner textFailureBanner) {
         this.actionMessagesTemplate = actionMessagesTemplate;
-        this.textFailureBanner = textFailureBanner;
-        this.currentUser = currentUser;
+        this.actionRowTemplate = actionRowTemplate;
         this.actionService = actionService;
+        this.actionsListTemplate = actionsListTemplate;
         this.appPaths = appPaths;
+        this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
+        this.currentUser = currentUser;
+        this.textFailureBanner = textFailureBanner;
     }
 
     // ── Partials for HTMX ─────────────────────────────────────────────────

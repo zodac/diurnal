@@ -84,80 +84,77 @@ public class AuthWebResource {
     private static final String LOCKOUT_COOKIE = "diurnal_login_lockout";
     private static final int LOCKOUT_COOKIE_MAX_AGE_SECONDS = 30;
 
-    private final Template loginTemplate;
-    private final Template registerTemplate;
-    private final Template setupTemplate;
-    private final Template oidcMessagesTemplate;
-    private final TextFailureBanner textFailureBanner;
-    private final Template passwordRejectionTemplate;
-    private final AppClock clock;
-    private final AuthenticationService authenticationService;
-    private final RegistrationService registrationService;
-    private final SessionStore sessionStore;
-    private final SessionCookies sessionCookies;
-    private final QuarkusOidcConfig quarkusOidcConfig;
-    private final OidcConfig oidcConfig;
-    private final PasswordAuthConfig passwordAuthConfig;
-    private final LocalRegistrationConfig localRegistrationConfig;
-    private final IpThrottleConfig ipThrottleConfig;
     private final AppPaths appPaths;
+    private final AuthenticationService authenticationService;
     private final ClientAddress clientAddress;
+    private final AppClock clock;
+    private final IpThrottleConfig ipThrottleConfig;
+    private final LocalRegistrationConfig localRegistrationConfig;
+    private final Template loginTemplate;
+    private final OidcConfig oidcConfig;
+    private final Template oidcMessagesTemplate;
+    private final PasswordAuthConfig passwordAuthConfig;
+    private final Template passwordRejectionTemplate;
+    private final QuarkusOidcConfig quarkusOidcConfig;
+    private final Template registerTemplate;
+    private final RegistrationService registrationService;
+    private final SessionCookies sessionCookies;
+    private final SessionStore sessionStore;
+    private final Template setupTemplate;
+    private final TextFailureBanner textFailureBanner;
 
     /**
      * Injects the page templates, the shared authentication and registration services, the session store and cookie builder, and every config view
      * the authentication pages read.
      *
-     * @param loginTemplate the login page template
-     * @param registerTemplate the register page template
-     * @param setupTemplate the first-run setup page template
-     * @param oidcMessagesTemplate the translated OIDC connect/denial banner partial template
-     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
-     * @param passwordRejectionTemplate the translated password-mismatch/unchanged banner partial template
-     * @param clock the application clock for date-boundary logic
-     * @param authenticationService the shared credential-verification service
-     * @param registrationService the shared registration service
-     * @param sessionStore the session store used to mint and revoke session tokens
-     * @param sessionCookies the shared session-cookie builder
-     * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys the page reads (tenant-enabled, the IdP base URL)
-     * @param oidcConfig the application OIDC policy settings
-     * @param passwordAuthConfig the password-auth settings
-     * @param localRegistrationConfig the local-registration settings
-     * @param ipThrottleConfig the per-IP throttle settings
      * @param appPaths the single builder of every application URL, for every redirect and cookie path this resource emits
+     * @param authenticationService the shared credential-verification service
      * @param clientAddress the resolver for the requesting client's IP
+     * @param clock the application clock for date-boundary logic
+     * @param ipThrottleConfig the per-IP throttle settings
+     * @param localRegistrationConfig the local-registration settings
+     * @param loginTemplate the login page template
+     * @param oidcConfig the application OIDC policy settings
+     * @param oidcMessagesTemplate the translated OIDC connect/denial banner partial template
+     * @param passwordAuthConfig the password-auth settings
+     * @param passwordRejectionTemplate the translated password-mismatch/unchanged banner partial template
+     * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys the page reads (tenant-enabled, the IdP base URL)
+     * @param registerTemplate the register page template
+     * @param registrationService the shared registration service
+     * @param sessionCookies the shared session-cookie builder
+     * @param sessionStore the session store used to mint and revoke session tokens
+     * @param setupTemplate the first-run setup page template
+     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
      */
     // Constructor injection is what CODE_STYLE.md mandates, and it explicitly keeps the parameter-count limits off, so the collaborator count here
     // is the convention rather than a smell.
     @SuppressWarnings("OverlyCoupledMethod")
     @Inject
-    public AuthWebResource(@Location("login") final Template loginTemplate, @Location("register") final Template registerTemplate,
-        @Location("setup") final Template setupTemplate, @Location("partials/oidc-messages") final Template oidcMessagesTemplate,
-        final TextFailureBanner textFailureBanner,
-        @Location("partials/password-rejection") final Template passwordRejectionTemplate,
-        final AppClock clock,
-        final AuthenticationService authenticationService,
-        final RegistrationService registrationService, final SessionStore sessionStore, final SessionCookies sessionCookies,
-        final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig, final PasswordAuthConfig passwordAuthConfig,
-        final LocalRegistrationConfig localRegistrationConfig, final IpThrottleConfig ipThrottleConfig, final AppPaths appPaths,
-        final ClientAddress clientAddress) {
-        this.loginTemplate = loginTemplate;
-        this.registerTemplate = registerTemplate;
-        this.setupTemplate = setupTemplate;
-        this.oidcMessagesTemplate = oidcMessagesTemplate;
-        this.textFailureBanner = textFailureBanner;
-        this.passwordRejectionTemplate = passwordRejectionTemplate;
-        this.clock = clock;
-        this.authenticationService = authenticationService;
-        this.registrationService = registrationService;
-        this.sessionStore = sessionStore;
-        this.sessionCookies = sessionCookies;
-        this.quarkusOidcConfig = quarkusOidcConfig;
-        this.oidcConfig = oidcConfig;
-        this.passwordAuthConfig = passwordAuthConfig;
-        this.localRegistrationConfig = localRegistrationConfig;
-        this.ipThrottleConfig = ipThrottleConfig;
+    public AuthWebResource(final AppPaths appPaths, final AuthenticationService authenticationService, final ClientAddress clientAddress,
+        final AppClock clock, final IpThrottleConfig ipThrottleConfig, final LocalRegistrationConfig localRegistrationConfig,
+        @Location("login") final Template loginTemplate, final OidcConfig oidcConfig,
+        @Location("partials/oidc-messages") final Template oidcMessagesTemplate, final PasswordAuthConfig passwordAuthConfig,
+        @Location("partials/password-rejection") final Template passwordRejectionTemplate, final QuarkusOidcConfig quarkusOidcConfig,
+        @Location("register") final Template registerTemplate, final RegistrationService registrationService, final SessionCookies sessionCookies,
+        final SessionStore sessionStore, @Location("setup") final Template setupTemplate, final TextFailureBanner textFailureBanner) {
         this.appPaths = appPaths;
+        this.authenticationService = authenticationService;
         this.clientAddress = clientAddress;
+        this.clock = clock;
+        this.ipThrottleConfig = ipThrottleConfig;
+        this.localRegistrationConfig = localRegistrationConfig;
+        this.loginTemplate = loginTemplate;
+        this.oidcConfig = oidcConfig;
+        this.oidcMessagesTemplate = oidcMessagesTemplate;
+        this.passwordAuthConfig = passwordAuthConfig;
+        this.passwordRejectionTemplate = passwordRejectionTemplate;
+        this.quarkusOidcConfig = quarkusOidcConfig;
+        this.registerTemplate = registerTemplate;
+        this.registrationService = registrationService;
+        this.sessionCookies = sessionCookies;
+        this.sessionStore = sessionStore;
+        this.setupTemplate = setupTemplate;
+        this.textFailureBanner = textFailureBanner;
     }
 
     // ── Login ──────────────────────────────────────────────────────────────

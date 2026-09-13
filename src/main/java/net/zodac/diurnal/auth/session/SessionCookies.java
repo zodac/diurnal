@@ -42,19 +42,19 @@ public class SessionCookies {
      */
     public static final String OIDC_COOKIE = "q_session";
 
-    private final SessionConfig sessionConfig;
     private final AppPaths appPaths;
+    private final SessionConfig sessionConfig;
 
     /**
      * Injects the session settings the cookie's name and lifetime come from.
      *
-     * @param sessionConfig the session settings
      * @param appPaths the single builder of every application URL, read for the path a cookie is scoped to
+     * @param sessionConfig the session settings
      */
     @Inject
-    public SessionCookies(final SessionConfig sessionConfig, final AppPaths appPaths) {
-        this.sessionConfig = sessionConfig;
+    public SessionCookies(final AppPaths appPaths, final SessionConfig sessionConfig) {
         this.appPaths = appPaths;
+        this.sessionConfig = sessionConfig;
     }
 
     /**

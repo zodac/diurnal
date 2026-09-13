@@ -70,19 +70,19 @@ import org.jspecify.annotations.Nullable;
 @RollbackOnErrorStatus
 public class ActionsApiResource {
 
-    private final CurrentUser currentUser;
     private final ActionService actionService;
+    private final CurrentUser currentUser;
 
     /**
      * Injects the current-user accessor and the shared action service.
      *
-     * @param currentUser the current-user accessor
      * @param actionService the shared action-mutation service
+     * @param currentUser the current-user accessor
      */
     @Inject
-    ActionsApiResource(final CurrentUser currentUser, final ActionService actionService) {
-        this.currentUser = currentUser;
+    ActionsApiResource(final ActionService actionService, final CurrentUser currentUser) {
         this.actionService = actionService;
+        this.currentUser = currentUser;
     }
 
     /**

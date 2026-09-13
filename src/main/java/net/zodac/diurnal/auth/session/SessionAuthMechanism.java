@@ -54,19 +54,19 @@ public class SessionAuthMechanism implements HttpAuthenticationMechanism {
     private static final int PRIORITY_ABOVE_BUILTINS = DEFAULT_PRIORITY + 1000;
     private static final ChallengeData API_UNAUTHORIZED = new ChallengeData(Response.Status.UNAUTHORIZED.getStatusCode());
 
-    private final SessionConfig sessionConfig;
     private final AppPaths appPaths;
+    private final SessionConfig sessionConfig;
 
     /**
      * Injects the session settings.
      *
-     * @param sessionConfig the session settings (cookie name)
      * @param appPaths the single builder of every application URL, for the sign-in page an anonymous browser request is challenged with
+     * @param sessionConfig the session settings (cookie name)
      */
     @Inject
-    public SessionAuthMechanism(final SessionConfig sessionConfig, final AppPaths appPaths) {
-        this.sessionConfig = sessionConfig;
+    public SessionAuthMechanism(final AppPaths appPaths, final SessionConfig sessionConfig) {
         this.appPaths = appPaths;
+        this.sessionConfig = sessionConfig;
     }
 
     @Override

@@ -80,71 +80,69 @@ public class SettingsWebResource {
 
     private static final String CURRENT_PASSWORD_ERROR_KIND = "current";
 
-    private final Template settingsTemplate;
-    private final Template oidcMessagesTemplate;
-    private final Template passwordRejectionTemplate;
-    private final Template profileRejectionTemplate;
-    private final TextFailureBanner textFailureBanner;
-    private final CurrentUser currentUser;
-    private final AppClock clock;
-    private final ProfileService profileService;
-    private final PasswordChangeService passwordChangeService;
-    private final SessionStore sessionStore;
-    private final SessionCookies sessionCookies;
-    private final QuarkusHttpLimitsConfig httpLimitsConfig;
-    private final QuarkusOidcConfig quarkusOidcConfig;
-    private final OidcConfig oidcConfig;
     private final AppPaths appPaths;
     private final ClientAddress clientAddress;
+    private final AppClock clock;
+    private final CurrentUser currentUser;
+    private final QuarkusHttpLimitsConfig httpLimitsConfig;
+    private final OidcConfig oidcConfig;
+    private final Template oidcMessagesTemplate;
+    private final PasswordChangeService passwordChangeService;
+    private final Template passwordRejectionTemplate;
+    private final Template profileRejectionTemplate;
+    private final ProfileService profileService;
+    private final QuarkusOidcConfig quarkusOidcConfig;
+    private final SessionCookies sessionCookies;
+    private final SessionStore sessionStore;
+    private final Template settingsTemplate;
+    private final TextFailureBanner textFailureBanner;
 
     /**
      * Injects the settings template, the translated OIDC connect/denial banner partial, the current-user accessor, the shared profile and
      * password-change services, the session store and cookie builder, and the OIDC config views the Identity Provider section reads.
      *
-     * @param settingsTemplate the settings page template
-     * @param oidcMessagesTemplate the translated OIDC connect/denial banner partial template
-     * @param passwordRejectionTemplate the translated password-mismatch/unchanged banner partial template
-     * @param profileRejectionTemplate the translated preference-rejection banner partial template
-     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
-     * @param currentUser the current-user accessor
-     * @param clock the application clock for date-boundary logic
-     * @param profileService the shared profile-mutation service
-     * @param passwordChangeService the shared password-change service
-     * @param sessionStore the session store used to revoke session tokens
-     * @param sessionCookies the shared session-cookie builder
-     * @param httpLimitsConfig the framework-owned {@code quarkus.http.limits.*} keys the page reads (the data card's upload bound)
-     * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys the page reads (tenant-enabled, the IdP base URL)
-     * @param oidcConfig the application OIDC policy settings
      * @param appPaths the single builder of every application URL, for the sign-out redirect
      * @param clientAddress the resolver for the requesting client's IP
+     * @param clock the application clock for date-boundary logic
+     * @param currentUser the current-user accessor
+     * @param httpLimitsConfig the framework-owned {@code quarkus.http.limits.*} keys the page reads (the data card's upload bound)
+     * @param oidcConfig the application OIDC policy settings
+     * @param oidcMessagesTemplate the translated OIDC connect/denial banner partial template
+     * @param passwordChangeService the shared password-change service
+     * @param passwordRejectionTemplate the translated password-mismatch/unchanged banner partial template
+     * @param profileRejectionTemplate the translated preference-rejection banner partial template
+     * @param profileService the shared profile-mutation service
+     * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys the page reads (tenant-enabled, the IdP base URL)
+     * @param sessionCookies the shared session-cookie builder
+     * @param sessionStore the session store used to revoke session tokens
+     * @param settingsTemplate the settings page template
+     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
      */
     @SuppressWarnings("OverlyCoupledMethod")
     @Inject
-    public SettingsWebResource(@Location("settings") final Template settingsTemplate,
-        @Location("partials/oidc-messages") final Template oidcMessagesTemplate,
+    public SettingsWebResource(final AppPaths appPaths, final ClientAddress clientAddress, final AppClock clock, final CurrentUser currentUser,
+        final QuarkusHttpLimitsConfig httpLimitsConfig, final OidcConfig oidcConfig,
+        @Location("partials/oidc-messages") final Template oidcMessagesTemplate, final PasswordChangeService passwordChangeService,
         @Location("partials/password-rejection") final Template passwordRejectionTemplate,
-        @Location("partials/profile-rejection") final Template profileRejectionTemplate,
-        final TextFailureBanner textFailureBanner,
-        final CurrentUser currentUser, final AppClock clock,
-        final ProfileService profileService, final PasswordChangeService passwordChangeService, final SessionStore sessionStore,
-        final SessionCookies sessionCookies, final QuarkusHttpLimitsConfig httpLimitsConfig, final QuarkusOidcConfig quarkusOidcConfig,
-        final OidcConfig oidcConfig, final AppPaths appPaths, final ClientAddress clientAddress) {
-        this.settingsTemplate = settingsTemplate;
-        this.oidcMessagesTemplate = oidcMessagesTemplate;
-        this.passwordRejectionTemplate = passwordRejectionTemplate;
-        this.profileRejectionTemplate = profileRejectionTemplate;
-        this.textFailureBanner = textFailureBanner;
-        this.currentUser = currentUser;
-        this.clock = clock;
-        this.profileService = profileService;
-        this.passwordChangeService = passwordChangeService;
-        this.sessionStore = sessionStore;
-        this.sessionCookies = sessionCookies;
-        this.httpLimitsConfig = httpLimitsConfig;
-        this.quarkusOidcConfig = quarkusOidcConfig;
-        this.oidcConfig = oidcConfig;
+        @Location("partials/profile-rejection") final Template profileRejectionTemplate, final ProfileService profileService,
+        final QuarkusOidcConfig quarkusOidcConfig, final SessionCookies sessionCookies, final SessionStore sessionStore,
+        @Location("settings") final Template settingsTemplate, final TextFailureBanner textFailureBanner) {
         this.appPaths = appPaths;
         this.clientAddress = clientAddress;
+        this.clock = clock;
+        this.currentUser = currentUser;
+        this.httpLimitsConfig = httpLimitsConfig;
+        this.oidcConfig = oidcConfig;
+        this.oidcMessagesTemplate = oidcMessagesTemplate;
+        this.passwordChangeService = passwordChangeService;
+        this.passwordRejectionTemplate = passwordRejectionTemplate;
+        this.profileRejectionTemplate = profileRejectionTemplate;
+        this.profileService = profileService;
+        this.quarkusOidcConfig = quarkusOidcConfig;
+        this.sessionCookies = sessionCookies;
+        this.sessionStore = sessionStore;
+        this.settingsTemplate = settingsTemplate;
+        this.textFailureBanner = textFailureBanner;
     }
 
     // ── Settings ───────────────────────────────────────────────────────────

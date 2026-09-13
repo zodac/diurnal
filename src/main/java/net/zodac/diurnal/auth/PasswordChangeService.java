@@ -64,22 +64,22 @@ public class PasswordChangeService {
 
     private static final Logger LOGGER = LogManager.getLogger(PasswordChangeService.class);
 
-    private final Instance<PasswordChangeService> self;
     private final Passwords passwords;
+    private final Instance<PasswordChangeService> self;
     private final SessionStore sessionStore;
 
     /**
      * Injects collaborators and a lazy self-reference. The self {@link Instance} resolves the CDI client proxy on demand so the short
      * {@code @Transactional} {@code applyChange} runs through the proxy (applying the interceptor) without a construction-time cycle.
      *
-     * @param self a lazy self-reference used to invoke the transactional {@code applyChange} through the CDI proxy
      * @param passwords the Argon2id password service
+     * @param self a lazy self-reference used to invoke the transactional {@code applyChange} through the CDI proxy
      * @param sessionStore the session store, used to revoke other sessions after a change
      */
     @Inject
-    public PasswordChangeService(final Instance<PasswordChangeService> self, final Passwords passwords, final SessionStore sessionStore) {
-        this.self = self;
+    public PasswordChangeService(final Passwords passwords, final Instance<PasswordChangeService> self, final SessionStore sessionStore) {
         this.passwords = passwords;
+        this.self = self;
         this.sessionStore = sessionStore;
     }
 

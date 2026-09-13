@@ -71,39 +71,39 @@ public class OidcWebResource {
     // The Settings "Connect {provider}" intent marker only needs to survive the round trip to the IdP.
     private static final int LINK_INTENT_COOKIE_MAX_AGE_SECONDS = 300;
 
-    private final SecurityIdentity identity;
-    private final CurrentUser currentUser;
-    private final AppClock clock;
-    private final SessionStore sessionStore;
-    private final SessionCookies sessionCookies;
-    private final QuarkusOidcConfig quarkusOidcConfig;
     private final AppPaths appPaths;
     private final ClientAddress clientAddress;
+    private final AppClock clock;
+    private final CurrentUser currentUser;
+    private final SecurityIdentity identity;
+    private final QuarkusOidcConfig quarkusOidcConfig;
+    private final SessionCookies sessionCookies;
+    private final SessionStore sessionStore;
 
     /**
      * Injects the current-request identity accessors, the session store and cookie builder, and the framework-owned OIDC keys.
      *
-     * @param identity the current request's security identity
-     * @param currentUser the current-user accessor
-     * @param clock the application clock for date-boundary logic
-     * @param sessionStore the session store used to mint the OIDC session
-     * @param sessionCookies the shared session-cookie builder
-     * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys (tenant-enabled)
      * @param appPaths the single builder of every application URL, for the redirects and cookie paths this resource emits
      * @param clientAddress the resolver for the requesting client's IP
+     * @param clock the application clock for date-boundary logic
+     * @param currentUser the current-user accessor
+     * @param identity the current request's security identity
+     * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys (tenant-enabled)
+     * @param sessionCookies the shared session-cookie builder
+     * @param sessionStore the session store used to mint the OIDC session
      */
     @Inject
-    public OidcWebResource(final SecurityIdentity identity, final CurrentUser currentUser, final AppClock clock, final SessionStore sessionStore,
-        final SessionCookies sessionCookies, final QuarkusOidcConfig quarkusOidcConfig, final AppPaths appPaths,
-        final ClientAddress clientAddress) {
-        this.identity = identity;
-        this.currentUser = currentUser;
-        this.clock = clock;
-        this.sessionStore = sessionStore;
-        this.sessionCookies = sessionCookies;
-        this.quarkusOidcConfig = quarkusOidcConfig;
+    public OidcWebResource(final AppPaths appPaths, final ClientAddress clientAddress, final AppClock clock, final CurrentUser currentUser,
+        final SecurityIdentity identity, final QuarkusOidcConfig quarkusOidcConfig, final SessionCookies sessionCookies,
+        final SessionStore sessionStore) {
         this.appPaths = appPaths;
         this.clientAddress = clientAddress;
+        this.clock = clock;
+        this.currentUser = currentUser;
+        this.identity = identity;
+        this.quarkusOidcConfig = quarkusOidcConfig;
+        this.sessionCookies = sessionCookies;
+        this.sessionStore = sessionStore;
     }
 
     /**

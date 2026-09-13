@@ -67,30 +67,30 @@ public class AdminIpLockoutsApiResource {
 
     private static final String EXAMPLE_IP = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - documentation example IP for the OpenAPI schema
 
-    private final IpLockoutService ipLockoutService;
-    private final IpThrottleConfig ipThrottleConfig;
+    private final AppClock clock;
     private final CurrentUser currentUser;
     private final SecurityIdentity identity;
-    private final AppClock clock;
+    private final IpLockoutService ipLockoutService;
+    private final IpThrottleConfig ipThrottleConfig;
 
     /**
      * Injects the shared lockout service, the throttle settings (for the enabled gate), the current-user accessor, the security identity and the
      * application clock.
      *
-     * @param ipLockoutService the shared per-IP lockout service
-     * @param ipThrottleConfig the per-IP throttle settings (whether the feature is enabled)
+     * @param clock            the application clock
      * @param currentUser      the current-user accessor (for the page-size preference)
      * @param identity         the calling administrator's security identity
-     * @param clock            the application clock
+     * @param ipLockoutService the shared per-IP lockout service
+     * @param ipThrottleConfig the per-IP throttle settings (whether the feature is enabled)
      */
     @Inject
-    public AdminIpLockoutsApiResource(final IpLockoutService ipLockoutService, final IpThrottleConfig ipThrottleConfig,
-        final CurrentUser currentUser, final SecurityIdentity identity, final AppClock clock) {
-        this.ipLockoutService = ipLockoutService;
-        this.ipThrottleConfig = ipThrottleConfig;
+    public AdminIpLockoutsApiResource(final AppClock clock, final CurrentUser currentUser, final SecurityIdentity identity,
+        final IpLockoutService ipLockoutService, final IpThrottleConfig ipThrottleConfig) {
+        this.clock = clock;
         this.currentUser = currentUser;
         this.identity = identity;
-        this.clock = clock;
+        this.ipLockoutService = ipLockoutService;
+        this.ipThrottleConfig = ipThrottleConfig;
     }
 
     /**

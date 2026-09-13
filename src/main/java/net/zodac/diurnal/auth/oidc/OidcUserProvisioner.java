@@ -94,50 +94,50 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
     private static final int MIN_JWT_SEGMENTS = 2;
     private static final long ERROR_COOKIE_MAX_AGE_SECONDS = 60L;
 
-    private final Instance<OidcUserProvisioner> self;
-    private final AppPaths appPaths;
-    private final RoleAssigner roleAssigner;
-    private final NoteKeys noteKeys;
-    private final PasswordAuthConfig passwordAuthConfig;
-    private final OidcConfig oidcConfig;
-    private final QuarkusOidcConfig quarkusOidcConfig;
     private final AccountLinkService accountLinkService;
-    private final SessionStore sessionStore;
-    private final SessionConfig sessionConfig;
+    private final AppPaths appPaths;
     private final AppClock clock;
+    private final NoteKeys noteKeys;
+    private final OidcConfig oidcConfig;
+    private final PasswordAuthConfig passwordAuthConfig;
+    private final QuarkusOidcConfig quarkusOidcConfig;
+    private final RoleAssigner roleAssigner;
+    private final Instance<OidcUserProvisioner> self;
+    private final SessionConfig sessionConfig;
+    private final SessionStore sessionStore;
 
     /**
      * Injects collaborators and a lazy self-reference. The self {@link Instance} resolves the CDI client proxy on demand so the transactional
      * {@code linkOrCreate} runs through the proxy (applying the interceptor) without a construction-time cycle.
      *
-     * @param self a lazy self-reference used to invoke the transactional {@code linkOrCreate} through the CDI proxy
-     * @param roleAssigner the shared role-assignment policy
-     * @param passwordAuthConfig the password-auth settings
-     * @param oidcConfig the application OIDC policy settings
-     * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys, read here for the callback path the revocation guard exempts
      * @param accountLinkService the account-linking policy service
-     * @param sessionStore the session store used to mint the OIDC session
-     * @param sessionConfig the session settings
+     * @param appPaths the single builder of every application URL, for the redirects and cookie paths a refused sign-in emits
      * @param clock the application clock for date-boundary logic
      * @param noteKeys the notes key service, which mints a provisioned account's data key
-     * @param appPaths the single builder of every application URL, for the redirects and cookie paths a refused sign-in emits
+     * @param oidcConfig the application OIDC policy settings
+     * @param passwordAuthConfig the password-auth settings
+     * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys, read here for the callback path the revocation guard exempts
+     * @param roleAssigner the shared role-assignment policy
+     * @param self a lazy self-reference used to invoke the transactional {@code linkOrCreate} through the CDI proxy
+     * @param sessionConfig the session settings
+     * @param sessionStore the session store used to mint the OIDC session
      */
     @Inject
-    public OidcUserProvisioner(final Instance<OidcUserProvisioner> self, final RoleAssigner roleAssigner, final PasswordAuthConfig passwordAuthConfig,
-        final OidcConfig oidcConfig, final QuarkusOidcConfig quarkusOidcConfig, final AccountLinkService accountLinkService,
-        final SessionStore sessionStore, final SessionConfig sessionConfig, final AppClock clock, final NoteKeys noteKeys,
-        final AppPaths appPaths) {
-        this.self = self;
-        this.roleAssigner = roleAssigner;
-        this.noteKeys = noteKeys;
-        this.passwordAuthConfig = passwordAuthConfig;
-        this.oidcConfig = oidcConfig;
-        this.quarkusOidcConfig = quarkusOidcConfig;
+    public OidcUserProvisioner(final AccountLinkService accountLinkService, final AppPaths appPaths, final AppClock clock, final NoteKeys noteKeys,
+        final OidcConfig oidcConfig, final PasswordAuthConfig passwordAuthConfig, final QuarkusOidcConfig quarkusOidcConfig,
+        final RoleAssigner roleAssigner, final Instance<OidcUserProvisioner> self, final SessionConfig sessionConfig,
+        final SessionStore sessionStore) {
         this.accountLinkService = accountLinkService;
-        this.sessionStore = sessionStore;
-        this.sessionConfig = sessionConfig;
-        this.clock = clock;
         this.appPaths = appPaths;
+        this.clock = clock;
+        this.noteKeys = noteKeys;
+        this.oidcConfig = oidcConfig;
+        this.passwordAuthConfig = passwordAuthConfig;
+        this.quarkusOidcConfig = quarkusOidcConfig;
+        this.roleAssigner = roleAssigner;
+        this.self = self;
+        this.sessionConfig = sessionConfig;
+        this.sessionStore = sessionStore;
     }
 
     @Override

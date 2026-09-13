@@ -47,29 +47,29 @@ import net.zodac.diurnal.user.WeekStart;
 @Path("/")
 public class DashboardWebResource {
 
-    private final Template dashboardTemplate;
-    private final CurrentUser currentUser;
-    private final StatsService statsService;
-    private final NoteService noteService;
     private final AppClock clock;
+    private final CurrentUser currentUser;
+    private final Template dashboardTemplate;
+    private final NoteService noteService;
+    private final StatsService statsService;
 
     /**
      * Injects the dashboard template, the current-user accessor and the services the page composes.
      *
-     * @param dashboardTemplate the dashboard page template
-     * @param currentUser the current-user accessor
-     * @param statsService the shared stats service
-     * @param noteService the shared note service, used to decrypt the seeded note
      * @param clock the application clock for date-boundary logic
+     * @param currentUser the current-user accessor
+     * @param dashboardTemplate the dashboard page template
+     * @param noteService the shared note service, used to decrypt the seeded note
+     * @param statsService the shared stats service
      */
     @Inject
-    public DashboardWebResource(@Location("dashboard") final Template dashboardTemplate, final CurrentUser currentUser,
-        final StatsService statsService, final NoteService noteService, final AppClock clock) {
-        this.dashboardTemplate = dashboardTemplate;
-        this.currentUser = currentUser;
-        this.statsService = statsService;
-        this.noteService = noteService;
+    public DashboardWebResource(final AppClock clock, final CurrentUser currentUser, @Location("dashboard") final Template dashboardTemplate,
+        final NoteService noteService, final StatsService statsService) {
         this.clock = clock;
+        this.currentUser = currentUser;
+        this.dashboardTemplate = dashboardTemplate;
+        this.noteService = noteService;
+        this.statsService = statsService;
     }
 
     /**

@@ -66,26 +66,26 @@ public class UserResource {
 
     private static final String BEARER_PREFIX = "Bearer ";
 
-    private final CurrentUser currentUser;
-    private final ProfileService profileService;
-    private final PasswordChangeService passwordChangeService;
     private final ClientAddress clientAddress;
+    private final CurrentUser currentUser;
+    private final PasswordChangeService passwordChangeService;
+    private final ProfileService profileService;
 
     /**
      * Injects the current-user accessor and the shared profile and password-change services.
      *
-     * @param currentUser the current-user accessor
-     * @param profileService the shared profile-mutation service
-     * @param passwordChangeService the shared password-change service
      * @param clientAddress the resolver for the requesting client's IP
+     * @param currentUser the current-user accessor
+     * @param passwordChangeService the shared password-change service
+     * @param profileService the shared profile-mutation service
      */
     @Inject
-    public UserResource(final CurrentUser currentUser, final ProfileService profileService,
-        final PasswordChangeService passwordChangeService, final ClientAddress clientAddress) {
-        this.currentUser = currentUser;
-        this.profileService = profileService;
-        this.passwordChangeService = passwordChangeService;
+    public UserResource(final ClientAddress clientAddress, final CurrentUser currentUser, final PasswordChangeService passwordChangeService,
+        final ProfileService profileService) {
         this.clientAddress = clientAddress;
+        this.currentUser = currentUser;
+        this.passwordChangeService = passwordChangeService;
+        this.profileService = profileService;
     }
 
     /**

@@ -57,11 +57,11 @@ public class IpThrottle {
     /**
      * Builds the throttle from its config snapshot.
      *
-     * @param config the per-IP throttle settings
      * @param clock the application clock, read by the scheduled eviction of decayed counters
+     * @param config the per-IP throttle settings
      */
     @Inject
-    public IpThrottle(final IpThrottleConfig config, final AppClock clock) {
+    public IpThrottle(final AppClock clock, final IpThrottleConfig config) {
         throttle = AttemptThrottle.create(config.enabled(), config.maxAttempts(), config.lockoutDuration());
         this.clock = clock;
     }

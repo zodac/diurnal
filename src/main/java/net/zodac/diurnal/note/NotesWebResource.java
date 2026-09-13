@@ -66,26 +66,26 @@ import net.zodac.diurnal.web.PageShell;
 @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 public class NotesWebResource {
 
-    private final Template notesTemplate;
+    private final AppPaths appPaths;
     private final CurrentUser currentUser;
     private final NoteService noteService;
-    private final AppPaths appPaths;
+    private final Template notesTemplate;
 
     /**
      * Injects the page template, current-user accessor and the shared note service.
      *
-     * @param notesTemplate the full notes-page template
+     * @param appPaths the single builder of every application URL, for the "did you mean" link a search suggestion carries
      * @param currentUser   the current-user accessor
      * @param noteService   the shared note service, which owns the search
-     * @param appPaths the single builder of every application URL, for the "did you mean" link a search suggestion carries
+     * @param notesTemplate the full notes-page template
      */
     @Inject
-    public NotesWebResource(@Location("notes") final Template notesTemplate, final CurrentUser currentUser, final NoteService noteService,
-        final AppPaths appPaths) {
-        this.notesTemplate = notesTemplate;
+    public NotesWebResource(final AppPaths appPaths, final CurrentUser currentUser, final NoteService noteService,
+        @Location("notes") final Template notesTemplate) {
+        this.appPaths = appPaths;
         this.currentUser = currentUser;
         this.noteService = noteService;
-        this.appPaths = appPaths;
+        this.notesTemplate = notesTemplate;
     }
 
     /**

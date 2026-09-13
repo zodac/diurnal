@@ -41,19 +41,19 @@ public class StatusService {
 
     private Instant startedAt = Instant.now();
 
-    private final DataSource dataSource;
     private final AppInfo appInfo;
+    private final DataSource dataSource;
 
     /**
      * Injects the data source (probed for readiness) and the application-info bean (version metadata).
      *
-     * @param dataSource the application data source, probed to determine readiness
      * @param appInfo the application-info bean supplying version metadata
+     * @param dataSource the application data source, probed to determine readiness
      */
     @Inject
-    public StatusService(final DataSource dataSource, final AppInfo appInfo) {
-        this.dataSource = dataSource;
+    public StatusService(final AppInfo appInfo, final DataSource dataSource) {
         this.appInfo = appInfo;
+        this.dataSource = dataSource;
     }
 
     /**

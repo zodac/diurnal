@@ -54,10 +54,10 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
     private static final Instant SESSION_INSTANT = Instant.parse("2026-06-15T00:00:00Z");
 
     @Inject
-    private IpThrottle ipThrottle;
+    private IpLockoutService ipLockoutService;
 
     @Inject
-    private IpLockoutService ipLockoutService;
+    private IpThrottle ipThrottle;
 
     @Inject
     private SessionStore sessionStore;
