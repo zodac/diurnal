@@ -37,10 +37,11 @@ matter must stay out of it.
    (`executionSuccessful`, `results: []`), an empty `tests/test-results/`, a fresh
    `tests/playwright-report/index.html`.
 
-4. **If it failed, read the cause out of the step's own log rather than scrolling the run.** The wrapper
-   re-prints each failed step's tail at the end under a `──── <step>: last N of M captured lines ────` banner, and
-   leaves the whole thing at `/tmp/lint_and_tests/<step>.log` (only failed steps' logs are kept). `grep` that file
-   for the decisive lines - it is also where the closing ❌ line lands when the live tail lost it.
+4. **If it failed, read the cause out of the failing TIER's log rather than scrolling the run.** The wrapper
+   re-prints each failure's tail at the end under a `──── <step>:<tier>: last N of M captured lines ────` banner,
+   and leaves the whole thing at `/tmp/lint_and_tests/<step>-<substep>.log` for each failing tier, beside the
+   step's own `<step>.log` (only failures' logs are kept). `grep` those for the decisive lines - the step log is
+   also where the closing ❌ line lands when the live tail lost it.
 
 5. **Then triage before reporting.** Invoke the `gate` skill and work its triage list — it is the
    authority here. In short: several ITs failing at BOOT together means a poisoned dev database, not your change;

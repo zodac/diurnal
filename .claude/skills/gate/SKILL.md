@@ -73,11 +73,18 @@ Javadoc warnings, and three separate local `-Dlint` runs reported "clean" becaus
 failures. Both the rule and the warnings turned out to be avoidable - see `OptionPreview`'s Javadoc.
 
 **Every failing step's output is re-printed at the end of the run**, under a
-`──── <step>: last N of M captured lines ────` banner, before the `❌ Failed steps` summary. That is the place to
-read a failure from: a parallel run reports one the moment its lane is reaped, which can be a whole java stream and
-a multi-minute serial tail before the run actually ends. The banner names the full log - one file per failed step
-under `/tmp/lint_and_tests/<step>.log`, kept after the run (a passing step's is deleted) - so `grep` it rather than
-scrolling. `GATE_FAILURE_TAIL_LINES` (default 40) widens the excerpt; `GATE_LOG_DIR` moves the directory.
+`──── <step>:<tier>: last N of M captured lines ────` banner, before the `❌ Failed steps` summary. That is the
+place to read a failure from: a parallel run reports one the moment its lane is reaped, which can be a whole java
+stream and a multi-minute serial tail before the run actually ends.
+
+**The excerpt is per TIER for a step that has tiers**, because a step log holds all of them in the order the
+terminal saw them, which for concurrent tiers is not the order they finished in: a `java` run that died in the
+Maven build replays its PASSING smoke suite on top, so the step log's last 40 lines are five green Playwright specs
+and the reactor summary is thousands of lines further up. The banner names the log it read - `<step>-<substep>.log`
+per failing tier, beside the step's own `<step>.log` - both under `/tmp/lint_and_tests/` and kept after the run (a
+passing one's is deleted), so `grep` those rather than scrolling. `GATE_FAILURE_TAIL_LINES` (default 40) widens the
+excerpt; `GATE_LOG_DIR` moves the directory. Under `-v` the failure lines name the log instead of suggesting a
+re-run with the flag the run already used.
 
 ## 4. Triage: is this failure actually mine?
 
