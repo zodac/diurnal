@@ -18,7 +18,7 @@ FROM node:26.8.2-alpine AS css
 # Mirror the repo layout (frontend/ next to src/ and scripts/) so the npm scripts' relative
 # ../src and ../scripts paths resolve exactly as they do in the working tree.
 WORKDIR /css/frontend
-COPY frontend/package.json frontend/package-lock.json ./
+COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/tailwind.config.js ./
 COPY frontend/css ./css
@@ -189,7 +189,7 @@ WORKDIR /gen
 # playwright + pg come from the committed, pinned tests/ manifest (managed by update_npm_packages), so
 # the generator's require() paths resolve to the same versions the E2E suite uses. `playwright install`
 # then fetches the matching Chromium + its OS libs.
-COPY tests/package.json tests/package-lock.json /gen/tests/
+COPY tests/package.json tests/package-lock.json tests/.npmrc /gen/tests/
 RUN cd /gen/tests \
     && npm ci --no-audit --no-fund \
     && npx playwright install --with-deps chromium
