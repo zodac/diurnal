@@ -12,7 +12,7 @@
 # DOC_SCREENSHOTS=true (the Dockerfile build arg, default false) additionally generates the 17 README
 # screenshots from the SAME Postgres + app + Chromium boot, into /gen/docs/screenshots. Only the release
 # workflow sets it: it exports them from the `docscreenshots` stage and replaces the assets on the
-# standalone `screenshots` GitHub release, which the README and docs/dockerhub-overview.md embed by
+# standalone `readme-assets` GitHub release, which the README and docs/dockerhub-overview.md embed by
 # absolute URL. Doing it in this one boot is why the release regenerates both sets for the cost of one.
 #
 # The stage is based on the official Postgres image, so Postgres is started with initdb + pg_ctl (not

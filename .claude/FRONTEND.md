@@ -566,11 +566,11 @@ scripts/dev-teardown.sh
 >   `dashboard-mobile`, `dashboard-arabic-dark` (the RTL demonstration), `cal-{full,minimal,stacked}-dark`,
 >   `{actions,stats,admin,settings}-dark`, `stats-graph-dark` (the frequency-graph modal with three actions compared),
 >   `stats-notes-dark`, `note-box-dark`, `language-dropdown-dark` and `login-dark`. These are **not committed either** -
->   they are assets on the standalone `screenshots` GitHub release, which the README and `docs/dockerhub-overview.md`
+>   they are assets on the standalone `readme-assets` GitHub release, which the README and `docs/dockerhub-overview.md`
 >   embed by absolute URL, and `docs/screenshots/` is gitignored. **`publish.yml` recaptures them on every release** and
 >   replaces those assets in place, so they no longer **lag** and exactly ONE set exists however many releases are cut.
 >   Run this mode by hand only to REVIEW what a change will publish; to refresh the published set between releases,
->   `gh release upload screenshots --clobber docs/screenshots/*.webp` (`--clobber` is what keeps it to one set).
+>   `gh release upload readme-assets --clobber docs/screenshots/*.webp` (`--clobber` is what keeps it to one set).
 >
 >   The release captures them from the **same** Postgres + app + Chromium boot as the `app` previews - the Dockerfile
 >   `screenshots` stage takes a `DOC_SCREENSHOTS=true` build arg and runs the generator in `all` mode rather than `app`,

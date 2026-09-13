@@ -237,7 +237,7 @@ RUN --mount=type=cache,target=/preview-cache,sharing=locked \
 # ── Stage 5c: export-only stage for the README screenshots ───────────────────
 # Nothing depends on this, so it is pruned from every ordinary build; the release workflow builds it
 # directly (--target docscreenshots --output type=local) to pull the WebP files out onto the runner,
-# which then replaces the assets on the standalone `screenshots` GitHub release. FROM scratch so the
+# which then replaces the assets on the standalone `readme-assets` GitHub release. FROM scratch so the
 # exported directory is the screenshots ALONE, with no base-image files around them. The runner always
 # creates the source directory, so this COPY resolves even when DOC_SCREENSHOTS was false (exporting an
 # empty directory rather than failing).

@@ -21,7 +21,7 @@ src/main/resources/META-INF/resources/img/settings/*.webp
 src/main/resources/META-INF/resources/img/settings/full/*.webp
 
 # README screenshots — `scripts/generate-screenshots.cjs documentation` writes them here, but they are
-# published as assets on the standalone `screenshots` GitHub release rather than committed, and the
+# published as assets on the standalone `readme-assets` GitHub release rather than committed, and the
 # README/docs embed them by absolute URL from there. Committing them put ~900KB of fresh binaries into
 # history on every regeneration, which is what this rule exists to stop. publish.yml regenerates and
 # re-uploads them on every release, so a local run here is only ever for a look.

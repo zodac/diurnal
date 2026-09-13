@@ -12,7 +12,7 @@
  *                        mode via scripts/run-screenshot-build.sh) and baked into the image. A dev /
  *                        `mvn package` run simply has no thumbnails.
  *   2. `documentation` — the README screenshots, written to docs/screenshots/. These are NOT committed
- *                        either: they are published as assets on the standalone `screenshots` GitHub
+ *                        either: they are published as assets on the standalone `readme-assets` GitHub
  *                        release, which the README and docs/dockerhub-overview.md embed by absolute URL.
  *                        publish.yml recaptures them on EVERY release (the Dockerfile `screenshots`
  *                        stage runs this in `documentation` mode too under DOC_SCREENSHOTS=true) and
@@ -27,7 +27,7 @@
  *     manually to REVIEW what a README-visible change will publish (dashboard/calendar styling, the
  *     Actions / Stats / Admin / Settings pages, the light/dark tokens, navbar/day-panel/layout) before
  *     the release captures it. To refresh the published set BETWEEN releases:
- *         gh release upload screenshots --clobber docs/screenshots/*.webp
+ *         gh release upload readme-assets --clobber docs/screenshots/*.webp
  *     --clobber is what keeps ONE set of screenshots on that release rather than a copy per version.
  *
  * WHAT IT PRODUCES
@@ -123,7 +123,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081'
 // In-app preview thumbnails — served, content-hashed assets baked into the image (uncommitted).
 const OUT = path.join(__dirname, '..', 'src', 'main', 'resources', 'META-INF', 'resources', 'img', 'settings')
 // README page screenshots — NOT app-served assets, so they never enter the image; uncommitted, and
-// published as assets on the standalone `screenshots` GitHub release (see the header).
+// published as assets on the standalone `readme-assets` GitHub release (see the header).
 const SHOTS = path.join(__dirname, '..', 'docs', 'screenshots')
 
 // Mode: which set(s) to generate. `app` = in-app thumbnails (OUT), `documentation` = README shots
