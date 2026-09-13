@@ -56,6 +56,9 @@ class NoteKeysIT extends IntegrationTestBase {
     @Inject
     NoteKeys noteKeys;
 
+    @Inject
+    NoteService noteService;
+
     @Override
     protected void createDbState() {
         // The API refuses to create the very first account, so one must already exist before registering through it.
@@ -105,6 +108,59 @@ class NoteKeysIT extends IntegrationTestBase {
                 .as("the notes themselves must be left exactly as they were, so restoring the key row recovers them")
                 .isEqualTo(1L);
         });
+    }
+
+    // The READ path's own answer to the state the write path refuses above. A search or a day render asks forUser, which
+    // must report the key as simply absent rather than throw - the rest of the page still renders, and the operator gets
+    // one error line naming the account by email.
+    @Test
+    void readingTheKeyOfAnAccountWithNotesButNoKeyRow_reportsItAbsentRatherThanThrowing() {
+        final UUID[] owner = new UUID[1];
+        runInTx(() -> {
+            owner[0] = newUser("note-keys-it-read-orphan@lt.test", "Read Orphan").id;
+            newNote(owner[0], FIXED_TODAY, "Written while the key still existed");
+        });
+        runInTx(() -> UserNotesKey.delete("userId = ?1", owner[0]));
+
+        runInTx(() -> assertThat(noteKeys.forUser(owner[0]))
+            .as("the read path must degrade to 'no key' so the surfaces around it still render")
+            .isEmpty());
+
+        runInTx(() -> assertThat(Note.countForUser(owner[0]))
+            .as("a read must not mint, delete or otherwise disturb what is still stored")
+            .isEqualTo(1L));
+    }
+
+    // The same degradation one level up, through the batch read every note surface goes through: notes that are still
+    // stored but can no longer be opened read back as nothing at all, so the journal and the day panel render empty
+    // instead of failing. The error naming the account is logged once by the key lookup underneath.
+    @Test
+    void readingTheNotesOfAnAccountWithNotesButNoKeyRow_returnsNoContentRatherThanThrowing() {
+        final UUID[] owner = new UUID[1];
+        runInTx(() -> {
+            owner[0] = newUser("note-keys-it-read-contents@lt.test", "Unreadable").id;
+            newNote(owner[0], FIXED_TODAY, "Written while the key still existed");
+        });
+        runInTx(() -> UserNotesKey.delete("userId = ?1", owner[0]));
+
+        runInTx(() -> assertThat(noteService.readContents(owner[0], Note.sealedForUser(owner[0])))
+            .as("a batch that cannot be opened yields no content, rather than partial or failed output")
+            .isEmpty());
+    }
+
+    @Test
+    void readingTheKeyOfAnAccountWithNeitherKeyNorNotes_reportsItAbsentWithoutMinting() {
+        final UUID[] owner = new UUID[1];
+        runInTx(() -> owner[0] = newUser("note-keys-it-read-legacy@lt.test", "Read Legacy").id);
+        runInTx(() -> UserNotesKey.delete("userId = ?1", owner[0]));
+
+        runInTx(() -> assertThat(noteKeys.forUser(owner[0]))
+            .as("an account with nothing written has no key to find, and the read path never mints one")
+            .isEmpty());
+
+        runInTx(() -> assertThat(UserNotesKey.findForUser(owner[0]))
+            .as("only the write path mints - a read leaves the account exactly as it found it")
+            .isNull());
     }
 
     @Test

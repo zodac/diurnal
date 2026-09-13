@@ -145,6 +145,23 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
                 .body(containsString("no longer locked out"));
     }
 
+    // The row-level counterpart to unlock's conflict banner: the lockout expired or was cleared between the table being
+    // rendered and the administrator clicking on it. Both endpoints take an id straight from the rendered markup, so a row
+    // that has since gone must answer with a banner rather than a 500 from dereferencing nothing.
+    @Test
+    void confirmUnlock_lockoutNoLongerExists_returnsTheNotFoundBanner() {
+        given().get("/internal/admin/ip-lockouts/" + UUID.randomUUID() + "/confirm-unlock")
+                .then().statusCode(CONFLICT)
+                .body(containsString("no longer exists"));
+    }
+
+    @Test
+    void row_lockoutNoLongerExists_returnsTheNotFoundBanner() {
+        given().get("/internal/admin/ip-lockouts/" + UUID.randomUUID() + "/row")
+                .then().statusCode(CONFLICT)
+                .body(containsString("no longer exists"));
+    }
+
     @Test
     void adminPage_withNoLockouts_omitsTheSectionEntirely() {
         given().get("/admin/users")

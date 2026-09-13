@@ -35,9 +35,18 @@ import org.junit.jupiter.api.Test;
 @QuarkusTest
 class SettingsWebResourceIT extends IntegrationTestBase {
 
+    // An account that has explicitly PICKED a first column, alongside the default account above that has not. The two take
+    // different arms at the same render site, and the seeded default is the automatic one, so this is the state a page
+    // test has to set up for itself.
+    private static final String PICKED_DAY = "week-start-it@lt.test";
+
     @Override
     protected void createDbState() {
         newUser("web-it@lt.test", "Web User");
+
+        final User picked = newUser(PICKED_DAY, "Week Start User");
+        picked.weekStart = WeekStart.SATURDAY.value();
+        picked.persist();
     }
 
     @Test
@@ -74,5 +83,26 @@ class SettingsWebResourceIT extends IntegrationTestBase {
                 // The two English entries name themselves in English already, so neither repeats it in brackets.
                 .body(containsString(">English (UK)</bdi>"))
                 .body(not(containsString("English (UK)</bdi> <bdi")));
+    }
+
+    @Test
+    @TestSecurity(user = PICKED_DAY, roles = Role.Values.USER_INTERNAL_VALUE)
+    void settingsPage_weekStartPicker_preselectsTheStoredDayRatherThanAutomatic() {
+        given().get("/settings")
+                .then().statusCode(OK)
+                // The hidden field the dropdown posts carries the stored column itself here, where an account following its
+                // language posts the blank-valued "Automatic" option instead.
+                .body(containsString("<input type=\"hidden\" id=\"weekStart\" name=\"weekStart\" value=\"saturday\""))
+                .body(containsString("data-value=\"saturday\"\n    aria-selected=\"true\""))
+                .body(containsString("data-value=\"\"\n    aria-selected=\"false\""));
+    }
+
+    @Test
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
+    void settingsPage_weekStartPicker_preselectsAutomaticForAnAccountFollowingItsLanguage() {
+        given().get("/settings")
+                .then().statusCode(OK)
+                .body(containsString("<input type=\"hidden\" id=\"weekStart\" name=\"weekStart\" value=\"\""))
+                .body(containsString("data-value=\"\"\n    aria-selected=\"true\""));
     }
 }

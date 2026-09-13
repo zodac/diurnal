@@ -32,6 +32,7 @@ import io.quarkus.test.security.TestSecurity;
 import java.util.List;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.stats.StatField;
+import net.zodac.diurnal.text.TextFields;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -186,6 +187,24 @@ class SettingsIT extends IntegrationTestBase {
 
         runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged when the new password is empty")
+            .isTrue());
+    }
+
+    // The one password rejection worded by the shared text pipeline rather than by the password partial's own kinds, so it
+    // is the arm that proves the two wordings are wired to the same banner - a hygiene bound, not an Argon2id limit.
+    @Test
+    void updatePassword_newPasswordOverTheLengthBound_returns422AndKeepsOldHash() {
+        final String tooLong = "p".repeat(TextFields.PASSWORD_MAX_LENGTH + 1);
+
+        given().formParam("currentPassword", TEST_PASSWORD)
+                .formParam("newPassword", tooLong)
+                .formParam("confirmPassword", tooLong)
+                .post("/internal/settings/password")
+                .then().statusCode(UNPROCESSABLE_ENTITY)
+                .body(containsString(String.valueOf(TextFields.PASSWORD_MAX_LENGTH)));
+
+        runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+            .as("old password must be unchanged when the new password is over the length bound")
             .isTrue());
     }
 
@@ -411,6 +430,58 @@ class SettingsIT extends IntegrationTestBase {
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().font)
             .as("an unrecognised font must be rejected, keeping the previous value")
             .isEqualTo("standard"));
+    }
+
+    // ── PATCH /settings/language ─────────────────────────────────────────────────
+
+    @Test
+    void updateLanguage_offeredLanguage_persists() {
+        given().formParam("language", "es-ES")
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().language)
+            .as("unexpected value")
+            .isEqualTo("es-ES"));
+    }
+
+    // The pseudolocale is hidden from the Settings picker but is still a valid stored value, so the service must accept it
+    // when submitted deliberately - developerOnly() gates the dropdown, not the update.
+    @Test
+    void updateLanguage_pseudolocale_persists() {
+        given().formParam("language", "en-XA")
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().language)
+            .as("the developer-only pseudolocale is still a storable language")
+            .isEqualTo("en-XA"));
+    }
+
+    // Pinned to en-US rather than any other offered language because the rejection is a TRANSLATED page sentence rendered in
+    // the account's own stored language: setting es-ES first makes the banner Spanish, and the wording asserted here English.
+    @Test
+    void updateLanguage_invalid_isRejectedKeepingCurrentValue() {
+        given().formParam("language", "en-US").patch("/internal/settings");
+
+        given().formParam("language", "klingon")
+                .patch("/internal/settings")
+                .then().statusCode(UNPROCESSABLE_ENTITY)
+                .body(containsString("Language must be one of"));
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().language)
+            .as("an unrecognised language must be rejected, keeping the previous value")
+            .isEqualTo("en-US"));
+    }
+
+    // A base language with a region we do not carry is resolved only for a logged-out Accept-Language header; as a SUBMITTED
+    // preference it is not an offered value, so it must be refused rather than quietly widened to the base language.
+    @Test
+    void updateLanguage_unofferedRegionOfAnOfferedBaseLanguage_isRejected() {
+        given().formParam("language", "es-MX")
+                .patch("/internal/settings")
+                .then().statusCode(UNPROCESSABLE_ENTITY)
+                .body(containsString("Language must be one of"));
     }
 
     // ── PATCH /settings/page-size ────────────────────────────────────────────────

@@ -212,6 +212,31 @@ class NotesStatsIT extends IntegrationTestBase {
             });
     }
 
+    // The YEAR period buckets by month through a rollup of its own, and the notes side of that rollup is a separate query
+    // from the daily one the month view reads. Charting notes over a year is therefore not the same path as charting them
+    // over a month, however alike the two look from the page.
+    @Test
+    void notesCanBeChartedOverTheYear_notJustTheMonth() {
+        runInTx(() -> {
+            newNote(userId, TODAY, "This month");
+            newNote(userId, TODAY.minusMonths(2L), "Two months back");
+        });
+
+        final FrequencyResult result = statsService.frequency(userId, StatSubject.NOTES_ID, List.of(), "year", null, Language.ENGLISH_GB);
+        assertThat(result)
+            .as("the notes subject must chart over a year exactly as it does over a month")
+            .isInstanceOf(FrequencyResult.Charted.class);
+
+        final FrequencyChart chart = ((FrequencyResult.Charted) result).chart();
+        assertThat(chart.series())
+            .as("one series, totalling every note in the window whichever month it was written in")
+            .singleElement()
+            .satisfies(series -> {
+                assertThat(series.subjectId()).as("the sentinel id").isEqualTo(StatSubject.NOTES_ID);
+                assertThat(series.total()).as("both notes, two months apart").isEqualTo(2L);
+            });
+    }
+
     @Test
     void notesCanBeComparedAgainstAnAction_onOneGraph() {
         runInTx(() -> {

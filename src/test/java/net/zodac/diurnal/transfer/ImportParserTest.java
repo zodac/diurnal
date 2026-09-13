@@ -98,6 +98,27 @@ class ImportParserTest {
             .containsExactly(new ImportProblem(TransferFiles.ACTIONS_FILE, 1, new ImportReason.WrongHeader(TransferFiles.ACTIONS_HEADER)));
     }
 
+    // The case above renames a column; this one changes how MANY there are - a separate arm of the header check, and the
+    // mismatch a spreadsheet round-trip actually produces (a stray trailing comma, a dropped column). One case per member,
+    // because each is read independently and any one of them failing is what stops the import.
+    @Test
+    void parse_requiresTheExactColumnCount() {
+        final String extraActionColumn = "name,colour,icon\r\nRunning,#e11d48,x\r\n";
+        assertThat(problems(ImportParser.parse(archive(extraActionColumn, LOGS, NOTES), TODAY, NOTE_FIELD)))
+            .as("an extra column means the file is not the export it claims to be")
+            .containsExactly(new ImportProblem(TransferFiles.ACTIONS_FILE, 1, new ImportReason.WrongHeader(TransferFiles.ACTIONS_HEADER)));
+
+        final String droppedLogColumn = "date,action\r\n2026-08-01,Running\r\n";
+        assertThat(problems(ImportParser.parse(archive(ACTIONS, droppedLogColumn, NOTES), TODAY, NOTE_FIELD)))
+            .as("a dropped column would import every remaining value under the wrong name")
+            .containsExactly(new ImportProblem(TransferFiles.LOGS_FILE, 1, new ImportReason.WrongHeader(TransferFiles.LOGS_HEADER)));
+
+        final String extraNoteColumn = "date,content,extra\r\n2026-08-01,\"a note\",x\r\n";
+        assertThat(problems(ImportParser.parse(archive(ACTIONS, LOGS, extraNoteColumn), TODAY, NOTE_FIELD)))
+            .as("the notes member is held to its own shape too")
+            .containsExactly(new ImportProblem(TransferFiles.NOTES_FILE, 1, new ImportReason.WrongHeader(TransferFiles.NOTES_HEADER)));
+    }
+
     @Test
     void parse_toleratesHeaderCasingAndPadding() {
         assertThat(ImportParser.parse(archive(" Name , COLOUR \r\nRunning,#e11d48\r\n", NO_LOGS, NO_NOTES), TODAY, NOTE_FIELD))
@@ -236,6 +257,18 @@ class ImportParserTest {
         assertThat(problems(ImportParser.parse(archive(ACTIONS, NO_LOGS, badDates), TODAY, NOTE_FIELD)))
             .as("a locale-formatted date read as ISO would silently land on the wrong day")
             .containsExactly(new ImportProblem(TransferFiles.NOTES_FILE, 2, new ImportReason.InvalidDate("07/08/2026")));
+    }
+
+    // The same rule on the OTHER dated member. Both walks read their date column through one helper, but each decides for
+    // itself what to do with an unreadable one, and a log row silently skipped rather than reported would import an
+    // archive as complete while dropping the day it could not read.
+    @Test
+    void parse_rejectsAnUnparseableDateInTheLogsMember() {
+        final String badDate = "date,action,count\r\n07/08/2026,Running,1\r\n";
+
+        assertThat(problems(ImportParser.parse(archive(ACTIONS, badDate, NO_NOTES), TODAY, NOTE_FIELD)))
+            .as("a log's date is read by the same ISO rule as a note's, and neither is guessed at")
+            .containsExactly(new ImportProblem(TransferFiles.LOGS_FILE, 2, new ImportReason.InvalidDate("07/08/2026")));
     }
 
     @Test

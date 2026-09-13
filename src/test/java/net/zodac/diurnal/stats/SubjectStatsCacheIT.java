@@ -57,6 +57,7 @@ class SubjectStatsCacheIT extends IntegrationTestBase {
     private static final int OK = 200;
     private static final int NO_CONTENT = 204;
     private static final int RACE_ITERATIONS = 10;
+    private static final String RECOLOURED = "#123456";
 
     @Inject
     private StatsService statsService;
@@ -76,11 +77,11 @@ class SubjectStatsCacheIT extends IntegrationTestBase {
         return SubjectStatsCache.count("userId = ?1", userId);
     }
 
-    private void tamperCachedTotalDays() {
+    private void tamperCachedTotalDays(final UUID subjectId) {
         runInTx(() -> {
             final SubjectStatsCache row = Objects.requireNonNull(
-                SubjectStatsCache.<SubjectStatsCache>find("userId = ?1 and subjectId = ?2", userId, action.id).firstResult(),
-                "no cached row was stored for the action");
+                SubjectStatsCache.<SubjectStatsCache>find("userId = ?1 and subjectId = ?2", userId, subjectId).firstResult(),
+                "no cached row was stored for the subject");
             row.totalDays = TAMPERED_TOTAL_DAYS;
         });
     }
@@ -109,17 +110,47 @@ class SubjectStatsCacheIT extends IntegrationTestBase {
     @Test
     void forAllSubjects_servesTheStoredFiguresOnASecondRead() {
         statsService.forAllSubjects(userId);
-        tamperCachedTotalDays();
+        tamperCachedTotalDays(action.id);
 
         assertThat(totalDaysForAction())
             .as("a second read must come from the cache, tampered value and all - recomputing would return the real 2")
             .isEqualTo(TAMPERED_TOTAL_DAYS);
     }
 
+    // The notes row is served from the cache exactly like an action's, but its SUBJECT - the name and the colour - is
+    // rebuilt live rather than read back. That is what keeps the note-colour preference off the invalidation surface:
+    // recolouring changes no figure, so it must show on the next read without discarding what was already computed.
+    @Test
+    void forAllSubjects_servesTheNotesRowFromCacheButRebuildsItsColourLive() {
+        runInTx(() -> newNote(userId, TODAY, "One"));
+        statsService.forAllSubjects(userId);
+        tamperCachedTotalDays(StatSubject.NOTES_ID);
+        given().formParam("noteColour", RECOLOURED)
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+
+        // Read back inside a transaction for a fresh EntityManager: the populate call above already loaded this User into the
+        // thread's persistence context, and the PATCH committed in a different session, so a bare read here sees the stale
+        // colour rather than the one just saved.
+        final SubjectStats[] read = new SubjectStats[1];
+        runInTx(() -> read[0] = statsService.forAllSubjects(userId).getFirst());
+        final SubjectStats notes = read[0];
+
+        assertThat(notes.subject().id())
+            .as("notes stay pinned ahead of the actions whether the read was computed or cached")
+            .isEqualTo(StatSubject.NOTES_ID);
+        assertThat(notes.totalDays())
+            .as("the figures must come from the cache, tampered value and all - recomputing would return the real 1")
+            .isEqualTo(TAMPERED_TOTAL_DAYS);
+        assertThat(notes.subject().colour())
+            .as("the colour is a preference resolved at read time, so a recolour shows without invalidating anything")
+            .isEqualTo(RECOLOURED);
+    }
+
     @Test
     void forAllSubjects_recomputesOnceTheUsersDateHasRolledOver() {
         statsService.forAllSubjects(userId);
-        tamperCachedTotalDays();
+        tamperCachedTotalDays(action.id);
 
         freezeInstant(TODAY.plusDays(1L).atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneId.of("UTC"));
 

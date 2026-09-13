@@ -326,6 +326,22 @@ class LogsApiWriteIT extends IntegrationTestBase {
                 .then().statusCode(NOT_FOUND);
     }
 
+    // The sibling above passes a value that is not a UUID at all, so it is refused before the endpoint is entered. These two
+    // reach the service and come back through its result type - the 400 and 404 the OpenAPI document promises for this path.
+    @Test
+    void delete_actionOwnedByAnotherUser_returns404() {
+        final Action otherAction = newActionInTx(otherId);
+
+        given().delete("/api/v1/logs/" + TODAY + "/" + otherAction.id)
+                .then().statusCode(NOT_FOUND);
+    }
+
+    @Test
+    void delete_futureDate_returns400() {
+        given().delete("/api/v1/logs/" + TOMORROW + "/" + action.id)
+                .then().statusCode(BAD_REQUEST);
+    }
+
     private Action newActionInTx(final UUID userId) {
         final Action[] holder = new Action[1];
         runInTx(() -> holder[0] = newAction(userId, "Cycling"));

@@ -116,6 +116,40 @@ class NoteKeyRotationIT extends IntegrationTestBase {
             .isEqualTo(1);
     }
 
+    @Test
+    void reconcile_ignoresTheBlankPreviousKeyRatherThanFailingToDecodeIt() {
+        rewrapUnderRetiredKey(owner.id);
+
+        // A trailing comma in NOTE_ENCRYPTION_PREVIOUS_KEYS is what produces this. A blank entry is not a key, and
+        // decoding it would fail the boot of the very deployment the real entry beside it was configured to rotate.
+        assertThat(reconcileWith(List.of("", RETIRED_KEY)).rotated())
+            .as("a blank entry must be skipped, leaving the real previous key to do its work")
+            .isEqualTo(1);
+    }
+
+    @Test
+    void reconcile_withNoPreviousKeyConfigured_reportsTheRowTheCurrentMasterCannotOpen() {
+        rewrapUnderRetiredKey(owner.id);
+
+        // The single-row fit check rather than the full pass: with nothing to rotate onto, reconcile only proves the
+        // current master opens what is stored. A deployment that changed NOTE_ENCRYPTION_KEY without listing the old one
+        // lands here, and startup refuses on this count rather than serving every account an empty journal.
+        assertThat(reconcileWith(List.of()))
+            .as("the fit check must report the row the configured master cannot open")
+            .isEqualTo(new KeyReconciliation(0, 1));
+    }
+
+    @Test
+    void forUser_reportsNoKeyWhenTheConfiguredMasterDoesNotOpenTheStoredOne() {
+        rewrapUnderRetiredKey(owner.id);
+
+        final NoteKeys currentMasterOnly = new NoteKeys(new StubNotesEncryptionConfig(NOTES_MASTER_KEY, List.of()));
+
+        runInTx(() -> assertThat(currentMasterOnly.forUser(owner.id))
+            .as("a key that exists but does not open is a configuration fault, and the read path reports it as absent")
+            .isEmpty());
+    }
+
     // Re-wraps the user's existing data key under RETIRED_KEY, leaving the data key itself (and therefore every note
     // sealed under it) untouched - exactly the state a deployment is in the moment before it rotates.
     private byte[] rewrapUnderRetiredKey(final UUID userId) {

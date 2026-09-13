@@ -33,6 +33,7 @@ class NoteSearchTest {
 
     private static final String ELLIPSIS = "…";
     private static final int PREVIEW_LENGTH = 180;
+    private static final int ZERO_WIDTH_JOINER = 0x200D;
 
     @Test
     void suggest_countsTheNotesTheSuggestedWordActuallyFinds() {
@@ -193,6 +194,20 @@ class NoteSearchTest {
         assertThat(suggestedWord(List.of("🌻garden🌻"), "gardan"))
             .as("notes accept emoji, and one sitting against a word must not be read as part of it")
             .contains("garden");
+    }
+
+    // The three Unicode mark categories a word can carry INSIDE it: Mn (a non-spacing accent), Mc (an Indic matra, which
+    // occupies its own width) and Me (an enclosing circle). None of them is a letter or a digit, so a char-at-a-time
+    // tokeniser cuts the word in two at each and then measures the edit distance against the fragments. Each case here is
+    // ONE token a single edit from the term; split, neither half is within the length bound and nothing is offered at all.
+    @ParameterizedTest
+    @ValueSource(ints = {0x0301, 0x093E, 0x20DD})
+    void suggest_treatsCombiningMarksAsPartOfTheWordTheyFollow(final int mark) {
+        final String word = "garden" + Character.toString(mark) + "shed";
+
+        assertThat(suggestedWord(List.of(word), "gardenshed"))
+            .as("a combining mark extends the word it follows, so the whole token is what the term is measured against")
+            .contains(word);
     }
 
     @Test
@@ -441,6 +456,36 @@ class NoteSearchTest {
         assertThat(previewed)
             .as("the cut must walk back off a variation selector, taking the character it modifies with it")
             .isEqualTo("x".repeat(PREVIEW_LENGTH - 1));
+    }
+
+    // The sibling case above cuts a note made ENTIRELY of surrogate pairs, so its 180-character cut lands on a pair
+    // boundary by arithmetic and never reaches the low-surrogate arm. One leading plain character shifts every pair along
+    // by one, putting the cut on the SECOND half of a pair - the case that actually emits an unpaired half when unhandled.
+    @Test
+    void snippet_neverSplitsAnEmojiWhenTheCutLandsOnTheLowSurrogate() {
+        final String content = "x" + "🏃".repeat(200);
+
+        final String previewed = NoteSearch.snippet(content, "").getFirst().text();
+
+        assertThat(previewed)
+            .as("the cut must walk back onto the pair's first half, dropping the emoji it would otherwise split")
+            .isEqualTo("x" + "🏃".repeat(89));
+    }
+
+    // A ZWJ sequence renders as ONE glyph, so a cut landing anywhere inside it has to walk back off the whole sequence or
+    // the preview shows the separate people it joins. The joiner is Cf rather than a mark, so isCombiningMark does not
+    // catch it and it needs an arm of its own - exercised on BOTH sides here, since the cut can land on the joiner itself
+    // (178 leading characters) or on the emoji the joiner attaches to the one before it (177).
+    @ParameterizedTest
+    @ValueSource(ints = {178, 177})
+    void snippet_neverCutsInsideAnEmojiZwjSequence(final int leading) {
+        final String content = "x".repeat(leading) + "👨" + Character.toString(ZERO_WIDTH_JOINER) + "👩" + "y".repeat(50);
+
+        final String previewed = NoteSearch.snippet(content, "").getFirst().text();
+
+        assertThat(previewed)
+            .as("the cut must walk back off the whole joined sequence rather than leave part of it behind")
+            .isEqualTo("x".repeat(leading));
     }
 
     // Every case below is about WHICH word is offered; the count it comes with is covered on its own, so the assertions read through this.
