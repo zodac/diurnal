@@ -20,7 +20,7 @@ package net.zodac.diurnal.transfer;
 import static io.restassured.RestAssured.given;
 import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static net.zodac.diurnal.transfer.TransferFiles.ACTIONS_FILE;
-import static net.zodac.diurnal.transfer.TransferFiles.ALL_FILES;
+import static net.zodac.diurnal.transfer.TransferFiles.ALL_MEMBERS;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -50,6 +50,8 @@ class CsvBomDisabledIT extends IntegrationTestBase {
 
     static final String PRIMARY = "csv-bom-it@lt.test";
 
+    private static final int MAX_ARCHIVE_BYTES = 128 * 1024 * 1024;
+
     private static final char BYTE_ORDER_MARK = '﻿';
     private static final String EXPORT_PATH = "/api/v1/data/export";
     private static final String IMPORT_PATH = "/api/v1/data/import";
@@ -74,9 +76,9 @@ class CsvBomDisabledIT extends IntegrationTestBase {
         final Map<String, String> members = unpack(archive);
 
         assertThat(members)
-            .as("the archive still holds all three members - only the leading mark is gone")
-            .containsOnlyKeys(ALL_FILES);
-        for (final String member : ALL_FILES) {
+            .as("the archive still holds every member - only the leading mark is gone")
+            .containsOnlyKeys(ALL_MEMBERS);
+        for (final String member : ALL_MEMBERS) {
             assertThat(members.getOrDefault(member, ""))
                 .as("%s must start with its header row, not with a byte-order mark", member)
                 .doesNotStartWith(String.valueOf(BYTE_ORDER_MARK));
@@ -96,10 +98,10 @@ class CsvBomDisabledIT extends IntegrationTestBase {
     }
 
     private static Map<String, String> unpack(final byte[] archive) {
-        final ArchiveOutcome outcome = TransferArchive.unpack(archive);
+        final ArchiveOutcome outcome = TransferArchive.unpack(archive, MAX_ARCHIVE_BYTES);
         assertThat(outcome)
             .as("the exported archive must be readable")
             .isInstanceOf(ArchiveOutcome.Unpacked.class);
-        return outcome instanceof ArchiveOutcome.Unpacked(final Map<String, String> members) ? members : Map.of();
+        return outcome instanceof ArchiveOutcome.Unpacked(final Map<String, String> members, final Map<String, byte[]> _) ? members : Map.of();
     }
 }

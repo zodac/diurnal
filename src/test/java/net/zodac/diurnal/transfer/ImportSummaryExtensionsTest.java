@@ -31,14 +31,15 @@ class ImportSummaryExtensionsTest {
 
     @Test
     void replacesExistingData_isFalseOnlyWhenTheAccountIsCompletelyEmpty() {
-        assertThat(ImportSummaryExtensions.replacesExistingData(new ImportSummary(5, 5, 5, 0, 0, 0)))
+        assertThat(ImportSummaryExtensions.replacesExistingData(new ImportSummary(5, 5, 5, 5, 0, 0, 0, 0)))
             .as("an import into an empty account destroys nothing, and a warning saying otherwise is one the user learns to ignore")
             .isFalse();
 
         final List<ImportSummary> holdingSomething = List.of(
-            new ImportSummary(0, 0, 0, 1, 0, 0),
-            new ImportSummary(0, 0, 0, 0, 1, 0),
-            new ImportSummary(0, 0, 0, 0, 0, 1));
+            new ImportSummary(0, 0, 0, 0, 1, 0, 0, 0),
+            new ImportSummary(0, 0, 0, 0, 0, 1, 0, 0),
+            new ImportSummary(0, 0, 0, 0, 0, 0, 1, 0),
+            new ImportSummary(0, 0, 0, 0, 0, 0, 0, 1));
         assertThat(holdingSomething.stream().filter(summary -> !ImportSummaryExtensions.replacesExistingData(summary)))
             .as("anything at all in the account means the import removes something")
             .isEmpty();

@@ -18,10 +18,10 @@
 package net.zodac.diurnal.transfer;
 
 import java.time.LocalDate;
-import java.util.Map;
 import net.zodac.diurnal.colour.Colours;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.log.LogGuards;
+import net.zodac.diurnal.note.AttachmentPolicy;
 import net.zodac.diurnal.text.TextField;
 import net.zodac.diurnal.text.TextFields;
 
@@ -31,7 +31,9 @@ import net.zodac.diurnal.text.TextFields;
  *
  * <p>
  * <strong>Every rule here is a rule that already existed.</strong> A name goes through {@link TextFields#ACTION_NAME}, a note through the configured
- * {@code note.NoteField} (passed in, because its bound is per-deployment), a colour through {@link Colours#isInvalidHex(String)}, a count against
+ * {@code note.NoteField} (passed in, because its bound is per-deployment), an attachment's name through {@link TextFields#ATTACHMENT_NAME} and its
+ * extension through the configured {@link AttachmentPolicy} (passed in for the same reason), a colour through {@link Colours#isInvalidHex(String)},
+ * a count against
  * {@link ActionLog#MAX_DAILY_COUNT}, and a log's date through {@link LogGuards#isFuture(LocalDate, LocalDate)} - the same validators the forms and
  * the API call. An import is a bulk version of writes the user could have made one at a time, so it must not be a way to get values into the
  * database that no other path would accept.
@@ -70,12 +72,14 @@ public final class ImportParser {
     /**
      * Reads and validates a whole archive.
      *
-     * @param members   the unpacked archive members, keyed by file name
-     * @param today     the acting user's current date, against which a log's future-date rule is applied
-     * @param noteField the configured day-note field, whose length bound every note row must satisfy
+     * @param unpacked         the unpacked archive - its members and the attachment bytes it carried
+     * @param today            the acting user's current date, against which a log's future-date rule is applied
+     * @param noteField        the configured day-note field, whose length bound every note row must satisfy
+     * @param attachmentPolicy the configured extension policy, which every attachment row must satisfy
      * @return the validated plan, or the reasons it was refused
      */
-    public static ParseOutcome parse(final Map<String, String> members, final LocalDate today, final TextField noteField) {
-        return new ArchiveParser(members, today, noteField).parse();
+    public static ParseOutcome parse(final ArchiveOutcome.Unpacked unpacked, final LocalDate today, final TextField noteField,
+        final AttachmentPolicy attachmentPolicy) {
+        return new ArchiveParser(unpacked, today, noteField, attachmentPolicy).parse();
     }
 }

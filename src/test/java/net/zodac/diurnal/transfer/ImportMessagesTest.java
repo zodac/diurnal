@@ -84,8 +84,19 @@ class ImportMessagesTest {
             Arguments.of(new ImportReason.InvalidDate("07/08/2026"), "'07/08/2026' is not a date in YYYY-MM-DD form."));
     }
 
+    private static List<Arguments> attachmentRefusals() {
+        return List.of(
+            Arguments.of(new ImportReason.MissingAttachmentFile("attachments/0001.png"),
+                "The archive does not contain the attachment file attachments/0001.png."),
+            Arguments.of(new ImportReason.EmptyAttachment("attachments/0001.png"), "The attachment file attachments/0001.png is empty."),
+            Arguments.of(new ImportReason.DuplicateAttachment("route.png", ROW_DATE),
+                "There is already an attachment named 'route.png' on 2026-08-01."),
+            Arguments.of(new ImportReason.AttachmentTypeNotAllowed("notes.pdf", List.of("jpg", "png")),
+                "The attachment 'notes.pdf' is not one of the accepted types: jpg, png."));
+    }
+
     private static List<Arguments> refusals() {
-        return Stream.of(archiveRefusals(), actionRefusals(), logRefusals(), noteRefusals())
+        return Stream.of(archiveRefusals(), actionRefusals(), logRefusals(), noteRefusals(), attachmentRefusals())
             .flatMap(List::stream)
             .toList();
     }

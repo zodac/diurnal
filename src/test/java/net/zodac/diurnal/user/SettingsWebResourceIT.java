@@ -25,6 +25,8 @@ import static org.hamcrest.Matchers.not;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import io.restassured.response.ValidatableResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.Test;
  * {@code SettingsIT}.
  */
 @QuarkusTest
+@SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class SettingsWebResourceIT extends IntegrationTestBase {
 
     // An account that has explicitly PICKED a first column, alongside the default account above that has not. The two take
@@ -40,9 +43,13 @@ class SettingsWebResourceIT extends IntegrationTestBase {
     // test has to set up for itself.
     private static final String PICKED_DAY = "week-start-it@lt.test";
 
+    private static final byte[] FILE = "not really a png".getBytes(StandardCharsets.UTF_8);
+
+    private UUID attachmentOwnerId;
+
     @Override
     protected void createDbState() {
-        newUser("web-it@lt.test", "Web User");
+        attachmentOwnerId = newUser("web-it@lt.test", "Web User").id;
 
         final User picked = newUser(PICKED_DAY, "Week Start User");
         picked.weekStart = WeekStart.SATURDAY.value();
@@ -62,6 +69,21 @@ class SettingsWebResourceIT extends IntegrationTestBase {
                 .body(containsString("data-value=\"UTC\"\n    aria-selected=\"true\""))
                 .body(containsString("<input type=\"hidden\" id=\"timezone\" name=\"timezone\" value=\"UTC\""))
                 .body(containsString("Pacific/Auckland \u2066(UTC+12)\u2069"));
+    }
+
+    @Test
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
+    void settingsPage_dataCard_offersToLeaveAttachmentsOutOnlyWhenThereAreSome() {
+        given().get("/settings")
+            .then().statusCode(OK)
+            .body(not(containsString("data-export-attachments")));
+
+        runInTx(() -> newAttachment(attachmentOwnerId, FIXED_TODAY, "route.png", FILE));
+
+        given().get("/settings")
+            .then().statusCode(OK)
+            // A checkbox that can only ever say "include the nothing you have" is a control that explains a feature rather than operating one.
+            .body(containsString("data-export-attachments"));
     }
 
     @Test

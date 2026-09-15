@@ -34,6 +34,10 @@ import org.junit.jupiter.api.Test;
  */
 class TransferArchiveTest {
 
+    // The deployment's own ceiling (transfer.max-archive-size) at its shipped default; the cases that are ABOUT the caps pass their own tiny
+    // values through the package-private overload instead, so a boundary can be proven without building 128 MB of test data.
+    private static final int MAX_ARCHIVE_BYTES = 128 * 1024 * 1024;
+
     private static final Instant PACKED_AT = Instant.parse("2026-08-07T09:12:00Z");
 
     @Test
@@ -43,18 +47,57 @@ class TransferArchiveTest {
             TransferFiles.LOGS_FILE, "date,action,count\r\n2026-08-01,Running,1\r\n",
             TransferFiles.NOTES_FILE, "date,content\r\n2026-08-01,\"a note\"\r\n");
 
-        assertThat(TransferArchive.unpack(TransferArchive.pack(members, PACKED_AT)))
+        assertThat(TransferArchive.unpack(TransferArchive.pack(members, PACKED_AT), MAX_ARCHIVE_BYTES))
             .as("an archive this app wrote must be one it can read back")
-            .isEqualTo(new ArchiveOutcome.Unpacked(members));
+            .isEqualTo(new ArchiveOutcome.Unpacked(members, Map.of()));
+    }
+
+    @Test
+    void packThenUnpack_roundTripsAttachmentBytes() {
+        final Map<String, String> members = Map.of(TransferFiles.ATTACHMENTS_FILE, "date,name,filename,file\r\n");
+        final Map<String, byte[]> files = Map.of("attachments/0001.png", new byte[] {0, 1, 2, -3});
+
+        final ArchiveOutcome outcome = TransferArchive.unpack(TransferArchive.pack(members, files, PACKED_AT), MAX_ARCHIVE_BYTES);
+
+        // Compared half by half rather than as one record: the files map holds byte arrays, which Map.equals compares by IDENTITY.
+        assertThat(outcome).as("the archive must read back").isInstanceOf(ArchiveOutcome.Unpacked.class);
+        final ArchiveOutcome.Unpacked unpacked = (ArchiveOutcome.Unpacked) outcome;
+        assertThat(unpacked.members()).as("the manifest is text and round-trips as text").isEqualTo(members);
+        assertThat(unpacked.files()).as("one entry per attachment").containsOnlyKeys("attachments/0001.png");
+        assertThat(unpacked.files().get("attachments/0001.png"))
+            .as("an attachment is opaque bytes and must come back byte-identical - decoding one as text would corrupt every file that is not")
+            .isEqualTo(new byte[] {0, 1, 2, -3});
+    }
+
+    @Test
+    void pack_writesNothingForAnEntryOutsideTheAttachmentDirectory() {
+        final byte[] archive = TransferArchive.pack(Map.of(), Map.of("elsewhere/0001.png", new byte[] {1}), PACKED_AT);
+
+        assertThat(TransferArchive.unpack(archive, MAX_ARCHIVE_BYTES))
+            .as("only the format's own directory is ever written")
+            .isEqualTo(new ArchiveOutcome.Unpacked(Map.of(), Map.of()));
+    }
+
+    @Test
+    void unpack_ignoresAnAttachmentEntryOutsideTheBoundedAlphabet() {
+        // Nothing here is ever resolved as a path, so this is not a traversal defence - it bounds what a hostile archive can put in the map at all.
+        // Written with the raw ZIP writer because pack() would not write such an entry in the first place.
+        final byte[] archive = zipOf(Map.of("attachments/../../etc/passwd", "not mine", "attachments/0001.png", "mine"));
+
+        assertThat(TransferArchive.unpack(archive, MAX_ARCHIVE_BYTES))
+            .as("an entry name outside the bounded alphabet is skipped, exactly like an unrecognised member")
+            .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.type(ArchiveOutcome.Unpacked.class))
+            .extracting(ArchiveOutcome.Unpacked::files, org.assertj.core.api.InstanceOfAssertFactories.MAP)
+            .containsOnlyKeys("attachments/0001.png");
     }
 
     @Test
     void pack_writesNothingForUnknownMemberName() {
         final byte[] archive = TransferArchive.pack(Map.of("secrets.csv", "nope", TransferFiles.ACTIONS_FILE, "name,colour\r\n"), PACKED_AT);
 
-        assertThat(TransferArchive.unpack(archive))
+        assertThat(TransferArchive.unpack(archive, MAX_ARCHIVE_BYTES))
             .as("only the format's own members are ever written")
-            .isEqualTo(new ArchiveOutcome.Unpacked(Map.of(TransferFiles.ACTIONS_FILE, "name,colour\r\n")));
+            .isEqualTo(new ArchiveOutcome.Unpacked(Map.of(TransferFiles.ACTIONS_FILE, "name,colour\r\n"), Map.of()));
     }
 
     @Test
@@ -65,21 +108,21 @@ class TransferArchiveTest {
             "nested/actions.csv", "name,colour\r\n",
             "readme.txt", "hello"));
 
-        assertThat(TransferArchive.unpack(archive))
+        assertThat(TransferArchive.unpack(archive, MAX_ARCHIVE_BYTES))
             .as("names are compared for equality against three constants and never resolved as paths, so a traversal is simply not a match")
-            .isEqualTo(new ArchiveOutcome.Unpacked(Map.of(TransferFiles.NOTES_FILE, "date,content\r\n")));
+            .isEqualTo(new ArchiveOutcome.Unpacked(Map.of(TransferFiles.NOTES_FILE, "date,content\r\n"), Map.of()));
     }
 
     @Test
     void unpack_refusesInputThatIsNotZip() {
-        assertThat(TransferArchive.unpack("date,content\r\n2026-08-01,plain csv\r\n".getBytes(StandardCharsets.UTF_8)))
+        assertThat(TransferArchive.unpack("date,content\r\n2026-08-01,plain csv\r\n".getBytes(StandardCharsets.UTF_8), MAX_ARCHIVE_BYTES))
             .as("a CSV uploaded by mistake should say so, rather than failing as a missing member")
             .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.NotZipArchive()));
     }
 
     @Test
     void unpack_refusesAnEmptyUpload() {
-        assertThat(TransferArchive.unpack(new byte[0]))
+        assertThat(TransferArchive.unpack(new byte[0], MAX_ARCHIVE_BYTES))
             .as("an empty body has no magic bytes to check")
             .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.NotZipArchive()));
     }
@@ -91,7 +134,7 @@ class TransferArchiveTest {
             entries.put("filler-" + i + ".txt", "x");
         }
 
-        assertThat(TransferArchive.unpack(zipOf(entries)))
+        assertThat(TransferArchive.unpack(zipOf(entries), MAX_ARCHIVE_BYTES))
             .as("an archive of a million tiny members must not cost a request to walk")
             .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.TooManyEntries(TransferArchive.MAX_ENTRIES)));
     }
@@ -101,7 +144,7 @@ class TransferArchiveTest {
         // Highly compressible, so a small archive inflates well past the per-member cap - the zip-bomb shape.
         final byte[] archive = zipOf(Map.of(TransferFiles.NOTES_FILE, "a".repeat(TransferArchive.MAX_MEMBER_BYTES + 1)));
 
-        assertThat(TransferArchive.unpack(archive))
+        assertThat(TransferArchive.unpack(archive, MAX_ARCHIVE_BYTES))
             .as("decompressed bytes are counted as they are read, never trusted from the entry's declared size")
             .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.ArchiveTooLarge()));
     }
@@ -116,7 +159,7 @@ class TransferArchiveTest {
 
         assertThat(TransferArchive.unpack(archive, 1, 64, 64))
             .as("an archive holding exactly the permitted number of entries is fine")
-            .isEqualTo(new ArchiveOutcome.Unpacked(Map.of(TransferFiles.NOTES_FILE, "date,content\r\n")));
+            .isEqualTo(new ArchiveOutcome.Unpacked(Map.of(TransferFiles.NOTES_FILE, "date,content\r\n"), Map.of()));
         assertThat(TransferArchive.unpack(archive, 0, 64, 64))
             .as("one entry past the limit is not")
             .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.TooManyEntries(0)));
@@ -128,7 +171,7 @@ class TransferArchiveTest {
 
         assertThat(TransferArchive.unpack(archive, 8, 5, 64))
             .as("a member of exactly the permitted size is fine")
-            .isEqualTo(new ArchiveOutcome.Unpacked(Map.of(TransferFiles.NOTES_FILE, "abcde")));
+            .isEqualTo(new ArchiveOutcome.Unpacked(Map.of(TransferFiles.NOTES_FILE, "abcde"), Map.of()));
         assertThat(TransferArchive.unpack(archive, 8, 4, 64))
             .as("one byte past the per-member limit is not")
             .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.ArchiveTooLarge()));
@@ -143,7 +186,7 @@ class TransferArchiveTest {
 
         assertThat(TransferArchive.unpack(archive, 8, 5, 10))
             .as("two members that together reach the archive limit exactly are fine")
-            .isEqualTo(new ArchiveOutcome.Unpacked(members));
+            .isEqualTo(new ArchiveOutcome.Unpacked(members, Map.of()));
         assertThat(TransferArchive.unpack(archive, 8, 5, 9))
             .as("the running total is what binds, so neither member alone being under the per-member cap saves it")
             .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.ArchiveTooLarge()));
@@ -151,10 +194,10 @@ class TransferArchiveTest {
 
     @Test
     void unpack_readsTheMagicBytesFromAnArchiveThatIsNothingElse() {
-        assertThat(TransferArchive.unpack(new byte[] {0x50, 0x4B}))
+        assertThat(TransferArchive.unpack(new byte[] {0x50, 0x4B}, MAX_ARCHIVE_BYTES))
             .as("two bytes is exactly enough to check the magic, so this gets past it and is read as an archive holding nothing")
-            .isEqualTo(new ArchiveOutcome.Unpacked(Map.of()));
-        assertThat(TransferArchive.unpack(new byte[] {0x50}))
+            .isEqualTo(new ArchiveOutcome.Unpacked(Map.of(), Map.of()));
+        assertThat(TransferArchive.unpack(new byte[] {0x50}, MAX_ARCHIVE_BYTES))
             .as("one byte is not")
             .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.NotZipArchive()));
     }
@@ -164,7 +207,7 @@ class TransferArchiveTest {
         final byte[] archive = zipOf(Map.of(TransferFiles.ACTIONS_FILE, "name,colour\r\nRunning,#e11d48\r\n"));
         final byte[] truncated = java.util.Arrays.copyOf(archive, archive.length / 2);
 
-        assertThat(TransferArchive.unpack(truncated))
+        assertThat(TransferArchive.unpack(truncated, MAX_ARCHIVE_BYTES))
             .as("a half-uploaded archive is a read failure, not a silently short one")
             .isInstanceOf(ArchiveOutcome.Malformed.class);
     }

@@ -25,13 +25,16 @@ package net.zodac.diurnal.transfer;
  * account already has 40 that are about to stop existing. The preview shows exactly this, which is what makes the confirmation an informed one
  * rather than a formality.
  *
- * @param actions         the actions the archive brings
- * @param logs            the day counts the archive brings
- * @param notes           the day notes the archive brings
- * @param replacedActions the actions the account holds now, all of which the import removes
- * @param replacedLogs    the day counts the account holds now, all of which the import removes
- * @param replacedNotes   the day notes the account holds now, all of which the import removes
+ * @param actions             the actions the archive brings
+ * @param logs                the day counts the archive brings
+ * @param notes               the day notes the archive brings
+ * @param attachments         the note attachments the archive brings
+ * @param replacedActions     the actions the account holds now, all of which the import removes
+ * @param replacedLogs        the day counts the account holds now, all of which the import removes
+ * @param replacedNotes       the day notes the account holds now, all of which the import removes
+ * @param replacedAttachments the note attachments the account holds now, all of which the import removes
  */
-public record ImportSummary(int actions, int logs, int notes, int replacedActions, int replacedLogs, int replacedNotes) {
+public record ImportSummary(int actions, int logs, int notes, int attachments, int replacedActions, int replacedLogs, int replacedNotes,
+    int replacedAttachments) {
 
 }

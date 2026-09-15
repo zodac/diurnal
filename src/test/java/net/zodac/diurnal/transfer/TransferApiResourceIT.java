@@ -21,22 +21,26 @@ import static io.restassured.RestAssured.given;
 import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
 import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static net.zodac.diurnal.transfer.TransferFiles.ACTIONS_FILE;
-import static net.zodac.diurnal.transfer.TransferFiles.ALL_FILES;
+import static net.zodac.diurnal.transfer.TransferFiles.ALL_MEMBERS;
+import static net.zodac.diurnal.transfer.TransferFiles.ATTACHMENTS_FILE;
 import static net.zodac.diurnal.transfer.TransferFiles.LOGS_FILE;
 import static net.zodac.diurnal.transfer.TransferFiles.NOTES_FILE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.note.NoteAttachment;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.hamcrest.Matchers;
@@ -63,6 +67,10 @@ class TransferApiResourceIT extends IntegrationTestBase {
     private static final String PREVIEW_PATH = "/api/v1/data/import/preview";
     private static final String APPLICATION_ZIP = "application/zip";
 
+    private static final int MAX_ARCHIVE_BYTES = 128 * 1024 * 1024;
+
+    private static final byte[] ATTACHED_FILE = "not really a png".getBytes(StandardCharsets.UTF_8);
+
     private UUID userId;
     private UUID otherUserId;
 
@@ -79,11 +87,42 @@ class TransferApiResourceIT extends IntegrationTestBase {
         final Map<String, String> members = unpack(exportArchive());
 
         assertThat(members)
-            .as("a complete export always holds all three members in the correct structure")
-            .containsOnlyKeys(ALL_FILES)
+            .as("a complete export always holds every member in the correct structure")
+            .containsOnlyKeys(ALL_MEMBERS)
             .containsEntry(ACTIONS_FILE, "﻿name,colour\r\nReading,#0ea5e9\r\nRunning,#e11d48\r\n")
             .containsEntry(LOGS_FILE, "﻿date,action,count\r\n2026-06-13,Running,2\r\n2026-06-14,Reading,1\r\n2026-06-14,Running,5\r\n")
-            .containsEntry(NOTES_FILE, "﻿date,content\r\n2026-06-13,\"Line one\nLine two\"\r\n2026-06-14,\"A note, with a comma\"\r\n");
+            .containsEntry(NOTES_FILE, "﻿date,content\r\n2026-06-13,\"Line one\nLine two\"\r\n2026-06-14,\"A note, with a comma\"\r\n")
+            // The manifest names an ENTRY, not a path: a sequence number plus the stored name's own extension, so nothing a user chose reaches it.
+            .containsEntry(ATTACHMENTS_FILE, "﻿date,name,filename,file\r\n2026-06-14,route.png,route.png,attachments/0001.png\r\n");
+    }
+
+    @Test
+    void export_withAttachmentsOff_writesAnEmptyManifestAndNoFiles() {
+        seedPrimary();
+
+        final byte[] archive = given().queryParam("attachments", false)
+            .get(EXPORT_PATH)
+            .then().statusCode(OK)
+            .extract().asByteArray();
+
+        assertThat(unpack(archive))
+            // Present and listing nothing, not absent: a member that is there and empty SAYS the account has no files, where an absent one says it
+            // only through the compatibility rule that exists for archives written before attachments did.
+            .as("the manifest is still written, with no rows")
+            .containsEntry(ATTACHMENTS_FILE, "﻿date,name,filename,file\r\n");
+        assertThat(attachmentBytes(archive))
+            .as("and none of the files ride along, which is the whole point of the option")
+            .isEmpty();
+    }
+
+    @Test
+    void export_defaultsToIncludingAttachments() {
+        // An export is a backup, so it carries everything unless a caller asks otherwise - the Settings checkbox is what asks.
+        seedPrimary();
+
+        assertThat(attachmentBytes(exportArchive()))
+            .as("an export with no query parameter at all holds the account's files")
+            .hasSize(1);
     }
 
     @Test
@@ -96,11 +135,33 @@ class TransferApiResourceIT extends IntegrationTestBase {
             .then().statusCode(OK)
             .body("actions", Matchers.is(2))
             .body("logs", Matchers.is(3))
-            .body("notes", Matchers.is(2));
+            .body("notes", Matchers.is(2))
+            .body("attachments", Matchers.is(1));
 
         assertThat(unpack(exportArchive()))
             .as("an export, imported, must produce the same export again - otherwise the archive is not a backup")
             .isEqualTo(unpack(archive));
+        assertThat(attachmentBytes(exportArchive()))
+            .as("and the attached file comes back byte-identical, which is the whole of what makes it a backup of the file too")
+            .containsExactly(ATTACHED_FILE);
+    }
+
+    @Test
+    void importData_withNoAttachmentsMember_removesTheOnesTheAccountHeld() {
+        // An archive exported before attachments existed is a complete export of what the account held then, so it is accepted - and, an import
+        // REPLACING everything, it describes an account with no attachments.
+        seedPrimary();
+
+        given().contentType(APPLICATION_ZIP)
+            .body(archiveOf("name,colour\r\n", "date,action,count\r\n", "date,content\r\n"))
+            .post(IMPORT_PATH)
+            .then().statusCode(OK)
+            .body("attachments", Matchers.is(0))
+            .body("replacedAttachments", Matchers.is(1));
+
+        runInTx(() -> assertThat(NoteAttachment.datesForUser(userId))
+            .as("the files that belonged to the journal it replaced go with it - leaving them would leave each embedded in nothing")
+            .isEmpty());
     }
 
     @Test
@@ -181,7 +242,7 @@ class TransferApiResourceIT extends IntegrationTestBase {
 
     @Test
     void importData_refusesSomethingThatIsNotAnArchive() {
-        given().contentType(APPLICATION_ZIP).body("not a zip".getBytes(java.nio.charset.StandardCharsets.UTF_8))
+        given().contentType(APPLICATION_ZIP).body("not a zip".getBytes(StandardCharsets.UTF_8))
             .post(IMPORT_PATH)
             .then().statusCode(BAD_REQUEST)
             .body("message", Matchers.equalTo("The uploaded file is not a ZIP archive."))
@@ -235,6 +296,8 @@ class TransferApiResourceIT extends IntegrationTestBase {
 
             newNote(userId, LocalDate.of(2026, 6, 14), "A note, with a comma");
             newNote(userId, LocalDate.of(2026, 6, 13), "Line one\nLine two");
+
+            newAttachment(userId, LocalDate.of(2026, 6, 14), "route.png", ATTACHED_FILE);
         });
     }
 
@@ -282,11 +345,21 @@ class TransferApiResourceIT extends IntegrationTestBase {
             NOTES_FILE, notes), Instant.now());
     }
 
-    private static Map<String, String> unpack(final byte[] archive) {
-        final ArchiveOutcome outcome = TransferArchive.unpack(archive);
+    // Every attachment the archive carries, in manifest order. The bytes are what a round trip actually has to preserve - the manifest alone would
+    // pass a comparison of the CSV members while the files themselves came back empty.
+    private static List<byte[]> attachmentBytes(final byte[] archive) {
+        final ArchiveOutcome outcome = TransferArchive.unpack(archive, MAX_ARCHIVE_BYTES);
         assertThat(outcome)
             .as("the exported archive must be readable")
             .isInstanceOf(ArchiveOutcome.Unpacked.class);
-        return outcome instanceof ArchiveOutcome.Unpacked(final Map<String, String> members) ? members : Map.of();
+        return ((ArchiveOutcome.Unpacked) outcome).files().values().stream().toList();
+    }
+
+    private static Map<String, String> unpack(final byte[] archive) {
+        final ArchiveOutcome outcome = TransferArchive.unpack(archive, MAX_ARCHIVE_BYTES);
+        assertThat(outcome)
+            .as("the exported archive must be readable")
+            .isInstanceOf(ArchiveOutcome.Unpacked.class);
+        return outcome instanceof ArchiveOutcome.Unpacked(final Map<String, String> members, final Map<String, byte[]> _) ? members : Map.of();
     }
 }

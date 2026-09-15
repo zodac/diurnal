@@ -29,6 +29,7 @@ import java.util.Set;
 import net.zodac.diurnal.colour.Colours;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.log.LogGuards;
+import net.zodac.diurnal.note.AttachmentPolicy;
 import net.zodac.diurnal.text.TextField;
 import net.zodac.diurnal.text.TextFieldExtensions;
 import net.zodac.diurnal.text.TextFields;
@@ -39,8 +40,9 @@ import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * One archive being read into an {@link ImportPlan}. Reached only through {@link ImportParser#parse(Map, LocalDate, TextField)}, which is where the
- * validation rules and the reasons behind them are documented.
+ * One archive being read into an {@link ImportPlan}. Reached only through
+ * {@link ImportParser#parse(ArchiveOutcome.Unpacked, LocalDate, TextField, AttachmentPolicy)}, which is where the validation rules and the reasons
+ * behind them are documented.
  *
  * <p>
  * The problems found are the state that makes this an object rather than a chain of static calls: every step reports into the same list through
@@ -57,8 +59,10 @@ final class ArchiveParser {
     private static final int HEADER_LINE = 1;
 
     private final Map<String, String> members;
+    private final Map<String, byte[]> files;
     private final LocalDate today;
     private final TextField noteField;
+    private final AttachmentPolicy attachmentPolicy;
     private final List<ImportProblem> reported = new ArrayList<>();
 
     private int total;
@@ -66,14 +70,18 @@ final class ArchiveParser {
     /**
      * Prepares a parse of one unpacked archive.
      *
-     * @param members   the unpacked archive members, keyed by file name
-     * @param today     the acting user's current date, against which a log's future-date rule is applied
-     * @param noteField the configured day-note field, whose length bound every note row must satisfy
+     * @param unpacked         the unpacked archive - its members and the attachment bytes it carried
+     * @param today            the acting user's current date, against which a log's future-date rule is applied
+     * @param noteField        the configured day-note field, whose length bound every note row must satisfy
+     * @param attachmentPolicy the configured extension policy, which every attachment row must satisfy
      */
-    ArchiveParser(final Map<String, String> members, final LocalDate today, final TextField noteField) {
-        this.members = Map.copyOf(members);
+    ArchiveParser(final ArchiveOutcome.Unpacked unpacked, final LocalDate today, final TextField noteField,
+        final AttachmentPolicy attachmentPolicy) {
+        members = Map.copyOf(unpacked.members());
+        files = Map.copyOf(unpacked.files());
         this.today = today;
         this.noteField = noteField;
+        this.attachmentPolicy = attachmentPolicy;
     }
 
     /**
@@ -113,11 +121,13 @@ final class ArchiveParser {
 
         final List<LogDraft> logs = parseLogs(logRows.get(), actionNames);
         final List<NoteDraft> notes = parseNotes(noteRows.get());
-        // An import is all-or-nothing: a single refused log or note row rejects the whole archive, so this check cannot move above the parse.
+        final List<AttachmentDraft> attachments = parseAttachments();
+        // An import is all-or-nothing: a single refused log, note or attachment row rejects the whole archive, so this check cannot move above the
+        // parse.
         if (anyProblems()) {
             return rejected();
         }
-        return new ParseOutcome.Planned(new ImportPlan(actions, logs, notes));
+        return new ParseOutcome.Planned(new ImportPlan(actions, logs, notes, attachments));
     }
 
     private Optional<List<CsvRow>> dataRows(final String file, final List<String> header) {
@@ -258,6 +268,75 @@ final class ArchiveParser {
             notes.add(new NoteDraft(date, value));
         }
         return notes;
+    }
+
+    // attachments.csv is OPTIONAL, unlike the three members above: an archive exported before attachments existed is a complete export of what the
+    // account held then, and reading it as "no attachments" is exactly right under replace-all. See TransferFiles.ALL_MEMBERS.
+    private List<AttachmentDraft> parseAttachments() {
+        if (!members.containsKey(TransferFiles.ATTACHMENTS_FILE)) {
+            return List.of();
+        }
+
+        final Optional<List<CsvRow>> rows = dataRows(TransferFiles.ATTACHMENTS_FILE, TransferFiles.ATTACHMENTS_HEADER);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+
+        final List<AttachmentDraft> attachments = new ArrayList<>();
+        final Set<String> seen = new HashSet<>();
+
+        for (final CsvRow row : rows.get()) {
+            final @Nullable AttachmentDraft draft = attachmentDraft(row, seen);
+            if (draft != null) {
+                attachments.add(draft);
+            }
+        }
+        return attachments;
+    }
+
+    // One manifest row, or null once the reason it cannot be one has been reported.
+    private @Nullable AttachmentDraft attachmentDraft(final CsvRow row, final Set<String> seen) {
+        final @Nullable LocalDate date = parseDate(TransferFiles.ATTACHMENTS_FILE, row);
+        if (date == null) {
+            return null;
+        }
+
+        // The same field a rename submits, so an imported name meets the rules a typed one does - including the square brackets the note's own embed
+        // token is written with, which a name carrying one would break. BOTH names are checked against it: both end up sealed in the same row, and
+        // an archive is not a trusted source just because this application wrote the last one.
+        final TextOutcome nameOutcome = TextValidation.check(TextFields.ATTACHMENT_NAME, row.fields().get(1));
+        if (!(nameOutcome instanceof TextOutcome.Valid(final String name))) {
+            addProblem(TransferFiles.ATTACHMENTS_FILE, row.line(), new ImportReason.InvalidTextField((TextOutcome.Failure) nameOutcome));
+            return null;
+        }
+        final TextOutcome fileNameOutcome = TextValidation.check(TextFields.ATTACHMENT_NAME, row.fields().get(2));
+        if (!(fileNameOutcome instanceof TextOutcome.Valid(final String fileName))) {
+            addProblem(TransferFiles.ATTACHMENTS_FILE, row.line(), new ImportReason.InvalidTextField((TextOutcome.Failure) fileNameOutcome));
+            return null;
+        }
+        // The deployment's extension whitelist is about what a file IS, so it is the FILE name that has to satisfy it - the same value an upload is
+        // judged on (NoteAttachmentService.attach), and the one a rename cannot launder.
+        if (!attachmentPolicy.accepts(fileName)) {
+            addProblem(TransferFiles.ATTACHMENTS_FILE, row.line(), new ImportReason.AttachmentTypeNotAllowed(fileName, attachmentPolicy.accepted()));
+            return null;
+        }
+
+        final String entry = row.fields().get(3).strip();
+        final byte @Nullable [] file = files.get(entry);
+        if (file == null) {
+            addProblem(TransferFiles.ATTACHMENTS_FILE, row.line(), new ImportReason.MissingAttachmentFile(entry));
+            return null;
+        }
+        if (file.length == 0) {
+            addProblem(TransferFiles.ATTACHMENTS_FILE, row.line(), new ImportReason.EmptyAttachment(entry));
+            return null;
+        }
+        // A note embeds a file BY name, so two of one name on a day would leave its token naming both.
+        if (!seen.add(date + " " + name)) {
+            addProblem(TransferFiles.ATTACHMENTS_FILE, row.line(), new ImportReason.DuplicateAttachment(name, date));
+            return null;
+        }
+        return new AttachmentDraft(date, name, fileName, file);
     }
 
     private @Nullable LocalDate parseDate(final String file, final CsvRow row) {

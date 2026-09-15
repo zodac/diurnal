@@ -54,6 +54,7 @@ import net.zodac.diurnal.http.HttpHeader;
 import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.http.QuarkusHttpLimitsConfig;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
+import net.zodac.diurnal.note.NoteAttachmentService;
 import net.zodac.diurnal.stats.StatField;
 import net.zodac.diurnal.text.TextFailureBanner;
 import net.zodac.diurnal.text.TextOutcome;
@@ -85,6 +86,7 @@ public class SettingsWebResource {
     private final AppClock clock;
     private final CurrentUser currentUser;
     private final QuarkusHttpLimitsConfig httpLimitsConfig;
+    private final NoteAttachmentService noteAttachmentService;
     private final OidcConfig oidcConfig;
     private final Template oidcMessagesTemplate;
     private final PasswordChangeService passwordChangeService;
@@ -106,6 +108,7 @@ public class SettingsWebResource {
      * @param clock the application clock for date-boundary logic
      * @param currentUser the current-user accessor
      * @param httpLimitsConfig the framework-owned {@code quarkus.http.limits.*} keys the page reads (the data card's upload bound)
+     * @param noteAttachmentService the shared attachment service, asked only whether the account has any (the Data card's export option)
      * @param oidcConfig the application OIDC policy settings
      * @param oidcMessagesTemplate the translated OIDC connect/denial banner partial template
      * @param passwordChangeService the shared password-change service
@@ -121,7 +124,7 @@ public class SettingsWebResource {
     @SuppressWarnings("OverlyCoupledMethod")
     @Inject
     public SettingsWebResource(final AppPaths appPaths, final ClientAddress clientAddress, final AppClock clock, final CurrentUser currentUser,
-        final QuarkusHttpLimitsConfig httpLimitsConfig, final OidcConfig oidcConfig,
+        final QuarkusHttpLimitsConfig httpLimitsConfig, final NoteAttachmentService noteAttachmentService, final OidcConfig oidcConfig,
         @Location("partials/oidc-messages") final Template oidcMessagesTemplate, final PasswordChangeService passwordChangeService,
         @Location("partials/password-rejection") final Template passwordRejectionTemplate,
         @Location("partials/profile-rejection") final Template profileRejectionTemplate, final ProfileService profileService,
@@ -132,6 +135,7 @@ public class SettingsWebResource {
         this.clock = clock;
         this.currentUser = currentUser;
         this.httpLimitsConfig = httpLimitsConfig;
+        this.noteAttachmentService = noteAttachmentService;
         this.oidcConfig = oidcConfig;
         this.oidcMessagesTemplate = oidcMessagesTemplate;
         this.passwordChangeService = passwordChangeService;
@@ -420,6 +424,9 @@ public class SettingsWebResource {
                 // Rendered onto the "Default colour" button so the constant is written down once, in Java.
                 .data("noteColourDefault", UserSettings.DEFAULT_NOTE_COLOUR)
                 .data("showNoteCounter", user.showNoteCounter)
+                // The Data card offers to leave attachments out of an export only when there are some: a checkbox that can only ever say "include
+                // the nothing you have" is a control that explains a feature rather than operating one.
+                .data("hasAttachments", noteAttachmentService.hasAny(user))
                 .data("statsFieldChoices", StatField.choices(user.statsFields))
                 .data("timezoneChoices",
                         UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone, Language.fromValue(user.language)))

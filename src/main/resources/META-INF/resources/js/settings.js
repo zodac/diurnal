@@ -1274,6 +1274,35 @@ if (oidcConnectArm) {
     })
 }
 
+// ── Data export options (Settings → Data) ─────────────────────────
+// The Export button is a plain link to GET /api/v1/data/export, and the "Export attachments" checkbox beside it
+// decides whether that link carries ?attachments=false. Rewriting the href is the whole mechanism.
+//
+// Not a GET form, which would be the no-script way to do it: an unchecked checkbox is not submitted at all, so a
+// form could only ever ADD a parameter - and the API's own default is to include attachments, which is the right
+// default for something calling itself a backup. Rewriting the link instead keeps that default and lets the box
+// turn it off. With scripting off the link stays exactly as rendered, so the export is complete, which is the
+// safe way for this particular control to fail.
+//
+// The checkbox is only rendered for an account that HAS attachments, so this block is a no-op on most pages.
+;(function () {
+    const exportLink = document.getElementById('data-export-link')
+    const includeAttachments = document.getElementById('data-export-attachments')
+    if (!exportLink || !includeAttachments) {return}
+
+    // Captured before anything is appended, so repeated toggling can never stack query strings.
+    const baseUrl = exportLink.getAttribute('href') || ''
+
+    function applyExportOptions() {
+        exportLink.setAttribute('href', includeAttachments.checked ? baseUrl : `${baseUrl  }?attachments=false`)
+    }
+
+    includeAttachments.addEventListener('change', applyExportOptions)
+    // Applied once on load too: a browser restoring a form state on a back-navigation can leave the box unchecked
+    // while the link still says what the server rendered.
+    applyExportOptions()
+})()
+
 // ── Data import (Settings → Data) ─────────────────────────────────
 // Two steps over ONE upload: the chosen file is posted to /preview, which writes nothing and answers
 // the panel describing what would change; the Import button in that panel posts the very same bytes to

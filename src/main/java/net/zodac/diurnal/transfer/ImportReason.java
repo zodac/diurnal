@@ -43,7 +43,8 @@ public sealed interface ImportReason
     ImportReason.CsvUnreadable, ImportReason.MissingMember, ImportReason.EmptyFile, ImportReason.WrongHeader, ImportReason.WrongColumnCount,
     ImportReason.InvalidTextField, ImportReason.InvalidColour, ImportReason.DuplicateAction, ImportReason.FutureLog, ImportReason.UnknownAction,
     ImportReason.NonNumericCount, ImportReason.CountOutOfRange, ImportReason.DuplicateLog, ImportReason.EmptyNote, ImportReason.DuplicateNote,
-    ImportReason.InvalidDate {
+    ImportReason.InvalidDate, ImportReason.MissingAttachmentFile, ImportReason.EmptyAttachment, ImportReason.DuplicateAttachment,
+    ImportReason.AttachmentTypeNotAllowed {
 
     /**
      * The English wording for this refusal, for the API's {@code 400} body — reached through
@@ -104,6 +105,68 @@ public sealed interface ImportReason
         @Override
         public String message() {
             return "The uploaded archive could not be read: " + detail;
+        }
+    }
+
+    /**
+     * An {@code attachments.csv} row names an archive entry the archive does not hold. The file column is a reference INTO the archive, so a row
+     * naming nothing describes an attachment whose bytes were never there.
+     *
+     * @param file the entry the row named
+     */
+    record MissingAttachmentFile(String file) implements ImportReason {
+
+        @Override
+        public String message() {
+            return "The archive does not contain the attachment file " + file + ".";
+        }
+    }
+
+    /**
+     * An {@code attachments.csv} row names an archive entry that holds no bytes. An empty file is nothing to attach, and the stored row could not
+     * represent one.
+     *
+     * @param file the entry the row named
+     */
+    record EmptyAttachment(String file) implements ImportReason {
+
+        @Override
+        public String message() {
+            return "The attachment file " + file + " is empty.";
+        }
+    }
+
+    /**
+     * Two {@code attachments.csv} rows give the same day an attachment of the same name. A note embeds a file BY name, so two of them on one day
+     * would leave the note's own token naming both.
+     *
+     * @param name the display name both rows carry, which is the archive's own text rather than anything stored
+     * @param date the day they share
+     */
+    record DuplicateAttachment(String name, LocalDate date) implements ImportReason {
+
+        @Override
+        public String message() {
+            return "There is already an attachment named '" + name + "' on " + date + ".";
+        }
+    }
+
+    /**
+     * An {@code attachments.csv} row names a file whose extension this deployment does not accept ({@code NOTE_ATTACHMENT_EXTENSIONS}).
+     *
+     * <p>
+     * It is refused here for the same reason an over-long note is: an import must never be a way to get values into the database that no other path
+     * would accept. The consequence is the same asymmetry {@code NOTE_MAX_LENGTH} already has - narrowing the accepted list leaves attachments
+     * already stored alone, but an export taken before the change can no longer be re-imported until those rows are removed from it.
+     *
+     * @param name     the display name the row carries
+     * @param accepted the extensions this deployment does accept
+     */
+    record AttachmentTypeNotAllowed(String name, List<String> accepted) implements ImportReason {
+
+        @Override
+        public String message() {
+            return "The attachment '" + name + "' is not one of the accepted types: " + String.join(", ", accepted) + '.';
         }
     }
 

@@ -25,13 +25,17 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
+import net.zodac.diurnal.note.AttachmentNames;
 import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.note.NoteAttachmentService;
 import net.zodac.diurnal.note.NoteService;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
@@ -40,7 +44,8 @@ import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Builds a user's export archive: their actions, their day counts and their day notes, as three CSV members of one ZIP.
+ * Builds a user's export archive: their actions, their day counts, their day notes and the files attached to those notes - four CSV members of one
+ * ZIP, plus one entry per attached file.
  *
  * <p>
  * <strong>The archive holds notes in the clear.</strong> They are encrypted at rest and are opened here to be written out, which is the entire
@@ -51,6 +56,15 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * A note that cannot be opened is <strong>omitted</strong> rather than failing the export, which is
  * {@link NoteService#readContents(UUID, List)}'s own rule: one damaged row must not deny someone the other ten years of their journal.
+ *
+ * <p>
+ * <strong>The archive is built whole, in memory</strong>, which is what bounds how big an account's export can usefully be. Both free-form members
+ * size it: {@code notes.csv} at (notes held) x {@code NOTE_MAX_LENGTH}, and the attachments at (files held) x {@code MAX_ATTACHMENT_SIZE}. An
+ * account
+ * whose export exceeds the deployment's {@code MAX_ARCHIVE_SIZE} still downloads, but cannot be re-imported - the same accepted limit
+ * {@code TransferArchive.MAX_MEMBER_BYTES} already documents for the notes member, now reachable by a second route. That is also why the Settings
+ * card offers to leave attachments OUT: an account whose files are what push it over the line can still take a text-only backup that imports. See
+ * {@code TRANSFER.md}.
  *
  * <p>
  * The export is a read - it carries no {@code @Transactional}.
@@ -67,31 +81,46 @@ public class ExportService {
     // so a browser would silently rename the download. The 'T' is kept, which is what still makes it read as a timestamp rather than as five numbers.
     private static final DateTimeFormatter FILE_NAME_TIMESTAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss", Locale.ROOT);
 
+    // Everything outside this is dropped from the entry name an attachment's bytes are written under. The entry is a machine reference the manifest
+    // resolves, not somewhere a user-chosen name belongs - it carries the extension only so that unzipping the archive gives files that open.
+    private static final Pattern NOT_ENTRY_SAFE = Pattern.compile("[^a-z0-9]");
+
     private final AppClock clock;
+    private final NoteAttachmentService noteAttachmentService;
     private final NoteService noteService;
     private final TransferConfig transferConfig;
 
     /**
-     * Injects the shared notes service, which opens the user's notes, the application clock, and the archive-shape settings.
+     * Injects the shared notes service, which opens the user's notes, the shared attachment service, the application clock, and the archive-shape
+     * settings.
      *
-     * @param clock           the application clock for date-boundary logic
-     * @param noteService     the shared notes service
-     * @param transferConfig  the archive-shape settings, read for which CSV writer each member is written with
+     * @param clock                 the application clock for date-boundary logic
+     * @param noteAttachmentService the shared attachment service, which opens the user's attached files
+     * @param noteService           the shared notes service
+     * @param transferConfig        the archive-shape settings, read for which CSV writer each member is written with
      */
     @Inject
-    public ExportService(final AppClock clock, final NoteService noteService, final TransferConfig transferConfig) {
+    public ExportService(final AppClock clock, final NoteAttachmentService noteAttachmentService, final NoteService noteService,
+        final TransferConfig transferConfig) {
         this.clock = clock;
+        this.noteAttachmentService = noteAttachmentService;
         this.noteService = noteService;
         this.transferConfig = transferConfig;
     }
 
     /**
-     * Builds the user's whole export archive.
+     * Builds the user's export archive.
      *
-     * @param user the acting user
-     * @return the ZIP archive bytes
+     * <p>
+     * <strong>Leaving attachments out still writes {@code attachments.csv}, empty.</strong> A member that is present and lists nothing says "this
+     * account has no files" to the importer, which - an import REPLACING everything - is what a text-only backup means. Omitting the member instead
+     * would say the same thing by accident, through the compatibility rule that exists for archives written before attachments did.
+     *
+     * @param user               the acting user
+     * @param includeAttachments whether to write the attached files as well as the writing
+     * @return the archive bytes
      */
-    public byte[] export(final User user) {
+    public byte[] export(final User user, final boolean includeAttachments) {
         final List<Action> actions = Action.findByUser(user.id);
         final Map<UUID, String> actionNames = new HashMap<>();
         for (final Action action : actions) {
@@ -101,14 +130,20 @@ public class ExportService {
         // Which writer the deployment asks for is resolved once for the whole archive rather than per member, so no export can go out with two of
         // its three files written one way and the third the other.
         final CsvWriter csvWriter = transferConfig.csvByteOrderMark() ? Csv::writeWithByteOrderMark : Csv::write;
+
+        // The manifest and the files are built together, so a row and the entry it names cannot disagree about which file it is.
+        final Map<String, byte[]> files = new LinkedHashMap<>();
+        final String attachmentsCsv = includeAttachments ? attachmentsCsv(user, files, csvWriter) : emptyAttachmentsCsv(csvWriter);
+
         final Map<String, String> members = Map.of(
             TransferFiles.ACTIONS_FILE, actionsCsv(actions, csvWriter),
             TransferFiles.LOGS_FILE, logsCsv(user, actionNames, csvWriter),
-            TransferFiles.NOTES_FILE, notesCsv(user, csvWriter));
+            TransferFiles.NOTES_FILE, notesCsv(user, csvWriter),
+            TransferFiles.ATTACHMENTS_FILE, attachmentsCsv);
 
         // The COUNTS only, never a name or a note's content.
-        LOGGER.info("Data exported for user {}", user.email);
-        return TransferArchive.pack(members, clock.now());
+        LOGGER.info("Data exported for user {} ({} attachment(s))", user.email, files.size());
+        return TransferArchive.pack(members, files, clock.now());
     }
 
     /**
@@ -165,6 +200,35 @@ public class ExportService {
         // member is written in, so the two members of one archive do not disagree with each other.
         rows.sort(Comparator.comparing(List::getFirst));
         return csvWriter.write(TransferFiles.NOTES_HEADER, rows);
+    }
+
+    // Writes the manifest AND fills `files` with the bytes each row names. The entry name is a sequence number plus the stored name's own extension,
+    // so it is unique by construction, carries nothing a user chose, and still unzips to something that opens.
+    private String attachmentsCsv(final User user, final Map<String, byte[]> files, final CsvWriter csvWriter) {
+        final List<List<String>> rows = new ArrayList<>();
+        int sequence = 0;
+        for (final NoteAttachmentService.AttachmentFile attachment : noteAttachmentService.exportAll(user)) {
+            sequence++;
+            // The entry's extension comes from the FILE name rather than the display name: a rename may have left the display name with no
+            // extension at all, and an unzipped archive should still hold files their computer will open.
+            final String entry =
+                TransferFiles.ATTACHMENT_DIRECTORY + String.format(Locale.ROOT, "%04d", sequence) + extensionOf(attachment.fileName());
+            files.put(entry, attachment.file());
+            rows.add(List.of(attachment.date().toString(), attachment.name(), attachment.fileName(), entry));
+        }
+
+        // Already ordered by day and then by when each was attached - the order exportAll reads them in - so the manifest reads chronologically like
+        // the other two dated members, and is not re-sorted here into an order the entry numbers would then disagree with.
+        return csvWriter.write(TransferFiles.ATTACHMENTS_HEADER, rows);
+    }
+
+    private static String emptyAttachmentsCsv(final CsvWriter csvWriter) {
+        return csvWriter.write(TransferFiles.ATTACHMENTS_HEADER, List.of());
+    }
+
+    private static String extensionOf(final String name) {
+        final String extension = NOT_ENTRY_SAFE.matcher(AttachmentNames.extensionOf(name)).replaceAll("");
+        return extension.isEmpty() ? "" : ("." + extension);
     }
 
     @FunctionalInterface

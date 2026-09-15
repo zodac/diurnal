@@ -31,7 +31,10 @@ import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.http.NotUiFacing;
 import net.zodac.diurnal.log.ActionLog;
+import net.zodac.diurnal.note.AttachmentPolicy;
 import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.note.NoteAttachment;
+import net.zodac.diurnal.note.NoteAttachmentService;
 import net.zodac.diurnal.note.NoteField;
 import net.zodac.diurnal.note.NoteService;
 import net.zodac.diurnal.persistence.LogStatements;
@@ -47,10 +50,10 @@ import org.apache.logging.log4j.Logger;
  * {@link ImportResult} into their medium.
  *
  * <p>
- * <strong>An import REPLACES.</strong> Every action, day count and note the account holds is removed, and the archive's contents are written in their
- * place - the account ends up holding exactly what the file describes, and nothing else. That is what makes the archive a backup that can actually be
- * restored, and it is also why the operation is worth confirming: {@link #preview(User, byte[])} runs the identical read and validation and stops
- * short of the write, so the confirmation is shown real figures from the real file rather than an estimate.
+ * <strong>An import REPLACES.</strong> Every action, day count, note and note attachment the account holds is removed, and the archive's contents
+ * are written in their place - the account ends up holding exactly what the file describes, and nothing else. That is what makes the archive a
+ * backup that can actually be restored, and it is also why the operation is worth confirming: {@link #preview(User, byte[])} runs the identical read
+ * and validation and stops short of the write, so the confirmation is shown real figures from the real file rather than an estimate.
  *
  * <p>
  * The preview deliberately keeps <strong>no server-side state</strong> - the browser simply sends the same file again to confirm. Staging a parsed
@@ -59,8 +62,9 @@ import org.apache.logging.log4j.Logger;
  * write, rather than trusting a verdict reached on an earlier request.
  *
  * <p>
- * Writes go through each package's own owner: {@link Note} content is written by {@link NoteService#replaceAll(User, Map)}, which is the only thing
- * that can seal it, and the bulk deletes are the same entity statements {@code AdminUserService} uses to clear an account. Actions are inserted
+ * Writes go through each package's own owner: {@link Note} content is written by {@link NoteService#replaceAll(User, Map)} and attachments by
+ * {@code NoteAttachmentService.replaceAll}, which are the only things that can seal either, and the bulk deletes are the same entity statements
+ * {@code AdminUserService} uses to clear an account. Actions are inserted
  * before their logs and flushed, because a log names its action by NAME and the id it needs does not exist until the action row does.
  *
  * <p>
@@ -72,26 +76,36 @@ public class ImportService {
 
     private static final Logger LOGGER = LogManager.getLogger(ImportService.class);
 
+    private final AttachmentPolicy attachmentPolicy;
     private final AppClock clock;
+    private final NoteAttachmentService noteAttachmentService;
     private final NoteField noteField;
     private final NoteService noteService;
     private final LogStatements statements;
+    private final TransferConfig transferConfig;
 
     /**
-     * Injects the shared notes service, which owns every note write, the configured note field, the application clock, and the database's native
-     * statements.
+     * Injects the shared notes service, which owns every note write, the shared attachment service, the configured note field and extension policy,
+     * the application clock, and the database's native statements.
      *
-     * @param clock       the application clock for date-boundary logic
-     * @param noteField   the configured day-note field every imported note row is validated against
-     * @param noteService the shared notes service
-     * @param statements  the native action-log statements for the configured database
+     * @param attachmentPolicy      the configured extension policy every imported attachment row is validated against
+     * @param clock                 the application clock for date-boundary logic
+     * @param noteAttachmentService the shared attachment service, which owns every attachment write
+     * @param noteField             the configured day-note field every imported note row is validated against
+     * @param noteService           the shared notes service
+     * @param statements            the native action-log statements for the configured database
+     * @param transferConfig        the archive settings, read for how large an uploaded archive may decompress to
      */
     @Inject
-    public ImportService(final AppClock clock, final NoteField noteField, final NoteService noteService, final LogStatements statements) {
+    public ImportService(final AttachmentPolicy attachmentPolicy, final AppClock clock, final NoteAttachmentService noteAttachmentService,
+        final NoteField noteField, final NoteService noteService, final LogStatements statements, final TransferConfig transferConfig) {
+        this.attachmentPolicy = attachmentPolicy;
         this.clock = clock;
+        this.noteAttachmentService = noteAttachmentService;
         this.noteField = noteField;
         this.noteService = noteService;
         this.statements = statements;
+        this.transferConfig = transferConfig;
     }
 
     /**
@@ -122,20 +136,20 @@ public class ImportService {
     // The one code path both surfaces AND both steps take: `commit` decides only whether the last statement runs, so a preview cannot
     // accept an archive the import would then refuse.
     private ImportResult read(final User user, final byte[] archive, final boolean commit) {
-        return switch (TransferArchive.unpack(archive)) {
+        return switch (TransferArchive.unpack(archive, transferConfig.maxArchiveSizeBytes())) {
             case final ArchiveOutcome.Malformed malformed -> {
                 LOGGER.debug("Import archive refused for user {}: {}", user.email, malformed.reason());
                 yield new ImportResult.Malformed(malformed.reason());
             }
-            case final ArchiveOutcome.Unpacked unpacked -> validate(user, unpacked.members(), commit);
+            case final ArchiveOutcome.Unpacked unpacked -> validate(user, unpacked, commit);
         };
     }
 
-    private ImportResult validate(final User user, final Map<String, String> members, final boolean commit) {
+    private ImportResult validate(final User user, final ArchiveOutcome.Unpacked unpacked, final boolean commit) {
         // Resolved once for the whole file, in the user's own timezone - the same day boundary a single log write is judged against.
         final LocalDate today = clock.today(clock.zoneFor(user.timezone));
 
-        return switch (ImportParser.parse(members, today, noteField.field())) {
+        return switch (ImportParser.parse(unpacked, today, noteField.field(), attachmentPolicy)) {
             case final ParseOutcome.Rejected rejected -> {
                 LOGGER.warn("Import rejected for user {}: {} problem(s)", user.email, rejected.totalFound());
                 yield new ImportResult.Rejected(rejected.problems(), rejected.totalFound());
@@ -146,10 +160,11 @@ public class ImportService {
 
     private ImportResult commitOrPreview(final User user, final ImportPlan plan, final boolean commit) {
         final ImportSummary summary = new ImportSummary(
-            plan.actions().size(), plan.logs().size(), plan.notes().size(),
+            plan.actions().size(), plan.logs().size(), plan.notes().size(), plan.attachments().size(),
             Math.toIntExact(Action.count("userId", user.id)),
             Math.toIntExact(ActionLog.count("userId", user.id)),
-            Math.toIntExact(Note.count("userId", user.id)));
+            Math.toIntExact(Note.count("userId", user.id)),
+            Math.toIntExact(NoteAttachment.count("userId", user.id)));
 
         if (!commit) {
             return new ImportResult.Previewed(summary);
@@ -157,9 +172,9 @@ public class ImportService {
 
         write(user, plan);
         // The COUNTS only - never an action name, and never a note's content.
-        LOGGER.info("Data imported for user {}: {} action(s), {} log(s), {} note(s), replacing {}/{}/{}",
-            user.email, summary.actions(), summary.logs(), summary.notes(),
-            summary.replacedActions(), summary.replacedLogs(), summary.replacedNotes());
+        LOGGER.info("Data imported for user {}: {} action(s), {} log(s), {} note(s), {} attachment(s), replacing {}/{}/{}/{}",
+            user.email, summary.actions(), summary.logs(), summary.notes(), summary.attachments(),
+            summary.replacedActions(), summary.replacedLogs(), summary.replacedNotes(), summary.replacedAttachments());
         return new ImportResult.Applied(summary);
     }
 
@@ -201,6 +216,14 @@ public class ImportService {
             notes.put(draft.date(), draft.content());
         }
         noteService.replaceAll(user, notes);
+
+        // AFTER the notes, and not before: replacing a journal takes its attachments with it (an attachment is embedded IN the writing), so files
+        // written first would be deleted by the very next statement.
+        final List<NoteAttachmentService.AttachmentFile> attachments = new ArrayList<>(plan.attachments().size());
+        for (final AttachmentDraft draft : plan.attachments()) {
+            attachments.add(new NoteAttachmentService.AttachmentFile(draft.date(), draft.name(), draft.fileName(), draft.file()));
+        }
+        noteAttachmentService.replaceAll(user, attachments);
     }
 
     /**

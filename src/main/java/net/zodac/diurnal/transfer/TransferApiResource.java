@@ -21,10 +21,12 @@ import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -34,9 +36,11 @@ import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
@@ -97,18 +101,27 @@ public class TransferApiResource {
     @Produces(APPLICATION_ZIP)
     @Operation(
         summary = "Export all data",
-        description = "Downloads the user's actions, day counts and day notes as a ZIP archive holding three CSV files - actions.csv "
-        + "(name, colour), logs.csv (date, action, count) and notes.csv (date, content). A log names its action by name rather than by any "
-        + "internal identifier, so the archive can be edited in a spreadsheet and imported back. Note content is written in PLAIN TEXT: it is "
-        + "encrypted in the database, and exporting it necessarily decrypts it, so the downloaded file has none of that protection."
+        description = "Downloads the user's actions, day counts, day notes and note attachments as a ZIP archive holding four CSV files - "
+        + "actions.csv (name, colour), logs.csv (date, action, count), notes.csv (date, content) and attachments.csv (date, name, file) - plus "
+        + "one entry under attachments/ per attached file, holding its bytes. A log names its action by name rather than by any internal "
+        + "identifier, so the archive can be edited in a spreadsheet and imported back. Note content is written in PLAIN TEXT, and an "
+        + "attachment's bytes and filename likewise: all three are encrypted in the database, and exporting them necessarily decrypts them, so "
+        + "the downloaded file has none of that protection. Pass attachments=false to leave the files out and take a text-only backup - "
+        + "attachments.csv is still written, empty, which is what tells an import that the account has none."
     )
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "200", description = "The archive, as an attachment.",
         content = @Content(mediaType = APPLICATION_ZIP, schema = @Schema(type = SchemaType.STRING, format = "binary")))
     @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    public Response export() {
+    public Response export(
+        @Parameter(name = "attachments", in = ParameterIn.QUERY,
+        description = "Whether to include the files attached to the user's notes. Defaults to true - an export is a backup, so it carries "
+        + "everything unless asked not to. Setting it to false still writes attachments.csv, empty.",
+        schema = @Schema(type = SchemaType.BOOLEAN, examples = "true"))
+        @QueryParam("attachments") @DefaultValue("true") final boolean includeAttachments) {
+
         final User user = currentUser.get();
-        return Response.ok(exportService.export(user))
+        return Response.ok(exportService.export(user, includeAttachments))
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + exportService.fileName(user) + "\"")
             .build();
     }
@@ -157,10 +170,11 @@ public class TransferApiResource {
     @Transactional
     @Operation(
         summary = "Import all data",
-        description = "Imports an export archive, REPLACING everything the account holds: every existing action, day count and note is "
-        + "removed and the archive's contents are written in their place. The archive must hold all three members of a complete export. It is "
-        + "accepted or refused as a whole - if any row is invalid, nothing at all is written - so a refused import leaves the account exactly as "
-        + "it was. Call the preview endpoint first to see what will change."
+        description = "Imports an export archive, REPLACING everything the account holds: every existing action, day count, note and note "
+        + "attachment is removed and the archive's contents are written in their place. The archive must hold actions.csv, logs.csv and "
+        + "notes.csv; attachments.csv is optional, and an archive without it describes an account with no attachments. It is accepted or refused "
+        + "as a whole - if any row is invalid, nothing at all is written - so a refused import leaves the account exactly as it was. Call the "
+        + "preview endpoint first to see what will change."
     )
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "200", description = "The archive was imported; the account now holds exactly what it described.",
@@ -197,25 +211,29 @@ public class TransferApiResource {
     /**
      * What an import did, or would do.
      *
-     * @param actions         the actions the archive brings
-     * @param logs            the day counts the archive brings
-     * @param notes           the day notes the archive brings
-     * @param replacedActions the actions the account held before the import
-     * @param replacedLogs    the day counts the account held before the import
-     * @param replacedNotes   the day notes the account held before the import
+     * @param actions             the actions the archive brings
+     * @param logs                the day counts the archive brings
+     * @param notes               the day notes the archive brings
+     * @param attachments         the note attachments the archive brings
+     * @param replacedActions     the actions the account held before the import
+     * @param replacedLogs        the day counts the account held before the import
+     * @param replacedNotes       the day notes the account held before the import
+     * @param replacedAttachments the note attachments the account held before the import
      */
     @Schema(description = "What an import did, or would do.")
     record ImportSummaryDto(
         @Schema(examples = "12", description = "The actions the archive brings.") int actions,
         @Schema(examples = "340", description = "The day counts the archive brings.") int logs,
         @Schema(examples = "88", description = "The day notes the archive brings.") int notes,
+        @Schema(examples = "6", description = "The note attachments the archive brings.") int attachments,
         @Schema(examples = "4", description = "The actions the account held before the import.") int replacedActions,
         @Schema(examples = "120", description = "The day counts the account held before the import.") int replacedLogs,
-        @Schema(examples = "30", description = "The day notes the account held before the import.") int replacedNotes) {
+        @Schema(examples = "30", description = "The day notes the account held before the import.") int replacedNotes,
+        @Schema(examples = "2", description = "The note attachments the account held before the import.") int replacedAttachments) {
 
         private static ImportSummaryDto from(final ImportSummary summary) {
-            return new ImportSummaryDto(summary.actions(), summary.logs(), summary.notes(),
-                summary.replacedActions(), summary.replacedLogs(), summary.replacedNotes());
+            return new ImportSummaryDto(summary.actions(), summary.logs(), summary.notes(), summary.attachments(),
+                summary.replacedActions(), summary.replacedLogs(), summary.replacedNotes(), summary.replacedAttachments());
         }
     }
 

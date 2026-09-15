@@ -27,10 +27,11 @@ import java.util.List;
  * plan's own actions. That is what lets the preview and the commit run the identical parse and differ only in whether they write - the preview is
  * not an approximation of the import, it is the same work with the last step left off.
  *
- * @param actions the actions to create
- * @param logs    the day counts to create
- * @param notes   the day notes to create
+ * @param actions     the actions to create
+ * @param logs        the day counts to create
+ * @param notes       the day notes to create
+ * @param attachments the note attachments to store
  */
-public record ImportPlan(List<ActionDraft> actions, List<LogDraft> logs, List<NoteDraft> notes) {
+public record ImportPlan(List<ActionDraft> actions, List<LogDraft> logs, List<NoteDraft> notes, List<AttachmentDraft> attachments) {
 
 }

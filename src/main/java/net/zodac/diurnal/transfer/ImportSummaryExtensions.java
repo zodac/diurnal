@@ -44,6 +44,6 @@ public final class ImportSummaryExtensions {
      */
     @TemplateExtension
     public static boolean replacesExistingData(final ImportSummary summary) {
-        return summary.replacedActions() > 0 || summary.replacedLogs() > 0 || summary.replacedNotes() > 0;
+        return summary.replacedActions() > 0 || summary.replacedLogs() > 0 || summary.replacedNotes() > 0 || summary.replacedAttachments() > 0;
     }
 }

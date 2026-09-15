@@ -213,6 +213,14 @@ public class TransferInternalResource {
             case final ImportReason.DuplicateNote duplicate -> importReasonTemplate.data("kind", "duplicateNote", "date",
                 duplicate.date().toString());
             case final ImportReason.InvalidDate invalidDate -> importReasonTemplate.data("kind", "invalidDate", "raw", invalidDate.raw());
+            case final ImportReason.MissingAttachmentFile missingFile -> importReasonTemplate.data("kind", "missingAttachmentFile", "file",
+                missingFile.file());
+            case final ImportReason.EmptyAttachment emptyAttachment -> importReasonTemplate.data("kind", "emptyAttachment", "file",
+                emptyAttachment.file());
+            case final ImportReason.DuplicateAttachment duplicate -> importReasonTemplate.data("kind", "duplicateAttachment", "name",
+                duplicate.name(), "date", duplicate.date().toString());
+            case final ImportReason.AttachmentTypeNotAllowed notAllowed -> importReasonTemplate.data("kind", "attachmentTypeNotAllowed", "name",
+                notAllowed.name(), "accepted", String.join(", ", notAllowed.accepted()));
             // The one arm that is not this partial at all: a refused free-text value is worded by the shared text pipeline's own sentence, exactly
             // as ProfileRejection and RegistrationError word theirs. It binds the locale and renders through the same tail as every arm above.
             case final ImportReason.InvalidTextField invalid -> textFailureBanner.instance(invalid.failure());

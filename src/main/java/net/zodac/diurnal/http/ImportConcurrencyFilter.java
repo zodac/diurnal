@@ -36,7 +36,7 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>
  * <strong>This is the aggregate half of a bound the rest of the application only states per request.</strong> {@code TransferArchive}'s caps
- * ({@code MAX_MEMBER_BYTES} 32 MB, {@code MAX_ARCHIVE_BYTES} 64 MB) bound what ONE import decompresses to, and
+ * ({@code MAX_MEMBER_BYTES} 32 MB, and {@code MAX_ARCHIVE_SIZE}, 128 MB by default) bound what ONE import decompresses to, and
  * {@code quarkus.http.limits.max-body-size} bounds what ONE upload may weigh - but the import endpoints are precisely the ones
  * {@link RequestBodyLimitFilter} exempts from the small per-request cap, so nothing bounded their SUM. Each in-flight import holds its whole
  * uploaded body, the members it decompressed and the rows it parsed, all at once and all in memory, and

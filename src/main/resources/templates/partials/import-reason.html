@@ -4,16 +4,21 @@
     kind        — 'notZipArchive' | 'tooManyEntries' | 'archiveTooLarge' | 'archiveUnreadable' | 'csvUnreadable' |
                    'missingMember' | 'emptyFile' | 'wrongHeader' | 'wrongColumnCount' | 'invalidColour' |
                    'duplicateAction' | 'futureLog' | 'unknownAction' | 'nonNumericCount' | 'countOutOfRange' |
-                   'duplicateLog' | 'emptyNote' | 'duplicateNote' | 'invalidDate'
+                   'duplicateLog' | 'emptyNote' | 'duplicateNote' | 'invalidDate' | 'missingAttachmentFile' |
+                   'emptyAttachment' | 'duplicateAttachment' | 'attachmentTypeNotAllowed'
     maxEntries  — 'tooManyEntries' only, never translated
     detail      — 'archiveUnreadable' only, the underlying exception message, never translated
-    file        — 'missingMember' only, never translated
+    file        — 'missingMember' | 'missingAttachmentFile' | 'emptyAttachment' only, never translated
     header      — 'emptyFile' | 'wrongHeader' only, never translated; already MARKED UP by
                    TransferInternalResource.chippedColumns - one <code> chip per column name, plain commas between
     expected    — 'wrongColumnCount' only, never translated
     actual      — 'wrongColumnCount' only, never translated
-    name        — 'duplicateAction' only, never translated
-    date        — 'futureLog' | 'duplicateLog' | 'emptyNote' | 'duplicateNote' only, never translated
+    name        — 'duplicateAction' | 'duplicateAttachment' | 'attachmentTypeNotAllowed' only, never translated
+    date        — 'futureLog' | 'duplicateLog' | 'emptyNote' | 'duplicateNote' | 'duplicateAttachment' only, never
+                   translated
+    accepted    — 'attachmentTypeNotAllowed' only: the deployment's accepted extensions as one comma-separated
+                   phrase, never translated - how many there are is a property of the deployment, not of the
+                   language (the same reasoning as `header` below)
     actionName  — 'unknownAction' | 'duplicateLog' only, never translated
     raw         — 'nonNumericCount' | 'invalidDate' only, never translated
     max         — 'countOutOfRange' only, never translated
@@ -57,4 +62,8 @@
     {#is 'emptyNote'}{msg:importEmptyNote(date)}
     {#is 'duplicateNote'}{msg:importDuplicateNote(date)}
     {#is 'invalidDate'}{msg:importInvalidDate(raw)}
+    {#is 'missingAttachmentFile'}{msg:importMissingAttachmentFile(file)}
+    {#is 'emptyAttachment'}{msg:importEmptyAttachment(file)}
+    {#is 'duplicateAttachment'}{msg:importDuplicateAttachment(name, date)}
+    {#is 'attachmentTypeNotAllowed'}{msg:importAttachmentTypeNotAllowed(name, accepted)}
 {/switch}

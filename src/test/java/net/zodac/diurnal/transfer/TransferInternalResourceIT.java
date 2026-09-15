@@ -112,7 +112,7 @@ class TransferInternalResourceIT extends IntegrationTestBase {
 
         assertThat(panel)
             .as("the preview states the archive's real figures, singular-aware, so the confirmation that follows is an informed one")
-            .contains("This archive holds 1 action, 1 day count and 1 note.")
+            .contains("This archive holds 1 action, 1 day count, 1 note and 0 attachments.")
             .contains("You have nothing tracked yet, so nothing will be removed.");
     }
 
@@ -125,7 +125,7 @@ class TransferInternalResourceIT extends IntegrationTestBase {
 
         assertThat(panel)
             .as("the applied banner is the past-tense counterpart of the preview's own figures")
-            .contains("Imported 1 action, 1 day count and 1 note.");
+            .contains("Imported 1 action, 1 day count, 1 note and 0 attachments.");
     }
 
     @Test

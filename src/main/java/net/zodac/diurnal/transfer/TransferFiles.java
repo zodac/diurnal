@@ -20,8 +20,8 @@ package net.zodac.diurnal.transfer;
 import java.util.List;
 
 /**
- * The shape of a transfer archive - the three members it holds and the exact header each one carries. This is the single place the file format is
- * written down, so the exporter and the importer cannot drift apart on a column name or an ordering.
+ * The shape of a transfer archive - the members it holds, the exact header each one carries, and where an attachment's bytes live. This is the
+ * single place the file format is written down, so the exporter and the importer cannot drift apart on a column name or an ordering.
  *
  * <p>
  * A header is matched <strong>exactly</strong>, names and order alike. Guessing at a re-ordered or renamed column would let a file that means one
@@ -49,6 +49,17 @@ public final class TransferFiles { // NOPMD: DataClass - the format's constants,
     public static final String NOTES_FILE = "notes.csv";
 
     /**
+     * The archive member listing the user's note attachments - which day each belongs to, the name the note embeds it by, the name it was uploaded
+     * under, and which entry inside the archive holds its bytes.
+     */
+    public static final String ATTACHMENTS_FILE = "attachments.csv";
+
+    /**
+     * The directory inside the archive that every attachment's bytes are written under.
+     */
+    public static final String ATTACHMENT_DIRECTORY = "attachments/";
+
+    /**
      * The header row of {@link #ACTIONS_FILE}.
      */
     public static final List<String> ACTIONS_HEADER = List.of("name", "colour");
@@ -64,9 +75,38 @@ public final class TransferFiles { // NOPMD: DataClass - the format's constants,
     public static final List<String> NOTES_HEADER = List.of("date", "content");
 
     /**
-     * Every member of a complete archive. An import requires all three to be present.
+     * The header row of {@link #ATTACHMENTS_FILE}.
+     *
+     * <p>
+     * <strong>{@code name} and {@code filename} are two different things</strong>, and both are carried because the application stores both: the
+     * first is the display name the day's note embeds the file by, which a rename rewrites, and the second is the name it was uploaded under, which
+     * nothing rewrites. They are equal until someone renames the file. Exporting only the first would make a backup silently lose the original
+     * filename of every renamed attachment, which is exactly the thing a backup is for.
+     *
+     * <p>
+     * The last column names an ENTRY inside the archive ({@code attachments/0001.png}), not a path on anyone's disk: the reader looks it up as an
+     * exact string among the entries it unpacked, and resolves nothing. The number is a sequence and the extension is the file name's own, so a user
+     * who unzips the archive gets files their computer will open, while the manifest stays the only place a user-chosen name appears.
+     */
+    public static final List<String> ATTACHMENTS_HEADER = List.of("date", "name", "filename", "file");
+
+    /**
+     * Every member an import REQUIRES. A loose {@code actions.csv} is refused - deleting an action already deletes its logs, so a partial archive
+     * under replace-all semantics is a very destructive thing to accept from a file that looks harmless.
      */
     public static final List<String> ALL_FILES = List.of(ACTIONS_FILE, LOGS_FILE, NOTES_FILE);
+
+    /**
+     * Every member an archive may hold, which is {@link #ALL_FILES} plus the OPTIONAL {@link #ATTACHMENTS_FILE}.
+     *
+     * <p>
+     * <strong>Attachments are optional where the other three are required</strong>, and the asymmetry is deliberate. An archive exported before
+     * attachments existed is a complete export of everything the account held at the time, and reading it as "this account has no attachments" is
+     * exactly right under replace-all - whereas refusing it would make every backup taken before the feature landed unrestorable. The three that are
+     * required are required because they validate against each other: a log names its action, so {@code logs.csv} without {@code actions.csv} cannot
+     * be checked at all.
+     */
+    public static final List<String> ALL_MEMBERS = List.of(ACTIONS_FILE, LOGS_FILE, NOTES_FILE, ATTACHMENTS_FILE);
 
     private TransferFiles() {
 

@@ -29,11 +29,16 @@ import java.util.Map;
 public sealed interface ArchiveOutcome permits ArchiveOutcome.Unpacked, ArchiveOutcome.Malformed {
 
     /**
-     * The archive opened. Only the members the format recognises are present; anything else the ZIP held was ignored.
+     * The archive opened. Only the names the format recognises are present; anything else the ZIP held was ignored.
+     *
+     * <p>
+     * The two maps are separate because the two kinds of entry are read differently: a member is text, decoded once as UTF-8 on the way out of the
+     * ZIP, while an attachment is opaque bytes that must never be decoded at all.
      *
      * @param members the recognised members' contents, keyed by file name
+     * @param files   each attachment's bytes, keyed by the entry name {@code attachments.csv} refers to it by
      */
-    record Unpacked(Map<String, String> members) implements ArchiveOutcome {
+    record Unpacked(Map<String, String> members, Map<String, byte[]> files) implements ArchiveOutcome {
 
     }
 

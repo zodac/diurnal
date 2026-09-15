@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -42,9 +43,10 @@ import org.jspecify.annotations.Nullable;
  * otherwise ordinary account, so three limits apply and each has a specific attack behind it:
  *
  * <ul>
- *     <li><strong>Only the format's own member names are read</strong>, compared for exact equality against {@link TransferFiles#ALL_FILES}. Every
- *     other entry is skipped without being decompressed at all. Because nothing is ever resolved as a path, an entry called {@code ../../etc/passwd}
- *     or {@code /etc/passwd} is not a traversal to defend against - it is simply a name that does not match one of three constants.</li>
+ *     <li><strong>Only names the format recognises are read</strong>: exact equality against {@link TransferFiles#ALL_MEMBERS} for a member, or
+ *     {@link TransferFiles#ATTACHMENT_DIRECTORY} followed by a bounded alphabet for an attachment's bytes. Every other entry is skipped without being
+ *     decompressed at all. Because nothing is ever resolved as a path, an entry called {@code ../../etc/passwd} or {@code /etc/passwd} is not a
+ *     traversal to defend against - it is simply a name that matches neither rule.</li>
  *     <li><strong>Entries are counted</strong>, so an archive holding a million tiny members cannot spend the request walking them.</li>
  *     <li><strong>Decompressed bytes are counted as they are read</strong>, per member and across the whole archive, and reading stops the moment
  *     either cap is passed. This is the zip-bomb defence: a few kilobytes of upload can otherwise inflate to gigabytes, and a limit on the compressed
@@ -76,12 +78,26 @@ public final class TransferArchive {
 
     private static final Logger LOGGER = LogManager.getLogger(TransferArchive.class);
 
-    private static final int MAX_ARCHIVE_BYTES = 64 * 1024 * 1024;
-
     /**
      * The most entries an archive may hold, counting the ones the format does not recognise.
+     *
+     * <p>
+     * <strong>Attachments are what size this.</strong> Four members plus one entry per attached file. It exists so that an archive of a million
+     * one-byte members cannot spend the request being walked before the byte cap notices - the byte cap is what bounds a LARGE archive, and this
+     * bounds a merely numerous one.
+     *
+     * <p>
+     * <strong>It is the byte cap that binds first now, and by a wide margin.</strong> An attachment may be as large as
+     * {@code MAX_ATTACHMENT_SIZE} (25 MB by default), so a whole-archive ceiling of {@code MAX_ARCHIVE_SIZE} (128 MB by default) is reached after a
+     * handful of files rather than after hundreds. A deployment that raises the attachment size, or whose users attach many large files, should
+     * raise {@code MAX_ARCHIVE_SIZE} with it - otherwise an account can reach a state where its own export will not import.
      */
-    public static final int MAX_ENTRIES = 64;
+    public static final int MAX_ENTRIES = 512;
+
+    // What may follow `attachments/` in an entry name. Nothing here is ever resolved as a path - a manifest row names an entry, and the entry is
+    // looked up as an exact string among the ones unpacked - so this is not a traversal defence. It bounds what a hostile archive can put in the
+    // map at all: without it, every entry under that prefix becomes a key, whatever it is called.
+    private static final Pattern ATTACHMENT_ENTRY = Pattern.compile("[A-Za-z0-9._-]{1,64}");
 
     private static final byte[] ZIP_MAGIC = {0x50, 0x4B};
     private static final int COPY_BUFFER_BYTES = 8192;
@@ -91,26 +107,41 @@ public final class TransferArchive {
     }
 
     /**
-     * Packs the given members into a ZIP archive.
+     * Packs the given CSV members into a ZIP archive, with no attachments.
      *
-     * @param members    each member's content, keyed by file name; a name outside {@link TransferFiles#ALL_FILES} is not written
+     * @param members    each member's content, keyed by file name; a name outside {@link TransferFiles#ALL_MEMBERS} is not written
      * @param modifiedAt the modification time to stamp every entry with
      * @return the archive bytes
      */
     public static byte[] pack(final Map<String, String> members, final Instant modifiedAt) {
+        return pack(members, Map.of(), modifiedAt);
+    }
+
+    /**
+     * Packs the given CSV members and attachment files into a ZIP archive.
+     *
+     * @param members    each member's content, keyed by file name; a name outside {@link TransferFiles#ALL_MEMBERS} is not written
+     * @param files      each attachment's bytes, keyed by the entry name {@code attachments.csv} refers to it by; a key outside
+     *                   {@link TransferFiles#ATTACHMENT_DIRECTORY} is not written
+     * @param modifiedAt the modification time to stamp every entry with
+     * @return the archive bytes
+     */
+    public static byte[] pack(final Map<String, String> members, final Map<String, byte[]> files, final Instant modifiedAt) {
         final ByteArrayOutputStream packed = new ByteArrayOutputStream();
         try (final ZipOutputStream archive = new ZipOutputStream(packed, StandardCharsets.UTF_8)) {
-            for (final String name : TransferFiles.ALL_FILES) {
+            for (final String name : TransferFiles.ALL_MEMBERS) {
                 final @Nullable String content = members.get(name);
                 if (content == null) {
                     continue;
                 }
+                writeEntry(archive, name, content.getBytes(StandardCharsets.UTF_8), modifiedAt);
+            }
 
-                final ZipEntry entry = new ZipEntry(name);
-                entry.setLastModifiedTime(FileTime.from(modifiedAt));
-                archive.putNextEntry(entry);
-                // No explicit closeEntry(): the next putNextEntry closes the current entry, and close() finishes the last one.
-                archive.write(content.getBytes(StandardCharsets.UTF_8));
+            // After the members, so an archive opened in a viewer reads as its manifest first and its payload second.
+            for (final Map.Entry<String, byte[]> file : files.entrySet()) {
+                if (isAttachmentEntry(file.getKey())) {
+                    writeEntry(archive, file.getKey(), file.getValue(), modifiedAt);
+                }
             }
         } catch (final IOException e) {
             // Nothing here touches a file or a socket - the sink is a byte array - so this cannot happen in practice, and there is no state a
@@ -120,14 +151,25 @@ public final class TransferArchive {
         return packed.toByteArray();
     }
 
+    private static void writeEntry(final ZipOutputStream archive, final String name, final byte[] content, final Instant modifiedAt)
+        throws IOException {
+        final ZipEntry entry = new ZipEntry(name);
+        entry.setLastModifiedTime(FileTime.from(modifiedAt));
+        archive.putNextEntry(entry);
+        // No explicit closeEntry(): the next putNextEntry closes the current entry, and close() finishes the last one.
+        archive.write(content);
+    }
+
     /**
      * Opens an archive, returning the contents of every member the format recognises.
      *
-     * @param archive the uploaded archive bytes
+     * @param archive          the uploaded archive bytes
+     * @param maxArchiveBytes  the most the whole archive may decompress to, from {@code transfer.max-archive-size} — the deployment's own ceiling,
+     *                         because attachments made it a figure that depends on the machine rather than a theoretical one
      * @return the recognised members, or the reason the archive could not be opened
      */
-    public static ArchiveOutcome unpack(final byte[] archive) {
-        return unpack(archive, MAX_ENTRIES, MAX_MEMBER_BYTES, MAX_ARCHIVE_BYTES);
+    public static ArchiveOutcome unpack(final byte[] archive, final int maxArchiveBytes) {
+        return unpack(archive, MAX_ENTRIES, MAX_MEMBER_BYTES, maxArchiveBytes);
     }
 
     /**
@@ -135,8 +177,8 @@ public final class TransferArchive {
      *
      * <p>
      * Exists so the limits can be exercised at their exact boundaries in a test, which the real values cannot be: proving that an archive of exactly
-     * {@link #MAX_ARCHIVE_BYTES} is accepted and one byte more is refused would otherwise mean building 32 MB of test data for every case. The
-     * production path is {@link #unpack(byte[])} and passes the constants.
+     * the configured archive ceiling is accepted and one byte more is refused would otherwise mean building 128 MB of test data for every case. The
+     * production path is {@link #unpack(byte[], int)}, which passes the two constants and the configured ceiling.
      *
      * @param archive          the uploaded archive bytes
      * @param maxEntries       the most entries the archive may hold
@@ -150,6 +192,7 @@ public final class TransferArchive {
         }
 
         final Map<String, String> members = new LinkedHashMap<>();
+        final Map<String, byte[]> files = new LinkedHashMap<>();
         int entries = 0;
         int totalBytes = 0;
 
@@ -163,7 +206,8 @@ public final class TransferArchive {
                 if (entries > maxEntries) {
                     return new ArchiveOutcome.Malformed(new ImportReason.TooManyEntries(maxEntries));
                 }
-                if (entry.isDirectory() || !TransferFiles.ALL_FILES.contains(entry.getName())) {
+                final boolean isMember = TransferFiles.ALL_MEMBERS.contains(entry.getName());
+                if (entry.isDirectory() || !(isMember || isAttachmentEntry(entry.getName()))) {
                     continue;
                 }
 
@@ -174,7 +218,13 @@ public final class TransferArchive {
                 }
 
                 totalBytes += content.get().length;
-                members.put(entry.getName(), new String(content.get(), StandardCharsets.UTF_8));
+                // A member is text and is decoded once, here; an attachment is opaque bytes and is never decoded at all - decoding one as UTF-8
+                // would corrupt every file that is not text, which is most of them.
+                if (isMember) {
+                    members.put(entry.getName(), new String(content.get(), StandardCharsets.UTF_8));
+                } else {
+                    files.put(entry.getName(), content.get());
+                }
             }
         } catch (final IOException e) {
             // The returned message carries only the reason; the stack trace stays here, where it says which member the reader gave up on.
@@ -182,7 +232,13 @@ public final class TransferArchive {
             return new ArchiveOutcome.Malformed(new ImportReason.ArchiveUnreadable(e.getMessage()));
         }
 
-        return new ArchiveOutcome.Unpacked(Map.copyOf(members));
+        return new ArchiveOutcome.Unpacked(Map.copyOf(members), Map.copyOf(files));
+    }
+
+    // An entry holding one attachment's bytes: the format's own directory, then a name from a bounded alphabet. See ATTACHMENT_ENTRY.
+    private static boolean isAttachmentEntry(final String name) {
+        return name.startsWith(TransferFiles.ATTACHMENT_DIRECTORY)
+            && ATTACHMENT_ENTRY.matcher(name.substring(TransferFiles.ATTACHMENT_DIRECTORY.length())).matches();
     }
 
     private static boolean hasZipMagic(final byte[] archive) {

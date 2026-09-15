@@ -495,6 +495,25 @@
                                class="btn-primary text-xs px-3 py-1.5 shrink-0 whitespace-nowrap">{msg:exportUserData}</a>
                         </div>
 
+                        {! Whether the export carries the note attachments as well as the writing, offered ONLY to an
+                             account that has some - a checkbox that can only ever say "include the nothing you have"
+                             explains a feature rather than operating one.
+
+                             A plain checkbox, not a preference toggle: it is a choice about THIS download, not
+                             something to remember. settings.js rewrites the link's query string as it changes, which
+                             is also why the box is not inside a form - a GET form cannot send "false" for an
+                             unchecked checkbox at all, and the API's own default is to include them. With scripting
+                             off the link is left exactly as rendered, so the export is complete, which is the safe
+                             way for this particular control to fail. !}
+                        {#if hasAttachments}
+                        <div class="flex items-center gap-2 -mt-2">
+                            {! accent-brand is the app's own checkbox treatment (the stats picker's rows use the
+                                 same), so this reads as one of the family without a component class for one use. !}
+                            <input type="checkbox" id="data-export-attachments" class="shrink-0 accent-brand cursor-pointer" checked>
+                            <label for="data-export-attachments" class="text-sm text-ink cursor-pointer">{msg:exportAttachments}</label>
+                        </div>
+                        {/if}
+
                         {! Import. The file is never submitted by the input itself — settings.js reads it and
                              posts the raw bytes, first to the preview and then, only if the user confirms, to
                              the import. !}

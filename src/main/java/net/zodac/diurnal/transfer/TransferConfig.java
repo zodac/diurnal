@@ -17,14 +17,14 @@
 
 package net.zodac.diurnal.transfer;
 
+import io.quarkus.runtime.configuration.MemorySize;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
 
 /**
- * Typed view over the {@code transfer.*} settings governing the shape of an exported archive.
+ * Typed view over the {@code transfer.*} settings governing the shape of an exported archive, and how large an imported one may be.
  */
-@FunctionalInterface
 @ConfigMapping(prefix = "transfer")
 public interface TransferConfig {
 
@@ -48,4 +48,37 @@ public interface TransferConfig {
     @WithName("csv-bom")
     @WithDefault("true")
     boolean csvByteOrderMark();
+
+    /**
+     * The most an uploaded archive may decompress to, across all of its entries, driven by {@code MAX_ARCHIVE_SIZE}. This is the zip-bomb defence:
+     * a few kilobytes of upload can otherwise inflate to gigabytes, and a limit on the COMPRESSED size (or a trust in an entry's declared size,
+     * which is attacker-controlled) does not bound that at all.
+     *
+     * <p>
+     * <strong>It is configurable because attachments made it a real ceiling rather than a theoretical one.</strong> Before them the figure only had
+     * to admit a journal written out as text, which no plausible account approaches; an account that attaches photographs reaches any fixed number
+     * eventually, and how much headroom is affordable depends on the machine.
+     *
+     * <p>
+     * <strong>What it costs, and why the default is not larger.</strong> One import holds the compressed upload AND its decompressed entries at
+     * once, and an image barely compresses - so peak heap is about {@code 2 x} this value per import, times
+     * {@code app.http.max-concurrent-imports}. At the default 128 MB and two permits that is roughly 512 MB against the 1330 MB heap a 2 GB
+     * container gives (see the README's "Application Memory"), which is as much of it as one feature should claim. Raising this means raising
+     * {@code MAX_UPLOAD_SIZE} with it - the HTTP layer refuses a larger body before this is ever consulted - and giving the container the memory to
+     * match.
+     *
+     * @return the most an uploaded archive may decompress to
+     */
+    @WithName("max-archive-size")
+    @WithDefault("128M")
+    MemorySize maxArchiveSize();
+
+    /**
+     * {@link #maxArchiveSize()} as a raw byte count, for the reader's running comparison as it decompresses.
+     *
+     * @return the most an uploaded archive may decompress to, in bytes
+     */
+    default int maxArchiveSizeBytes() {
+        return Math.toIntExact(maxArchiveSize().asLongValue());
+    }
 }
