@@ -32,6 +32,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import io.restassured.http.ContentType;
 import jakarta.inject.Inject;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
@@ -39,6 +40,7 @@ import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.note.NoteAttachment;
 import net.zodac.diurnal.persistence.LogStatements;
 import net.zodac.diurnal.transfer.TransferArchive;
 import net.zodac.diurnal.transfer.TransferFiles;
@@ -65,6 +67,8 @@ class SurfaceParityIT extends IntegrationTestBase {
 
     // action.ActionValidation.DEFAULT_COLOUR, repeated here because it is package-private to that package.
     private static final String NEUTRAL_COLOUR = "#64748b";
+
+    private static final byte[] FILE = "not really a png".getBytes(StandardCharsets.UTF_8);
 
     private static final LocalDate TODAY    = FIXED_TODAY;
     private static final LocalDate TOMORROW = FIXED_TODAY.plusDays(1);
@@ -589,6 +593,75 @@ class SurfaceParityIT extends IntegrationTestBase {
             .as("the web surface must offer the same word the API named, as a link that searches for it")
             .contains("Did you mean &#39;kaleidoscope&#39; (1 note found)?")
             .contains("href=\"/notes?q=kaleidoscope\"");
+    }
+
+    @Test
+    void attachmentUpload_storesTheSameFileAndTokenOnBothSurfaces() {
+        given().contentType("image/png").queryParam("filename", "route.png").body(FILE)
+                .post("/api/v1/notes/" + TODAY + "/attachments")
+                .then().statusCode(OK)
+                .body("name", org.hamcrest.Matchers.equalTo("route.png"))
+                .body("token", org.hamcrest.Matchers.equalTo("[[route.png]]"));
+
+        given().contentType("image/png").queryParam("filename", "route.png").body(FILE)
+                .post("/internal/note-attachments/" + TOMORROW)
+                .then().statusCode(OK)
+                .body("attachment.name", org.hamcrest.Matchers.equalTo("route.png"))
+                .body("attachment.token", org.hamcrest.Matchers.equalTo("[[route.png]]"));
+
+        runInTx(() -> assertThat(NoteAttachment.datesForUser(primaryId))
+            .as("both surfaces store a file the same way, so the same upload lands on both days")
+            .containsExactlyInAnyOrder(TODAY, TOMORROW));
+    }
+
+    @Test
+    void duplicateAttachmentName_rejectedOnBothSurfaces_nameUnchanged() {
+        // A TYPED name is the whole of what was submitted, so a collision is refused rather than given a " (2)" suffix - on both surfaces, or the
+        // note's [[name]] token would address two files on one of them.
+        final UUID[] second = new UUID[1];
+        runInTx(() -> {
+            newAttachment(primaryId, TODAY, "route.png", FILE);
+            second[0] = newAttachment(primaryId, TODAY, "map.png", FILE);
+        });
+
+        given().contentType(ContentType.JSON).body("{\"name\":\"route.png\"}")
+                .patch("/api/v1/notes/" + TODAY + "/attachments/" + second[0])
+                .then().statusCode(BAD_REQUEST);
+
+        given().contentType(ContentType.JSON).body("{\"name\":\"route.png\"}")
+                .post("/internal/note-attachments/" + TODAY + '/' + second[0] + "/rename")
+                .then().statusCode(UNPROCESSABLE_ENTITY); // the web surface answers 422 where the API answers 400
+
+        runInTx(() -> assertThat(storedAttachmentName(primaryId, TODAY, second[0]))
+            .as("neither surface may leave the day holding two files of one name")
+            .isEqualTo("map.png"));
+    }
+
+    @Test
+    void attachmentSearch_matchesTheSameFilesOnBothSurfaces() {
+        // One file renamed since it was uploaded, so the term below matches on the name the user no longer sees - the case that tells the two
+        // surfaces apart if either of them searches only one of an attachment's two names.
+        runInTx(() -> {
+            newRenamedAttachment(primaryId, TODAY, "Berlin ticket", "route.png", FILE);
+            newRenamedAttachment(primaryId, TOMORROW, "receipt.pdf", "receipt.pdf", FILE);
+        });
+
+        given().queryParam("q", "route")
+                .get("/api/v1/attachments")
+                .then().statusCode(OK)
+                .body("totalCount", org.hamcrest.Matchers.is(1))
+                .body("items[0].name", org.hamcrest.Matchers.equalTo("Berlin ticket"))
+                .body("items[0].fileName", org.hamcrest.Matchers.equalTo("route.png"));
+
+        final String html = given().queryParam("q", "route")
+            .get("/internal/note-attachments/list")
+            .then().statusCode(OK)
+            .extract().asString();
+
+        assertThat(html)
+            .as("both surfaces match EITHER name through one shared rule, so a term must keep the same files on each")
+            .contains("Berlin ticket")
+            .doesNotContain("receipt.pdf");
     }
 
     @Test

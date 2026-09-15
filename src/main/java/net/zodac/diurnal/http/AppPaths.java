@@ -84,6 +84,10 @@ public class AppPaths {
     private static final String INTERNAL_SETTINGS = INTERNAL + SETTINGS;
     private static final String INTERNAL_ACTIONS = INTERNAL + ACTIONS;
     private static final String INTERNAL_NOTES = INTERNAL + NOTES;
+    // A root of its own rather than a path under INTERNAL_NOTES: /internal/notes already routes /{date}, so an "attachments" segment beneath it
+    // would be one literal away from being read as a date by whichever resource JAX-RS sorted first.
+    private static final String INTERNAL_NOTE_ATTACHMENTS = INTERNAL + "/note-attachments";
+    private static final String FILE = "/file";
     private static final String INTERNAL_STATS = INTERNAL + STATS;
     private static final String INTERNAL_LOGS = INTERNAL + "/logs";
     private static final String INTERNAL_ADMIN_USERS = INTERNAL + ADMIN_USERS;
@@ -537,6 +541,38 @@ public class AppPaths {
      */
     public String getInternalNotesListFirstPage() {
         return basePath + INTERNAL_NOTES + LIST + FIRST_PAGE_QUERY;
+    }
+
+    // Internal surface - note attachments
+
+    /**
+     * The paginated attachments list swapped into the notes page's second table.
+     *
+     * @return the internal attachments-list URL
+     */
+    public String getInternalNoteAttachmentsList() {
+        return basePath + INTERNAL_NOTE_ATTACHMENTS + LIST;
+    }
+
+    /**
+     * The attachments list reset to its first page, which is what that table's search box requests.
+     *
+     * @return the internal attachments-list URL for page one
+     */
+    public String getInternalNoteAttachmentsListFirstPage() {
+        return basePath + INTERNAL_NOTE_ATTACHMENTS + LIST + FIRST_PAGE_QUERY;
+    }
+
+    /**
+     * One attachment's bytes — what the hover card's image preview loads and what its download link points at. Addressed by the day as well as the
+     * id, exactly as the write endpoints beside it are.
+     *
+     * @param date         the day the attachment belongs to
+     * @param attachmentId the attachment's id
+     * @return the internal attachment-file URL
+     */
+    public String internalNoteAttachmentFile(final LocalDate date, final UUID attachmentId) {
+        return basePath + INTERNAL_NOTE_ATTACHMENTS + ROOT + date + ROOT + attachmentId + FILE;
     }
 
     // Internal HTMX surface - day log
