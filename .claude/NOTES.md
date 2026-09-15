@@ -1,13 +1,13 @@
 # Notes (free text per date)
 
-> **This file is ~93 KB. Read only the section you need** - `grep -n '^#' .claude/NOTES.md` for its
+> **This file is ~119 KB. Read only the section you need** - `grep -n '^#' .claude/NOTES.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Requirements (as agreed)**
 > - **Decisions taken**
 > - **Design** — Data model, Text validation, Endpoints, Stats, Dashboard layout, The note box, Draft retention, Calendar caching, The note colour,
 >   Coloured day numbers, Searching notes, Encryption at rest, The character counter preference, The length bound is per-deployment
->   (`NOTE_MAX_LENGTH`)
+>   (`NOTE_MAX_LENGTH`), Attachments
 > - **Deliberately out of scope**
 > - **API compatibility**
 
@@ -937,6 +937,262 @@ a state that is already handled gracefully.
 Its old Javadoc claimed "a decade of daily notes at the 10,000-character cap is a small fraction of it", which was wrong
 by more than 4× (3650 × 10,000 = ~36 MB), so an export could already outgrow the limit that reads it back. It is still a
 bound on plausible data rather than a guarantee — the cap is the zip-bomb defence and cannot simply be removed.
+
+### Attachments
+
+> A note could only ever be words. A day's evidence — the ticket stub, the scan of the letter, the photo of the whiteboard — lived somewhere else, and
+> the writing about it had no way to point at it. Attachments put the file where the writing is.
+
+Added 2026-09-14. `V2__create_note_attachments.sql` — the first migration after the 1.0.0 schema collapse.
+
+#### The shape of it
+
+**A file is embedded IN the note's text, by a `[[name]]` token.** Uploading one stores the file and answers with the token; the note box writes that
+token at the caret, and it reaches the server on the next ordinary Save. The token is the file's POSITION in the writing, so a user moves an
+attachment by moving the token and removes it by deleting the token — the same editing they would do to any other part of the note.
+
+**The box draws a tinted pill behind every token that names a file the day actually holds.** It does that with a MIRROR: a layer behind the textarea
+holding the same text, with the same metrics, drawn in transparent ink, whose only visible contribution is the pill. That is what makes an embedded
+file look different from prose while the box stays a plain `<textarea>` — the caret, the selection, IME input and the character counter are all
+untouched, because the real text is still the textarea's own.
+
+> **The mirror sits BEHIND, and that is the load-bearing decision.** An overlay on TOP would have to swallow pointer events to keep the box typeable,
+> and would then be unable to hand any back to a pill — so the hover card could never open. Behind, the pills' own rectangles are measured
+> (`getClientRects`, plural: a token wrapping across two lines is two rectangles) and the pointer is hit-tested against them, which needs no pointer
+> events at all. The cost is that every metric on `.note-highlights` is a keep-in-sync pair with `.form-input`/`.note-input`: one pixel of difference
+> in padding, font size or line height slides every pill away from the word it belongs to.
+
+> **`white-space: pre-wrap` collapses a FINAL line break**, so the mirror is rendered one line shorter than the textarea the moment a note ends on
+> one — and every pill below the fold is then drawn a line too high. `renderHighlights` appends a trailing `\n` for exactly that reason.
+
+**Hovering a pill opens ONE card**, moved to whichever pill the pointer is over rather than one card per token: the mirror is rebuilt on every
+keystroke, so a card rendered among the pills would be destroyed mid-interaction. It offers Download, Rename and Remove, plus a preview of the file
+where one is possible. Closing is delayed ~200 ms so the pointer can travel from the pill to the card without it vanishing on the way.
+
+**A hover must DWELL for a second before the card appears** (`HOVER_DELAY_MS`). A pointer crossing the note box passes over every pill in its path, and
+a card that opened under each one would flicker rather than inform; a click bypasses the delay entirely, because a click is a request.
+
+**Clicking a pill PINS that card**, and the two states are told apart by their outline — dashed while it is merely following the pointer, solid once
+it is pinned, with a close button that only a pinned card shows. The button sits at the END of the existing action row rather than floating in a
+corner, and the card is sized to fit it there: pinning must ADD a control to a row that already exists, not reserve a strip and shift everything
+down. The two states differ by their border and nothing else. A pinned card ignores the pointer entirely: it does not follow it to another pill
+and does not close when it leaves, so a file can be renamed, played or read without the pointer having to be held in place. Escape and a click
+outside the panel still close it, as they close any dismissable surface here. Clicking is also the only way in on a touch device, which has no hover
+at all — pinning is what that gesture always wanted to mean.
+
+**A preview is a thumbnail or a player, decided by the UPLOADED file name** (`AttachmentNames.previewFor`, published to both surfaces as
+`AttachmentPreview`'s key). An image gets a thumbnail that opens full size in a new tab; a sound file gets the browser's own `<audio controls>`,
+`preload="none"` so hovering a pill never pulls a file down for a clip nobody plays. A playing clip holds the card open (`scheduleCloseCard` refuses
+while `!paused`) and is paused when the card is closed for real — a hidden `<audio>` keeps playing otherwise.
+
+#### The attachment table
+
+```sql
+CREATE TABLE note_attachments (
+    id                     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id                UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    note_date              DATE        NOT NULL,
+    display_name_encrypted BYTEA       NOT NULL,
+    file_name_encrypted    BYTEA       NOT NULL,
+    content_encrypted      BYTEA       NOT NULL,
+    byte_size              INTEGER     NOT NULL,
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_note_attachments_user_id_note_date ON note_attachments (user_id, note_date);
+```
+
+- **An attachment belongs to a DAY, not to a note row.** Keyed `(user_id, note_date)` rather than by a foreign key to `notes`, because a file can
+  legitimately be attached to a day that has no note text yet: the first upload onto an empty day writes the attachment, and the token it inserts is
+  what the note then holds when the user saves. `NoteService` keeps the two ends together — see [Who collects what](#who-collects-what).
+- **There are TWO names, and a rename only touches one of them.** `display_name_encrypted` is what the user calls the file and what the note's
+  `[[token]]` addresses, so it is editable and unique within a day; `file_name_encrypted` is what the upload was called, extension and all, and
+  nothing rewrites it. Keeping only the first — which is what the feature did before this column existed — meant renaming `IMG_2931.jpg` to
+  `Berlin sunset` destroyed the only record of what the file actually was, extension included. Both are `NOT NULL`: every row gets both at insert,
+  so the two differ only where someone has renamed the file. A row whose upload name will not OPEN still falls back to the display name, the same
+  way a damaged display name never fails the day.
+- **The id is assigned by the application**, not defaulted by the database, because it is bound into all three seals: the value has to exist before
+  any of them can be sealed.
+- **Nothing reads a listing with the file in it.** `SealedAttachment` is a `SELECT new …` projection of `(id, note_date, display_name_encrypted,
+  file_name_encrypted, byte_size)`; only a download or a preview selects `content_encrypted`, through its own single-column query. Listing a day
+  otherwise detoasts every file on it to render a name.
+- **No index on either name, and none is possible.** Both are sealed, so there is no `LIKE`, no trigram index and no collation that means anything
+  against AES-GCM ciphertext - the same reason note content is searched by opening it. The one index the table has selects the account's rows; the
+  matching happens in the application.
+
+#### Encryption: both filenames are sealed too
+
+Both halves are sealed under the owner's existing notes data key — the same key the note itself uses, so attachments needed no new key material, no
+migration of `user_notes_keys` and no change to rotation. `AttachmentContent` binds each half to the **owner, the day, the row's own id, and which
+half it is**.
+
+> **Why the NAME and not just the bytes.** A filename is the note's content by another route: `divorce-papers.pdf` gives away as much as the
+> paragraph beside it, which is precisely what encrypting `notes.content_encrypted` was built to prevent. Storing it in the clear would have
+> reinstated the threat one column over.
+
+> **Why the purpose is in the associated data.** Without it, the two sealed columns are interchangeable: a name pasted into `content_encrypted` would
+> open perfectly and be served as a file. Binding `"name"` / `"file"` makes the swap fail to open instead.
+
+**The cost of sealing the name is that no `UNIQUE` index can hold a day's names apart** — a sealed value cannot be compared in SQL. Uniqueness is
+therefore settled in `NoteAttachmentService`, over the handful of rows a day holds, which are already being opened to render the card. It HAS to be
+unique, because the note's token addresses a file by name.
+
+| Which surface | On a collision                                       | Why                                                                                                        |
+|---------------|------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| Upload        | silently appends `" (2)"` (`AttachmentNames.unique`) | The user chose a FILE; its name came along. Refusing it would refuse the file for something nobody typed   |
+| Rename        | refuses (`AttachmentRefusal.DUPLICATE_NAME`)         | The name is the whole of what was submitted — the reject-never-coerce rule every other typed field follows |
+
+The same split governs the square brackets the token is written with: an uploaded name has them REPLACED
+(`AttachmentNames.sanitise`), a typed one is REFUSED (`TextRules.NO_SQUARE_BRACKETS` on `TextFields.ATTACHMENT_NAME`).
+
+#### Who collects what
+
+An attachment and the note's text are two halves of one thing, and three paths keep them together:
+
+| When                     | What happens                                                          | Where                                     |
+|--------------------------|-----------------------------------------------------------------------|-------------------------------------------|
+| A note is SAVED          | every file the saved text no longer names is deleted                  | `NoteService.removeUnembeddedAttachments` |
+| A note is CLEARED        | the day's files go with it, whether or not there was a note to remove | `NoteService.clear`                       |
+| A journal is REPLACED    | every file the account holds goes with it (an import carries none)    | `NoteService.replaceAll`                  |
+| An attachment is renamed | every token naming it is rewritten, in the same transaction           | `NoteAttachmentService.rename`            |
+| An attachment is deleted | every token naming it is removed, in the same transaction             | `NoteAttachmentService.remove`            |
+
+Removing a token leaves the prose around it untouched — and the rewritten note is then stored through the ordinary save path, so the note's own
+normalisation closes the gap it left, exactly as it would for a space the user had deleted by hand. Nothing rewrites a note on its behalf.
+
+- **A save is what settles it**, which is also what collects a file uploaded onto a day the user then navigated away from without saving. A name that
+  will not OPEN is left alone rather than deleted: it cannot be matched against the text, and deleting on the strength of a comparison that could not
+  be made is how a file disappears for the wrong reason.
+- **The note is always rewritten through `NoteService`**, never by writing the row directly — a note has exactly one legitimate stored form, and that
+  bean is the only thing that knows it. It also means a rename that pushes a note already at its bound past it is REFUSED there, and
+  `@RollbackOnErrorStatus` undoes the row change beside it, so the two can never end up out of step.
+- **Clearing the day removes the files even when the day had no note**, which is what makes "Clear, then Save" a complete way to empty a day.
+
+#### Serving a file
+
+**The media type and the `Content-Disposition` are derived from the STORED NAME, never from anything the uploader sent.** A `Content-Type` on an
+upload is chosen by whoever performed it, so echoing it back to a later reader would let an account store a file this application then serves, from
+its own origin, as whatever they said it was.
+
+- **The type comes from the FILE name, the download name from the DISPLAY name.** What the bytes are cannot be changed by relabelling them, and a
+  rename may legitimately leave the display name with no extension at all — so previewability and `Content-Type` follow the upload name, while the
+  `filename` the browser saves it under is what the user chose to call it.
+- A name whose extension is in `AttachmentNames`' fixed raster-image table is served as that type, `inline`, so an `<img>` can show it.
+- **So is a sound file**, from a second table of the formats every current browser decodes natively: `mp3`, `m4a`, `aac`, `wav`, `flac` everywhere,
+  and the Ogg family (`ogg`, `oga`, `opus`) everywhere but older Safari, where the element simply declines to start. Nothing is transcoded — this is
+  a stateless container with no `ffmpeg`, and a file is a row — so the set is exactly what a browser already handles, gated on the extension the same
+  way images are. Audio passes the same safety test images do: a media element DECODES, it does not execute. Opus earns its place despite the Safari
+  caveat because it is the only one of them that holds minutes rather than seconds of speech inside `MAX_ATTACHMENT_SIZE`.
+- **Everything else is `application/octet-stream` with an `attachment` disposition** — including **SVG**, deliberately. An SVG is an image every
+  browser renders AND a document that can carry script, so previewing one inline would hand an uploader same-origin script execution. It uploads and
+  downloads like any other file; it simply never previews.
+- The name rides the header twice: a stripped ASCII `filename` for a client that understands nothing else, and RFC 5987 `filename*` for everything
+  current. The fallback is built by REMOVING what will not fit rather than transliterating it — and the quote and backslash go with it, which is what
+  stops a name from closing the quoted string and writing a header of its own.
+
+#### Uploading
+
+**An upload can be abandoned.** The progress bar carries a cancel button that aborts the `XMLHttpRequest`; nothing is stored for a request that never
+completed, so there is no cleanup to do and nothing to report — the bar and the status simply go. Whatever was queued behind it is dropped with it.
+
+**A file over the ceiling is refused BEFORE it is sent**, by the browser, against `data-max-attachment-bytes` on the note panel
+(`AttachmentPolicy#maxBytes`), and the refusal names the figure (`AttachmentPolicy#maxLabel`). The server's `413` remains the authoritative answer —
+this is the courtesy. Without it a large file uploads for as long as it takes to reach the HTTP layer's own ceiling and is then killed mid-body,
+which the browser reports as a bare `ERR_CONNECTION_RESET` with no message anywhere: the symptom that prompted this.
+
+> **A slow upload needs a longer read timeout, and that timeout is global.** Quarkus defaults `quarkus.http.read-timeout` to 60 s, which a file near
+> `MAX_ATTACHMENT_SIZE` on a phone's uplink can exceed — the connection is then dropped mid-body, again as `ERR_CONNECTION_RESET`. It is raised to
+> 5 minutes (`UPLOAD_READ_TIMEOUT`), and it is a CONNECTION-level setting with no per-path form, so it applies to the whole server. That is the
+> reason to raise it only as far as the largest legitimate upload needs; the body SIZE is bounded separately and far more tightly, so a slow sender
+> cannot also be an unbounded one.
+
+**A raw request body with the name in a query parameter, not a multipart form.** The archive import already works this way
+(`TransferInternalResource`), it keeps the application off a multipart extension it otherwise has no use for, and it is what lets the box report
+progress: `XMLHttpRequest.upload.onprogress` measures the body it is sending whatever shape that body has.
+
+> **`XMLHttpRequest`, not `fetch`, and this is the one place in the app that is true.** `fetch` can only stream a request body over HTTP/2 with a
+> `ReadableStream` — neither universally supported nor available over plain HTTP — so a progress indicator built on it would show a spinner rather
+> than a determinate bar. An expired session arrives in the same two shapes it does for `fetch` (see `Diurnal.requireSession`), so `note.js` makes
+> the same check against the status and `xhr.responseURL`.
+
+**The size ceiling is `app.http.max-attachment-body` (`MAX_ATTACHMENT_SIZE`, 25 MB), a limit of its own.** It is enforced where every other body
+limit is — `http.RequestBodyLimitFilter`, on `Content-Length`, refused as a `413` before the body is read — but it is deliberately NOT the 1 MB
+`MAX_REQUEST_BODY` the rest of the application is held to. That cap exists so an anonymous caller cannot make the server buffer megabytes on a hot
+path (a login, which then runs an Argon2id hash), and raising it to fit a video would hand that lever to every endpoint. This one applies to two
+authenticated `POST`s and nothing else (`http.AttachmentUploadPaths` — the METHOD is part of the match, since `GET /internal/note-attachments/list`
+has the same path shape).
+
+> **Three things move with it.** `MAX_UPLOAD_SIZE` must stay at or above it, or Vert.x refuses the body before any message can be worded.
+> `MAX_ARCHIVE_SIZE` bounds what an import may decompress, and at 25 MB a file it is reached after five or six attachments — an account past it can
+> still export but cannot re-import, so a deployment raising one should raise the other. And heap: an attachment is sealed as a single blob, so an
+> upload holds the file more than once and a download holds it whole (there are no ranges to serve from a sealed value).
+
+`NOTE_ATTACHMENT_EXTENSIONS` is the other setting, and it defaults to `*`.
+
+#### The attachments table on the notes page
+
+The notes page carries a SECOND table beneath the notes one, listing every file the account holds — newest day first, oldest-attached first within a
+day — with a search box of its own that matches on the file's NAMES and on nothing else. Its row is a file: the day (linking to the dashboard), the
+display name (linking to the bytes, in a new tab), the name it was uploaded under, and the size. `NoteAttachmentService.searchPage` selects it,
+`AttachmentPages` shapes the rows, `partials/attachments-list.html` renders them and `GET /internal/note-attachments/list` swaps them;
+`GET /api/v1/attachments` is the public twin.
+
+- **Two tables, because they answer questions that only look alike.** "Which day did I write about the tickets" is a search of prose; "where did
+  that PDF go" is a search of filenames. One box folding them together answers neither well — a note mentioning `invoice` is not the file
+  `invoice.pdf`, and a filename is not written in the note's own language — and it leaves each result row ambiguous about what it even IS.
+- **The matching run is marked in both name columns** (`NoteSearch.marked`), the same `<mark>` the notes table puts on a snippet. It differs in
+  needing no window: a filename is bounded and shown whole, so every occurrence is marked rather than one window's worth.
+- **Both names are shown, and both are searched.** They read identically until someone renames a file, and that is not redundancy to tidy away: it
+  is what makes a renamed one legible beside the rest, and what lets either half-remembered name find the row (`NoteSearch.matches` against each, so
+  a blank term still short-circuits on the first). The display-name column is the link, because the row already has one thing to click and the other
+  column is what the file IS rather than a second way to reach it.
+- **A filename is searched by OPENING it, exactly as a note's content is.** The stored name is sealed under the account's data key, so there is no
+  `LIKE` to run and no index to page on; the account's rows are read (the projection never touches the bytes), every name is opened and the result is
+  sliced. Unlike the note search there is no blank-term fast path, and it needs none: there are as many rows as the account has FILES rather than
+  days, each name is a hundred characters at most, and a second code path would buy a page of names without ever being able to page a search.
+- **Its state is HTMX-only, not in the URL.** A page carries one `?q=`/`?page=` pair at most, and that pair belongs to the notes table; a second pair
+  would have to be threaded through every bookmark, back-navigation and "did you mean" link on the page to restore a list that is a scroll away from
+  being re-typed. The same trade the dashboard's day panel makes — `pageUrl=''` plus `searchSource` on the shared pagination footer.
+- **Both boxes are disabled on the same rule, asked of different things.** The notes box is inert for an account with no note; this one is inert for
+  an account with no file. With a blank term that second question is the table's own `totalCount`, so it costs no query of its own.
+- **The paperclip on a notes row stays**, since it marks a day that holds a file — the one thing about an attachment a database predicate can answer
+  (`NoteAttachment.datesForUser`, an index read over `idx_note_attachments_user_id_note_date`).
+- **The table shares the notes page-size preference** (`PageSection.NOTES`). The two are halves of one page, and nobody would size them separately.
+
+> **This replaced a `has:attachment` term filter**, which put a structured `field:value` token in the notes search box and a paperclip toggle beside
+> it. It worked and was cheap — the qualifying days were an index read — but it asked the reader to learn a syntax to reach a list the page can
+> simply show, and its results were still DAYS when what was being looked for was a FILE. `NoteFilters`/`NoteQuery` and
+> `Note.sealedForUserAndDates` went with it. If a narrowing like `extension:png` is ever wanted, it belongs as an ordinary control on this table.
+
+#### Decisions taken for attachments
+
+| Decision            | Chosen                                        | Rejected, and why                                                                                                                                                                                                                     |
+|---------------------|-----------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Where a file lives  | **A row in `note_attachments`**               | A directory on disk. Rejected: the app container is stateless by design, so it would need a second backup, a second restore and a second thing to get wrong on a rebuild — and it would sit where `ON DELETE CASCADE` cannot reach it |
+| How it is embedded  | **A `[[name]]` token in the note's own text** | A list beside the note. Rejected: the file then has no POSITION in the writing, and "remove it by deleting it" stops being ordinary editing                                                                                           |
+| What the token says | **The display name**                          | The id. Rejected: the box shows the note's RAW text, so a UUID would sit in the middle of the user's sentence — and "rename" would stop meaning what it says                                                                          |
+| How a pill is drawn | **A mirror layer BEHIND the textarea**        | An overlay on top (cannot hand pointer events to a pill), and a `contenteditable` editor (throws away the counter, the drafts, the resize and the whole textarea's behaviour)                                                         |
+| The filename        | **Sealed, like the note**                     | Stored in the clear for a `UNIQUE` index. Rejected: it is the note's content by another route, and the index is worth less than the leak costs                                                                                        |
+| Renaming            | **A second column, fixed at upload**          | One name that a rename overwrites (what V2 did). Rejected: it destroyed the only record of what the file was, extension included - and the extension is what decides how the bytes are served                                         |
+| Upload transport    | **A raw body + `XMLHttpRequest`**             | A multipart form (a new extension for one endpoint) and `fetch` (no upload progress outside HTTP/2 + streams)                                                                                                                         |
+| Size limit          | **`MAX_ATTACHMENT_SIZE`, 25 MB, its own**     | Reusing `MAX_REQUEST_BODY` (what shipped first, at 1 MB). Rejected once real files were wanted: raising the shared cap to fit a video hands an anonymous caller the same allowance on `/api/v1/auth/login`                            |
+| SVG                 | **Uploadable, never previewed inline**        | Treating it as an image. Rejected outright: it renders AND can carry script, so an inline one is same-origin script execution                                                                                                         |
+| Finding a file      | **A second table on the notes page**          | A `has:attachment` token in the notes search box (shipped first, then removed): it made the reader learn a syntax, and still answered with DAYS when the thing being looked for was a FILE                                            |
+
+#### Attachment consequences to keep in mind
+
+- **An attachment IS exported, bytes and all**, as an `attachments.csv` manifest (carrying BOTH names, so a renamed file keeps what it was uploaded
+  as) plus one archive entry per file - so an export is a backup of the files as well as the writing. The member is OPTIONAL on the way back in, so
+  an archive taken before attachments existed still imports (and, an import replacing everything, correctly leaves the account with none). See
+  [`TRANSFER.md`](TRANSFER.md).
+- **A filename must never reach the logs**, for the same reason a note's content must not. Every statement in `NoteAttachmentService` carries the
+  account, the date and a count; `SecretsStayOutOfLogsTest` fails any that names `displayName`, `previousName`, `attachmentName`, `fileName`,
+  `rawName` or `sanitised`.
+- **`AttachmentRefusal` carries no display label.** The page resolves its wording through `partials/attachment-refusal.html` and the API through
+  `AttachmentRefusalExtensions`, the same split `TextOutcome.Failure` already has — and `TemplateSwitchCoverageTest` fails a constant added without
+  its arm, which would otherwise ship an EMPTY banner that reads as the upload having silently worked.
+- **The note box's own i18n strings for this ride `#note-panel`'s `data-i18n-*` attributes**, not `layout.html`'s `window.Diurnal.i18n` block: that
+  block is an inline script whose CSP hash is pinned by `SecurityHeadersFilterIT`, and these are wanted on exactly one page.
 
 ## Deliberately out of scope
 

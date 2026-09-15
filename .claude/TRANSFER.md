@@ -1,6 +1,6 @@
 # Data Export & Import
 
-> **This file is ~20 KB. Read only the section you need** - `grep -n '^#' .claude/TRANSFER.md` for its
+> **This file is ~28 KB. Read only the section you need** - `grep -n '^#' .claude/TRANSFER.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Why**
@@ -34,15 +34,36 @@ pins exactly that.
 
 ## The format
 
-A ZIP holding three CSV members. UTF-8 with a leading **byte-order mark** (unless `EXPORT_CSV_BOM=false` — see
+A ZIP holding four CSV members, plus one entry per attached file. UTF-8 with a leading **byte-order mark** (unless `EXPORT_CSV_BOM=false` — see
 below), **CRLF** record separators, RFC 4180 quoting. The reader strips a BOM again — whatever was written, and
 whatever an editor has since added — and accepts CRLF, LF or a lone CR.
 
-| Member        | Header              | Notes                                      |
-|---------------|---------------------|--------------------------------------------|
-| `actions.csv` | `name,colour`       | ordered by name                            |
-| `logs.csv`    | `date,action,count` | ordered by date then action                |
-| `notes.csv`   | `date,content`      | ordered by date; content is **plain text** |
+| Member            | Header                    | Notes                                                     |
+|-------------------|---------------------------|-----------------------------------------------------------|
+| `actions.csv`     | `name,colour`             | ordered by name                                           |
+| `logs.csv`        | `date,action,count`       | ordered by date then action                               |
+| `notes.csv`       | `date,content`            | ordered by date; content is **plain text**                |
+| `attachments.csv` | `date,name,filename,file` | ordered by date; **optional**, and names an entry per row |
+
+Beside them, `attachments/0001.png`, `attachments/0002.pdf`, … — one entry per attached file, holding its bytes verbatim.
+
+**`attachments.csv` is OPTIONAL where the other three are required**, and the asymmetry is deliberate. An archive exported
+before attachments existed is a complete export of what the account held at the time, and reading it as "this account has
+no attachments" is exactly right under replace-all — whereas refusing it would make every backup taken before the feature
+landed unrestorable. The three that are required are required because they validate *against each other*: a log names its
+action, so `logs.csv` without `actions.csv` cannot be checked at all.
+
+**`name` and `filename` are two different things, and both are carried.** `name` is the display name the day's note embeds
+the file by, which a rename rewrites; `filename` is what it was uploaded as, which nothing rewrites. They are equal until
+someone renames a file, and exporting only the first would make a backup silently lose the original filename — extension
+and all — of every renamed attachment. On the way back in, `filename` is what the deployment's `NOTE_ATTACHMENT_EXTENSIONS`
+whitelist is judged against, because that whitelist is about what a file IS; a display name cannot launder a refused type.
+
+**The `file` column names an ENTRY, not a path.** The reader looks it up as an exact string among the entries it unpacked
+and resolves nothing, so `attachments/../../etc/passwd` is not a traversal to defend against — it is a name that matches
+neither the member list nor the bounded alphabet an attachment entry must have, and is skipped like any other unrecognised
+entry. The number is a sequence and the extension is the `filename` column's own, so unzipping gives files that open even when a
+rename left the display name with no extension at all, while the manifest stays the only place a user-chosen name appears.
 
 **A log names its action by NAME, not by an id.** An id is meaningless to someone editing a spreadsheet, and
 `actions_user_name_unique` already makes the name a natural key within one account. No id column is exported at
@@ -145,6 +166,51 @@ reads better in isolation, but the report cap (`MAX_REPORTED_PROBLEMS`, below) c
 leaving each step's list unbounded until that point — on precisely the malformed file the cap exists for. One shared
 list, capped as it grows, keeps that guarantee.
 
+### Leaving attachments out
+
+The Settings Data card offers an **"Export attachments"** checkbox beside the Export button, checked by default, and
+the public endpoint takes the same choice as `?attachments=false`. It is shown **only to an account that has at least
+one attachment** — a checkbox that can only ever say "include the nothing you have" is a control that explains a
+feature rather than operating one.
+
+**Leaving them out still writes `attachments.csv`, empty.** A member that is present and lists nothing SAYS the account
+has no files; an absent one says the same thing only through the compatibility rule that exists for archives written
+before attachments did, which is a different statement that happens to have the same effect today.
+
+**The link's query string is rewritten by `settings.js`, rather than the control being a GET form.** An unchecked
+checkbox is not submitted at all, so a form could only ever ADD a parameter — and the endpoint's own default is to
+include attachments, which is the right default for something calling itself a backup. Rewriting the link keeps that
+default and lets the box turn it off; with scripting off the link is left exactly as rendered, so the export is
+complete, which is the safe way for this particular control to fail.
+
+It is also the answer to the size ceiling below: an account whose files are what push its archive over the line can
+still take a text-only backup that imports.
+
+### How big an archive can get
+
+**The archive is built whole, in memory**, which is what bounds how big an account's export can usefully be. Two members
+size it, both free-form: `notes.csv` at (notes held) x `NOTE_MAX_LENGTH`, and the attachment entries at (files held) x
+`MAX_ATTACHMENT_SIZE`. An account whose export exceeds the deployment's `MAX_ARCHIVE_SIZE` still downloads, but cannot
+be re-imported — the same accepted limit `MAX_MEMBER_BYTES` already documents for the notes member, now reachable by a
+second route, and reachable **quickly**: at the default 25 MB a file, six attachments pass a 128 MB ceiling. A
+deployment that raises `MAX_ATTACHMENT_SIZE`, or expects many large files, should raise `MAX_ARCHIVE_SIZE` with it.
+
+**The ceiling is `MAX_ARCHIVE_SIZE`, and it is the deployment's to set.** It defaults to 128 MB, doubled from the 64 MB
+that was enough when the only free-form member was text. One import holds the compressed upload AND its decompressed
+entries at once, and an image barely compresses — so peak heap is about `2 x` the setting per import, times
+`MAX_CONCURRENT_IMPORTS`. At the defaults that is roughly 512 MB against the 1330 MB heap a 2 GB container gives, which
+is as much of it as one feature should claim; raising it means raising `MAX_UPLOAD_SIZE` with it (the HTTP layer refuses
+a larger body before the archive reader is ever consulted) and giving the container the memory to match.
+
+*Rejected: refusing the export instead.* It turns a documented ceiling into a new failure path on the one operation that
+is supposed to always give the user their data back — and the Settings card's Export is a plain link to
+`GET /api/v1/data/export`, so the refusal would arrive as a downloaded error rather than as a banner. The checkbox is
+the better answer: it lets the user drop the part that is large, rather than the server refusing the whole.
+
+*Rejected: streaming the archive to the response.* It is the right shape for memory, and it is the wrong shape here: a
+`StreamingOutput` runs after the resource method returns, outside the request scope the current user and the persistence
+context live in.
+
 ## Privacy
 
 **The archive holds note content in the clear.** Notes are encrypted at rest (see [`NOTES.md`](NOTES.md)) and an
@@ -161,6 +227,22 @@ caveat:
 - The Settings card **says so plainly** beside the Export button, because the user is about to decide where to
   put the file.
 
+**Note attachments are in the archive, and their bytes are in the clear exactly as note content is.** An archive
+now carries every file the account has attached, so anyone who has the file has the photos and documents as well as
+the prose. The same rule follows: `transfer` is in `SecretsStayOutOfLogsTest.GUARDED_PACKAGES`, and nothing on this
+path may log a file's NAME either — a filename is the note's content by another route.
+
+**An attachment row is validated like every other row.** The name goes through `TextFields.ATTACHMENT_NAME` (so the
+square brackets the note's own `[[name]]` token is written with are refused) and its extension through the configured
+`NOTE_ATTACHMENT_EXTENSIONS` — the same rules an upload meets, because an import must never be a way to store a file
+the upload endpoint would have refused. That carries the same asymmetry `NOTE_MAX_LENGTH` already has: narrowing the
+accepted list leaves files already stored alone, but an export taken before the change can no longer be re-imported
+until those rows come out of it. See [`NOTES.md`](NOTES.md)'s Attachments section.
+
+**Attachments are written AFTER the notes, and that order is load-bearing.** Replacing a journal takes its attachments
+with it (an attachment is embedded *in* the writing), so files written first would be deleted by the very next
+statement — `ImportService.write` carries a comment saying so.
+
 ## Untrusted input
 
 `TransferArchive.unpack` reads an upload from an authenticated but otherwise ordinary account, and is written as
@@ -169,9 +251,10 @@ the attacker-reachable parser it is:
 - **Only the format's own member names are read**, compared for equality against three constants. Nothing is
   ever resolved as a path, so an entry called `../../etc/passwd` is not a traversal to defend against — it is
   simply a name that does not match.
-- **Entries are counted** (`MAX_ENTRIES`), so an archive of a million tiny members cannot spend a request being
-  walked.
-- **Decompressed bytes are counted as they are read** (`MAX_MEMBER_BYTES` 32 MB, `MAX_ARCHIVE_BYTES` 64 MB), never
+- **Entries are counted** (`MAX_ENTRIES`, 512), so an archive of a million tiny members cannot spend a request being
+  walked. It bounds a merely NUMEROUS archive; the byte cap below bounds a large one, and with attachments at
+  `MAX_ATTACHMENT_SIZE` (25 MB by default) it is the byte cap that binds first, by a wide margin.
+- **Decompressed bytes are counted as they are read** (`MAX_MEMBER_BYTES` 32 MB, and `MAX_ARCHIVE_SIZE`, 128 MB by default), never
   trusted from the entry's declared size, which the uploader chose. This is the zip-bomb defence, and it is what
   bounds one request's memory — so it cannot simply be raised until nothing ever hits it. `notes.csv` is what sizes
   it, being the only member of free text: at the default `NOTE_MAX_LENGTH` it holds ~3,200 notes written to their
@@ -182,7 +265,7 @@ the attacker-reachable parser it is:
   total. It deliberately does **not** cap rows: the decompressed-byte limits above are the real bound, and a
   second row-count limit would only add a branch no test could reach without building 32 MB of fixtures.
 - **Before any of that, the HTTP layer caps the request body itself** (`quarkus.http.limits.max-body-size`,
-  deployment-configurable through `MAX_UPLOAD_SIZE`, default 64 MB — `MAX_ARCHIVE_BYTES` itself, which is the
+  deployment-configurable through `MAX_UPLOAD_SIZE`, default 128 MB — `MAX_ARCHIVE_SIZE` itself, which is the
   smallest value that still admits every archive `unpack` can accept, since a member is only ever decompressed and
   never inflated), so an enormous upload never reaches `TransferArchive` at all. That refusal is **an empty `413` with no body**,
   which no application code sees and so cannot word: swapping it into the Settings card used to replace
@@ -193,7 +276,7 @@ the attacker-reachable parser it is:
   other than `200`/`422` as a banner rather than a swap — those two are the only answers whose body is a rendered
   panel. This is not one of `unpack`'s limits and has no `ImportReason`; it is the request never arriving.
   Because the bound is a deployment's own choice, the message names the configured value rather than a constant,
-  and setting it BELOW `MAX_ARCHIVE_BYTES` is coherent rather than a misconfiguration to guard against: imports
+  and setting it BELOW `MAX_ARCHIVE_SIZE` is coherent rather than a misconfiguration to guard against: imports
   are simply refused earlier, by that banner instead of by `unpack`. So there is deliberately no startup range
   check on it, unlike `NOTE_MAX_LENGTH`.
 

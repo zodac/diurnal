@@ -99,7 +99,19 @@ Alongside the daily log, each day can carry a note, a free-text entry of up to 1
 different limit with [`NOTE_MAX_LENGTH`](#note-configuration). Unlike logging an action, a note can be written for any date, including ones in the
 future. The **Notes** page lists everything you have written, (most recent first) with the ability to search your notes.
 
-Notes are encrypted at rest, so a database dump, backup or replica carries only sealed text - see [Note Configuration](#note-configuration).
+A note can also carry **attachments**. Drag a file onto the note box (or use the **Attach a file** button beside **Save**) and it is uploaded with a
+progress bar, then embedded in the note's own text as `[[its name]]` - which the box draws as a tinted chip so it reads as a file rather than as
+words. Hovering one offers **Download**, **Rename** and **Remove**, and clicking one keeps that card open until you close it (hovering gives a dashed
+outline, clicking a solid one). Images get a thumbnail that opens full size in a new tab, and sound files - `mp3`, `m4a`, `aac`, `wav`, `flac`,
+`ogg` and `opus` - get a player right in the card. Removing the `[[...]]` text yourself has the same effect the next time you save. Whoever runs
+your Diurnal can restrict which file types are accepted with [`NOTE_ATTACHMENT_EXTENSIONS`](#note-configuration). Renaming changes only what your
+note calls the file: Diurnal keeps the name it was uploaded under as well, so nothing is lost.
+The **Notes** page carries a second table listing every file you have attached, showing both names side by side,
+with a search box of its own that matches on either - so a file is findable without remembering which day it went on, or what you have since called
+it.
+
+Notes are encrypted at rest, so a database dump, backup or replica carries only sealed text - see [Note Configuration](#note-configuration). An
+attachment is sealed the same way, **including its filename**: a file called `divorce-papers.pdf` gives away as much as the paragraph beside it.
 
 <!-- markdownlint-disable MD013 MD033 -- centered note-box screenshot: intentional inline HTML -->
 <p align="center">
@@ -235,8 +247,11 @@ The Compose files also tune PostgreSQL itself; those knobs live in [Performance 
 | `EXPORT_CSV_BOM`           | `true`  | Lead each exported CSV with a UTF-8 byte-order mark (Excel-friendly); `false` for plain UTF-8 (LibreOffice) |
 | `LOG_LEVEL`                | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                            |
 | `MAX_CONCURRENT_IMPORTS`   | `2`     | How many data imports may run at once; further ones get a `429`. `0` removes the bound                      |
-| `MAX_REQUEST_BODY`         | `1M`    | Largest body accepted on every endpoint *except* data import; `0` removes the cap                           |
-| `MAX_UPLOAD_SIZE`          | `64M`   | Hard ceiling on any request body, in binary units (`100M`, `512K`, `1G`); used by import/export             |
+| `MAX_ATTACHMENT_SIZE`      | `25M`   | Largest note attachment accepted; applies to the two upload endpoints only. `0` removes the cap             |
+| `UPLOAD_READ_TIMEOUT`      | `5M`    | How long a connection may go without a read before it is closed; raise for large attachments on slow links  |
+| `MAX_REQUEST_BODY`         | `1M`    | Largest body accepted on every endpoint *except* data import and attachment upload; `0` removes the cap     |
+| `MAX_UPLOAD_SIZE`          | `128M`  | Hard ceiling on any request body, in binary units (`100M`, `512K`, `1G`); used by import/export             |
+| `MAX_ARCHIVE_SIZE`         | `128M`  | How large an uploaded export archive may be once decompressed; raise with `MAX_UPLOAD_SIZE`                 |
 | `TZ`                       | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                                                |
 
 ### Note Configuration
@@ -244,10 +259,12 @@ The Compose files also tune PostgreSQL itself; those knobs live in [Performance 
 Your [notes](#notes) are encrypted. Each account gets its own randomly-generated key when it is created, and every note is sealed under that key. The
 account keys are themselves stored only in encrypted form, protected by `NOTE_ENCRYPTION_KEY`.
 
-| Variable                        | Default | Description                                                                       |
-|---------------------------------|---------|-----------------------------------------------------------------------------------|
-| `NOTE_ENCRYPTION_PREVIOUS_KEYS` |         | Comma-separated retired keys, set only while [rotating](#rotating-the-key)        |
-| `NOTE_MAX_LENGTH`               | `10000` | The longest note a user may save, in characters. Must be between `1` and `100000` |
+| Variable                        | Default | Description                                                                                               |
+|---------------------------------|---------|-----------------------------------------------------------------------------------------------------------|
+| `NOTE_ENCRYPTION_PREVIOUS_KEYS` |         | Comma-separated retired keys, set only while [rotating](#rotating-the-key)                                |
+| `NOTE_MAX_LENGTH`               | `10000` | The longest note a user may save, in characters. Must be between `1` and `100000`                         |
+| `NOTE_ATTACHMENT_EXTENSIONS`    | `*`     | Comma-separated file extensions a note attachment may have; `*` accepts everything                        |
+| `MAX_ATTACHMENT_SIZE`           | `25M`   | The largest file that may be attached; lives under [Application](#application) with the other size limits |
 
 #### Rotating the Key
 
@@ -263,6 +280,15 @@ environment:
 On start, every account key that no longer opens under the new key is re-encrypted with it (no notes are rewritten). Once this has run, clear
 `NOTE_ENCRYPTION_PREVIOUS_KEYS` and restart again. For `NOTE_MAX_LENGTH`, lowering it does not touch notes you have already written. Such a note
 simply cannot be *saved* again until you shorten it.
+
+`NOTE_ATTACHMENT_EXTENSIONS` behaves the same way. It is matched case-insensitively and with or without the leading dot, so `png,.JPG,pdf` and
+`.png,jpg,.pdf` are the same setting; narrowing it leaves files already attached downloadable and renameable, they simply cannot be uploaded again.
+The size limit is [`MAX_ATTACHMENT_SIZE`](#application), **25 MB** by default - a ceiling of its own rather than the 1 MB every other request body
+is held to, because an attachment is the one body that is a file you chose rather than a form Diurnal designed. If you raise it, raise
+[`MAX_UPLOAD_SIZE`](#application) to match (it must stay at or above it) and give the container the memory: a file is held in memory whole while it
+is encrypted on the way in and decrypted on the way out.
+
+> An attachment is [exported and imported](#importexport) along with everything else, bytes and all.
 
 ### Authentication
 
@@ -405,6 +431,13 @@ A session ends at whichever comes first: `SESSION_IDLE_TIMEOUT` since it was las
 Diurnal serves plaintext HTTP and is designed to run behind a TLS-terminating reverse proxy. The proxy should handle everything TLS-related: the
 certificate, any HTTP→HTTPS redirect, and the `Strict-Transport-Security` (HSTS) header.
 
+> **Set `TRUST_X_FORWARDED_HEADERS=true` whenever the proxy terminates TLS.** Without it the application believes it is being served over plain
+> `http://`, while the browser sends `Origin: https://your-host`. Those two disagree, so the request is treated as cross-origin and **every POST,
+> PUT, PATCH and DELETE is refused with an empty `403`** — before it reaches the application, so nothing appears in the logs. Pages still load
+> (a plain navigation sends no `Origin`), which makes the symptom look like a dead button rather than a misconfiguration: signing in, creating an
+> account and saving a note all do nothing at all. It is also what lets the session cookie be marked `Secure` and what makes an OIDC `redirect_uri`
+> come back as `https://`.
+
 | Variable                    | Default | Description                                                                           |
 |-----------------------------|---------|---------------------------------------------------------------------------------------|
 | `BASE_PATH`                 |         | URL prefix the app is served under (if unset the application is served at `/`)        |
@@ -513,6 +546,9 @@ Separately from the whole-instance backup above, each user can export their own 
 back. That export holds note content **in the clear**, so treat the file as you would the notes themselves. It is the right tool for moving one
 account between deployments; it is not a substitute for a database backup.
 
+**Note attachments are not part of it.** The archive carries no files, and because an import replaces everything the account holds, importing one
+removes the attachments that were there. Back up anything you cannot lose separately, or take a database backup instead.
+
 ## User Settings
 
 Each user can customise Diurnal from the **Settings** page (top-right menu).
@@ -571,14 +607,15 @@ same validation below.
 
 Limits are counted in **characters as a reader counts them**, not bytes: an accented letter, a Chinese character and an emoji each count as one.
 
-| Field          | Limit                                                                   |
-|----------------|-------------------------------------------------------------------------|
-| Action name    | 1-100 characters                                                        |
-| Display name   | 2-50 characters                                                         |
-| Email          | 3-254 characters, and must contain an `@`                               |
-| Note           | Up to 10,000 characters by default* (leave it blank to remove the note) |
-| Password       | 1-128 characters                                                        |
-| Statistic name | Up to 25 characters (leave it blank to restore the built-in name)       |
+| Field           | Limit                                                                    |
+|-----------------|--------------------------------------------------------------------------|
+| Action name     | 1-100 characters                                                         |
+| Attachment name | 1-100 characters, and no square brackets                                 |
+| Display name    | 2-50 characters                                                          |
+| Email           | 3-254 characters, and must contain an `@`                                |
+| Note            | Up to 10,000 characters by default* (leave it blank to remove the note)  |
+| Password        | 1-128 characters                                                         |
+| Statistic name  | Up to 25 characters (leave it blank to restore the built-in name)        |
 
 ### Accepted Characters
 

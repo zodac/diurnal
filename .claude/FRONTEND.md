@@ -179,7 +179,8 @@ console — and since `ch` is sized on a digit, `34ch` still shows ~42 character
 
 Cross-table conventions: explicit Save tick required (only exception: Settings → User Preferences); at most one 'armed row' at a time (
 `dtClearArmedRows` disarms others); destructive button left, Cancel right. `partials/pagination.html` exposes `#showing-shown`/`#showing-total` for
-surgical HTMX count updates.
+surgical HTMX count updates - a page with TWO paginated lists must rename the second's pair through the partial's `shownId`/`totalId` params (the
+notes page's attachments table does), since an id is unique per document and `getElementById` would otherwise always find the first.
 
 ## Dashboard calendar (hand-rolled, no library)
 
