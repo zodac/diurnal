@@ -65,7 +65,12 @@ class SecretsStayOutOfLogsTest {
     private static final List<String> FORBIDDEN = List.of(
         "content", "contentEncrypted", "normalised", "plaintext", "noteContent",
         "query", "searchTerm", "term", "snippet", "suggestion",
-        "dataKey", "dekWrapped", "masterKey", "wrappingKey", "retiredKeys");
+        "dataKey", "dekWrapped", "masterKey", "wrappingKey", "retiredKeys",
+        // An attachment's FILENAME is the note's content by another route - "divorce-papers.pdf" gives away as much as the paragraph beside it,
+        // which is exactly why it is sealed in the database rather than stored in the clear. The bytes are here for the same reason. The bare word
+        // `name` is deliberately NOT in this list: it is far too common a local to be a signal, and the identifiers the attachment paths actually
+        // use are the specific ones below.
+        "displayName", "displayNameEncrypted", "previousName", "attachmentName", "fileName", "fileNameEncrypted", "rawName", "sanitised");
 
     @Test
     void noLogStatementInTheGuardedPackagesMentionsSecret() {

@@ -332,10 +332,36 @@ public class NoteService {
         // Atomic upsert: a find-then-insert race between two tabs saving the same day would otherwise trip
         // the notes_unique constraint as a 500. What is stored is the SEALED form of the normalised value.
         Note.upsert(statements, user.id, day, NoteContent.seal(dataKey, user.id, day, normalised));
+        removeUnembeddedAttachments(user, day, normalised, dataKey);
         SubjectStatsCache.invalidate(user.id);
         // The DATE and the user only - never the content. See the class Javadoc.
         LOGGER.debug("Note saved for {} by user {}", day, user.email);
         return new NoteResult.Saved(day, normalised);
+    }
+
+    // An attachment is embedded by a [[name]] token in the note's own text, so deleting the token is how a file is removed by editing rather than by
+    // the hover menu - which means a save is where that removal actually lands. Every file the saved text no longer names goes with it.
+    //
+    // The day's names are already being opened under the key this method has in hand, so a day with no attachments (which is almost every day) costs
+    // one index read and nothing else. A name that will not open cannot be matched against the text, so its row is LEFT: deleting it would be
+    // deleting a file on the strength of a comparison that could not be made.
+    private static void removeUnembeddedAttachments(final User user, final LocalDate day, final String saved, final byte[] dataKey) {
+        final List<SealedAttachment> attachments = NoteAttachment.sealedForUserAndDate(user.id, day);
+        if (attachments.isEmpty()) {
+            return;
+        }
+
+        int removed = 0;
+        for (final Map.Entry<UUID, String> entry : AttachmentContent.openNames(dataKey, user.id, attachments).entrySet()) {
+            if (!NoteTokens.references(saved, entry.getValue()) && NoteAttachment.deleteEntry(user.id, entry.getKey())) {
+                removed++;
+            }
+        }
+
+        if (removed > 0) {
+            // The COUNT and the day only - a file's NAME is as private as the note it sat in. See NoteAttachmentService.
+            LOGGER.info("Removed {} attachment(s) no longer embedded in the note for {} by user {}", removed, day, user.email);
+        }
     }
 
     /**
@@ -362,6 +388,9 @@ public class NoteService {
      */
     public void replaceAll(final User user, final Map<LocalDate, String> notes) {
         Note.deleteByUser(user.id);
+        // An import REPLACES everything, and an archive carries no attachments (see TRANSFER.md), so the files that belonged to the journal being
+        // replaced go with it - leaving them would leave every one of them embedded in nothing.
+        NoteAttachment.deleteByUser(user.id);
         SubjectStatsCache.invalidate(user.id);
         if (notes.isEmpty()) {
             LOGGER.info("Notes replaced with an empty journal for user {}", user.email);
@@ -399,11 +428,18 @@ public class NoteService {
     NoteResult clear(final User user, final LocalDate day) {
         // INFO only when a note was actually removed, matching LogService's own delete: a destructive write is
         // worth an operator's attention, but clearing a day that had nothing is not an event at all.
+        // The day's attachments go with its note, whether or not there was a note to remove: an attachment is embedded IN the writing, so a day
+        // with no writing has nothing to embed one. This is also what collects a file that was uploaded and then never saved.
+        final long attachments = NoteAttachment.deleteByUserAndDate(user.id, day);
         if (Note.deleteEntry(user.id, day)) {
             SubjectStatsCache.invalidate(user.id);
             LOGGER.info("Note deleted for {} by user {}", day, user.email);
         } else {
             LOGGER.debug("Note clear for {} by user {} removed nothing", day, user.email);
+        }
+
+        if (attachments > 0L) {
+            LOGGER.info("Removed {} attachment(s) with the note for {} by user {}", attachments, day, user.email);
         }
         return new NoteResult.Cleared(day);
     }
