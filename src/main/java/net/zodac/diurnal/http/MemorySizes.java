@@ -25,12 +25,16 @@ package net.zodac.diurnal.http;
  * deployment that set {@code 100M} has that value stated back to it as {@code 100 MB} rather than as {@code 104 MB}.
  *
  * <p>
+ * Public because the same conversion words two different limits to a user: the HTTP layer's own refusal message, and the note box's
+ * "that file is too large" warning, which names the attachment ceiling before an upload is attempted ({@code note.AttachmentPolicy}).
+ *
+ * <p>
  * Lives beside {@link QuarkusHttpLimitsConfig} rather than inside it because a {@code @ConfigMapping} must be an interface, and an interface cannot
  * hold a private field: the conversion factor would have to be a {@code public static final} constant on the config surface itself, which is the
  * constant-interface anti-pattern the Java gate rejects. Takes a plain {@code long} rather than a {@code MemorySize} so the rule can be unit-tested
  * without constructing one — its only constructor is deprecated for removal.
  */
-final class MemorySizes {
+public final class MemorySizes {
 
     private static final long BYTES_PER_MEGABYTE = 1024L * 1024L;
 
@@ -45,7 +49,7 @@ final class MemorySizes {
      * @param bytes the byte count to convert
      * @return the byte count in whole megabytes
      */
-    static long wholeMegabytes(final long bytes) {
+    public static long wholeMegabytes(final long bytes) {
         return bytes / BYTES_PER_MEGABYTE;
     }
 }

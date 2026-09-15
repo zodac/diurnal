@@ -44,6 +44,11 @@ import org.jspecify.annotations.Nullable;
  * ({@code /api/v1/data/import*}, {@code /internal/data/import*}), which legitimately need the larger ceiling.
  *
  * <p>
+ * <strong>The two note-attachment uploads are held to a limit of their own</strong> ({@code app.http.max-attachment-body}, see
+ * {@link AttachmentUploadPaths}). They are the one ordinary capability whose body is a file the user chose, so they need a ceiling measured in tens
+ * of megabytes — and giving them their own is what lets every other endpoint keep the small one, which is the whole point of the cap.
+ *
+ * <p>
  * A body with no {@code Content-Length} (a chunked upload) is not measured here and is still bounded by {@code max-body-size}; a client that
  * understates {@code Content-Length} only causes the server to read that many bytes, so the header is a sound basis for the check. The cap is checked
  * on {@code Content-Length} alone, so it costs nothing and runs before authentication.
@@ -81,17 +86,37 @@ public class RequestBodyLimitFilter implements ContainerRequestFilter {
     public void filter(final ContainerRequestContext requestContext) {
         final String path = requestContext.getUriInfo().getPath();
         final String contentLength = requestContext.getHeaderString(HttpHeaders.CONTENT_LENGTH);
-        if (exceedsLimit(path, contentLength, appConfig.get().maxRequestBodyBytes())) {
+        final AppConfig config = appConfig.get();
+        final long limit = limitFor(requestContext.getMethod(), path, config.maxRequestBodyBytes(), config.maxAttachmentBodyBytes());
+        if (exceedsLimit(path, contentLength, limit)) {
             // Security-relevant, and low-volume (a normal client never trips it), so logged as a single line. The reported length is a parsed
             // number by the time this branch is reached, so it is safe to log verbatim.
-            LOGGER.warn("Rejected {} /{} - request body of {} bytes exceeds the per-request limit of {} bytes for non-import endpoints",
-                requestContext.getMethod(), path, contentLength, appConfig.get().maxRequestBodyBytes());
+            LOGGER.warn("Rejected {} /{} - request body of {} bytes exceeds the per-request limit of {} bytes",
+                requestContext.getMethod(), path, contentLength, limit);
             requestContext.abortWith(Response
                 .status(Response.Status.REQUEST_ENTITY_TOO_LARGE)
                 .entity("Request body exceeds the maximum allowed size")
                 .type(MediaType.TEXT_PLAIN_TYPE)
                 .build());
         }
+    }
+
+    /**
+     * The body ceiling that applies to one request: the attachment-upload limit for the two endpoints that carry a user's file, and the ordinary
+     * per-request limit for everything else.
+     *
+     * <p>
+     * The import endpoints are absent on purpose — they are exempted inside {@link #exceedsLimit(String, String, long)} rather than given a limit
+     * here, so which paths those are stays stated in exactly one place ({@link ImportPaths}).
+     *
+     * @param method          the request method
+     * @param path            the request path (with or without a leading slash)
+     * @param bodyLimit       the ordinary per-request body cap in bytes
+     * @param attachmentLimit the note-attachment upload cap in bytes
+     * @return the cap to apply to this request
+     */
+    static long limitFor(final String method, final String path, final long bodyLimit, final long attachmentLimit) {
+        return AttachmentUploadPaths.isAttachmentUpload(method, path) ? attachmentLimit : bodyLimit;
     }
 
     /**

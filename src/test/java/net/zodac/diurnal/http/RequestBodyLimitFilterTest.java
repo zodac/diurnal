@@ -17,19 +17,25 @@
 
 package net.zodac.diurnal.http;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link RequestBodyLimitFilter#exceedsLimit(String, String, long)}, the decision behind the per-request body cap: a
- * {@code Content-Length} over the configured limit is rejected on every endpoint EXCEPT the data-import endpoints, which are exempt so a re-imported
- * export can use the larger {@code quarkus.http.limits.max-body-size} ceiling.
+ * Unit tests for {@link RequestBodyLimitFilter#exceedsLimit(String, String, long)} and
+ * {@link RequestBodyLimitFilter#limitFor(String, String, long, long)}, the two decisions behind the per-request body cap: WHICH limit a request is
+ * held to, and whether its {@code Content-Length} exceeds it. Every endpoint is capped EXCEPT the data-import endpoints, which are exempt so a
+ * re-imported export can use the larger {@code quarkus.http.limits.max-body-size} ceiling — and the two note-attachment uploads, which are held to a
+ * larger limit of their own because their body is a file the user chose.
  */
 class RequestBodyLimitFilterTest {
 
     private static final long LIMIT = 1000L;
+    private static final long ATTACHMENT_LIMIT = 25_000L;
     private static final String NORMAL_PATH = "api/v1/auth/login";
+    private static final String API_UPLOAD_PATH = "api/v1/notes/2026-06-15/attachments";
+    private static final String INTERNAL_UPLOAD_PATH = "internal/note-attachments/2026-06-15";
 
     @Test
     void exceedsLimit_rejectsBodyOverTheLimit() {
@@ -113,5 +119,55 @@ class RequestBodyLimitFilterTest {
         assertThat(RequestBodyLimitFilter.exceedsLimit(NORMAL_PATH, "999999999", -1L))
             .as("a negative limit disables the cap")
             .isFalse();
+    }
+
+    @Test
+    void limitFor_holdsAnOrdinaryRequestToTheOrdinaryLimit() {
+        assertThat(RequestBodyLimitFilter.limitFor("POST", NORMAL_PATH, LIMIT, ATTACHMENT_LIMIT))
+            .as("a login is the exact thing the small cap exists for")
+            .isEqualTo(LIMIT);
+    }
+
+    @Test
+    void limitFor_holdsTheApiUploadToTheAttachmentLimit() {
+        assertThat(RequestBodyLimitFilter.limitFor("POST", API_UPLOAD_PATH, LIMIT, ATTACHMENT_LIMIT))
+            .as("the public upload carries a file the user chose, so it gets the larger ceiling")
+            .isEqualTo(ATTACHMENT_LIMIT);
+    }
+
+    @Test
+    void limitFor_holdsTheInternalUploadToTheAttachmentLimit() {
+        assertThat(RequestBodyLimitFilter.limitFor("POST", INTERNAL_UPLOAD_PATH, LIMIT, ATTACHMENT_LIMIT))
+            .as("and so does the note box's own upload - the two surfaces must accept the same file")
+            .isEqualTo(ATTACHMENT_LIMIT);
+    }
+
+    @Test
+    void limitFor_acceptsTheLeadingSlashOnTheUploadPath() {
+        assertThat(RequestBodyLimitFilter.limitFor("POST", "/api/v1/notes/2026-06-15/attachments", LIMIT, ATTACHMENT_LIMIT))
+            .as("a JAX-RS UriInfo path arrives without a leading slash and a Vert.x one with it, so neither form may miss")
+            .isEqualTo(ATTACHMENT_LIMIT);
+    }
+
+    @Test
+    void limitFor_holdsTheRenameToTheOrdinaryLimit() {
+        assertThat(RequestBodyLimitFilter.limitFor("POST", "internal/note-attachments/2026-06-15/" + DUMMY_UUID + "/rename", LIMIT,
+            ATTACHMENT_LIMIT))
+            .as("a rename beneath the same resource carries a few dozen bytes of JSON, and must not inherit the file-sized ceiling")
+            .isEqualTo(LIMIT);
+    }
+
+    @Test
+    void limitFor_holdsTheListingToTheOrdinaryLimit() {
+        assertThat(RequestBodyLimitFilter.limitFor("GET", "internal/note-attachments/list", LIMIT, ATTACHMENT_LIMIT))
+            .as("the attachments-table fragment has the same path shape as the upload and carries no body at all - the METHOD is what parts them")
+            .isEqualTo(LIMIT);
+    }
+
+    @Test
+    void limitFor_holdsNonPostOnTheUploadPathToTheOrdinaryLimit() {
+        assertThat(RequestBodyLimitFilter.limitFor("GET", API_UPLOAD_PATH, LIMIT, ATTACHMENT_LIMIT))
+            .as("listing a day's attachments is the same path as uploading one, and only the POST carries a file")
+            .isEqualTo(LIMIT);
     }
 }

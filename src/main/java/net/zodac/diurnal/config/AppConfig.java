@@ -108,12 +108,12 @@ public interface AppConfig {    /**
 
     /**
      * The largest request body accepted on any endpoint EXCEPT the data-import endpoints (which need the larger
-     * {@code quarkus.http.limits.max-body-size} ceiling). Enforced by {@code net.zodac.diurnal.http.RequestBodyLimitFilter}, which rejects an
-     * over-sized body with {@code 413} before it is read - so an unauthenticated caller cannot make the server buffer a large body (e.g. a
-     * multi-megabyte login payload) as a cheap memory-exhaustion lever. Driven by {@code MAX_REQUEST_BODY} (default {@code 1M}); a value of zero or
-     * less disables the cap.
+     * {@code quarkus.http.limits.max-body-size} ceiling) and the note-attachment uploads (which have {@link #maxAttachmentBody()} of their own).
+     * Enforced by {@code net.zodac.diurnal.http.RequestBodyLimitFilter}, which rejects an over-sized body with {@code 413} before it is read - so an
+     * unauthenticated caller cannot make the server buffer a large body (e.g. a multi-megabyte login payload) as a cheap memory-exhaustion lever.
+     * Driven by {@code MAX_REQUEST_BODY} (default {@code 1M}); a value of zero or less disables the cap.
      *
-     * @return the maximum accepted request body for non-import endpoints
+     * @return the maximum accepted request body for ordinary endpoints
      */
     @WithName("http.max-request-body")
     @WithDefault("1M")
@@ -126,6 +126,38 @@ public interface AppConfig {    /**
      */
     default long maxRequestBodyBytes() {
         return maxRequestBody().asLongValue();
+    }
+
+    /**
+     * The largest body accepted on the two note-attachment UPLOAD endpoints, which are the one ordinary capability whose body is a file the user
+     * chose rather than a form this application designed. Driven by {@code MAX_ATTACHMENT_SIZE} (default {@code 25M}); a value of zero or less
+     * disables the cap, leaving those endpoints bounded only by {@code quarkus.http.limits.max-body-size}.
+     *
+     * <p>
+     * <strong>It is a separate setting rather than a raised {@link #maxRequestBody()} for a reason.</strong> That cap is what stops an
+     * unauthenticated caller making the server buffer a large body on a hot path - a login, say, which then runs an Argon2id hash - and raising it
+     * to fit a video would hand that lever to every endpoint in the application. This one applies to two authenticated {@code POST}s and nothing
+     * else.
+     *
+     * <p>
+     * <strong>What it costs.</strong> An attachment is sealed and stored as a single row, so an upload at this size is held in memory more than
+     * once on the way in (the body, then its sealed form, then the driver's bind) and again in full on the way out, since a sealed blob has no
+     * ranges to serve from. Raising it far beyond the default wants heap raised with it - and see {@code transfer.max-archive-size}, which bounds
+     * what an import of the resulting export may decompress to.
+     *
+     * @return the maximum accepted request body for a note-attachment upload
+     */
+    @WithName("http.max-attachment-body")
+    @WithDefault("25M")
+    MemorySize maxAttachmentBody();
+
+    /**
+     * {@link #maxAttachmentBody()} as a raw byte count, for the filter's numeric comparison against a request's {@code Content-Length}.
+     *
+     * @return the maximum accepted attachment upload in bytes
+     */
+    default long maxAttachmentBodyBytes() {
+        return maxAttachmentBody().asLongValue();
     }
 
     /**
