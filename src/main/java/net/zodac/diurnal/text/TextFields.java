@@ -107,6 +107,16 @@ public final class TextFields {
     private static final int EMAIL_MIN_LENGTH = 3;
 
     /**
+     * The longest name a note attachment may carry, in code points.
+     *
+     * <p>
+     * A hundred is what a file name actually needs — every desktop platform's own limit is 255 bytes, which is comfortably longer than anything a
+     * person types — and it is the same bound as an action name, so the two read the same way in the interface. It bounds no column: the name is
+     * stored sealed (see {@code note.AttachmentContent}), exactly as a note's content is.
+     */
+    public static final int ATTACHMENT_NAME_MAX_LENGTH = 100;
+
+    /**
      * The longest accepted email address, within the {@code users.email} column width.
      */
     public static final int EMAIL_MAX_LENGTH = 254;
@@ -138,6 +148,16 @@ public final class TextFields {
      * to an accepted empty value rather than a rejection.
      */
     public static final TextField STAT_NAME = TextField.of("stat-name", "Stat name", 0, STAT_NAME_MAX_LENGTH);
+
+    /**
+     * The display name of a file attached to a day's note — what the note's {@code [[name]]} token says, and what a rename submits.
+     *
+     * <p>
+     * It carries {@link TextRules#NO_SQUARE_BRACKETS} on top of the shared rules, because the token that embeds it is written with them; see that
+     * rule for why an UPLOADED name is instead coerced rather than refused.
+     */
+    public static final TextField ATTACHMENT_NAME =
+        TextField.of("attachment-name", "Attachment name", 1, ATTACHMENT_NAME_MAX_LENGTH).withRules(TextRules.NO_SQUARE_BRACKETS);
 
     /**
      * The email address an account is identified by.
@@ -190,6 +210,6 @@ public final class TextFields {
      * @return the catalogue
      */
     public static List<TextField> all() {
-        return List.of(ACTION_NAME, DISPLAY_NAME, STAT_NAME, EMAIL, PASSWORD, DEFAULT_NOTE);
+        return List.of(ACTION_NAME, ATTACHMENT_NAME, DISPLAY_NAME, STAT_NAME, EMAIL, PASSWORD, DEFAULT_NOTE);
     }
 }

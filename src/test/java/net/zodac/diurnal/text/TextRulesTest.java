@@ -253,6 +253,25 @@ class TextRulesTest {
             .isTrue();
     }
 
+    // ── square brackets ───────────────────────────────────────────────────────
+
+    @ParameterizedTest
+    @ValueSource(strings = {"[photo.png", "]photo.png", "photo[1].png", "photo.png]"})
+    void noSquareBrackets_rejectsEitherBracketWhereverItSits(final String value) {
+        // Both ends of the name matter, not just the middle: the rule exists so that an attachment's [[name]] token survives being written into a
+        // note, and a bracket at either edge breaks it exactly as one in the middle does.
+        assertThat(TextRules.NO_SQUARE_BRACKETS.accepts().test(value))
+            .as("a name carrying a square bracket cannot be embedded in a note, so it is refused")
+            .isFalse();
+    }
+
+    @Test
+    void noSquareBrackets_acceptsEveryOtherKindOfBracket() {
+        assertThat(TextRules.NO_SQUARE_BRACKETS.accepts().test("photo (1) {draft} <final>.png"))
+            .as("only the two characters the token itself is written with are refused - nothing else about punctuation changes")
+            .isTrue();
+    }
+
     // ── email shape ───────────────────────────────────────────────────────────
 
     @Test

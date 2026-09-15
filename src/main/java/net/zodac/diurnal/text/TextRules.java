@@ -116,6 +116,23 @@ public final class TextRules { // NOPMD: DataClass - a catalogue of rule constan
         value -> hasNoInvisibleCharacters(value, true), "cannot contain invisible or text-direction characters.");
 
     /**
+     * A value may not carry a square bracket — the one field-specific rule that exists for a STORAGE format rather than for the reader.
+     *
+     * <p>
+     * An attachment is embedded in a note by writing {@code [[its name]]} into the note's own text ({@code note.NoteTokens}), so a name holding a
+     * bracket would break the token that addresses it: {@code [[a]b]]} has no single reading, and the attachment would become unreachable from the
+     * writing that embeds it. Forbidding the two characters is what lets the token need no escaping at all, which in turn is what keeps a note's raw
+     * text — the thing the note box actually shows — readable.
+     *
+     * <p>
+     * It binds a TYPED name only. A name derived from an uploaded file's own name has its brackets replaced instead
+     * ({@code note.AttachmentNames#sanitise}), because the user chose a file rather than typing its name, and refusing {@code photo[1].png} would be
+     * refusing the file for something nobody wrote.
+     */
+    public static final TextRule NO_SQUARE_BRACKETS = new TextRule("noSquareBrackets",
+        value -> value.indexOf('[') < 0 && value.indexOf(']') < 0, "cannot contain square brackets.");
+
+    /**
      * A value may not stack more than {@link #MAX_CONSECUTIVE_MARKS} combining marks on one character.
      */
     public static final TextRule NO_STACKED_MARKS = new TextRule("noStackedMarks", TextRules::hasNoStackedMarks,

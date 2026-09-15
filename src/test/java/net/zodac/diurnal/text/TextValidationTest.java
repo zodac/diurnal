@@ -314,6 +314,7 @@ class TextValidationTest {
     void catalogue_holdsEveryField() {
         final List<TextField> expected = List.of(
             TextFields.ACTION_NAME,
+            TextFields.ATTACHMENT_NAME,
             TextFields.DISPLAY_NAME,
             TextFields.STAT_NAME,
             TextFields.EMAIL,

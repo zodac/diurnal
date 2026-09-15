@@ -56,6 +56,15 @@
             {#is 'length'}{msg:passwordLength(failure.field.maxLength)}
         {/switch}
 
+    {#is 'attachment-name'}
+        {#switch failure.shapeKey}
+            {#is 'blank'}{msg:attachmentNameBlank}
+            {#is 'length'}{msg:attachmentNameLength(failure.field.maxLength)}
+            {#is 'noInvisibleCharacters'}{msg:attachmentNameNoInvisibleChars}
+            {#is 'noStackedMarks'}{msg:attachmentNameNoStackedMarks(inject:textFields.maxConsecutiveMarks)}
+            {#is 'noSquareBrackets'}{msg:attachmentNameNoSquareBrackets}
+        {/switch}
+
     {#is 'note'}
         {#switch failure.shapeKey}
             {#is 'length'}{msg:noteLength(failure.field.maxLength)}
