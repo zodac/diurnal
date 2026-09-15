@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.regex.Pattern;
 import net.zodac.diurnal.auth.lockout.IpLockoutStatus;
+import net.zodac.diurnal.note.AttachmentRefusal;
 import net.zodac.diurnal.user.PageSection;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -60,6 +61,15 @@ class TemplateSwitchCoverageTest {
             .as("IpLockoutStatus.%s needs an {#is %s} arm resolving a msg:lockoutStatus* word, or its badge renders blank",
                 status.name(), status.name())
             .contains("{#is" + status.name() + "}{msg:lockoutStatus");
+    }
+
+    @ParameterizedTest
+    @EnumSource(AttachmentRefusal.class)
+    void everyAttachmentRefusal_hasAnArmInTheRefusalPartial(final AttachmentRefusal refusal) {
+        assertThat(templateSource("templates/partials/attachment-refusal.html"))
+            .as("AttachmentRefusal.%s needs an {#is '%s'} arm resolving a msg:attachment* sentence, or the note box shows an EMPTY banner - "
+                + "which reads as the upload having silently worked", refusal.name(), refusal.name())
+            .contains("{#is'" + refusal.name() + "'}{msg:attachment");
     }
 
     // Whitespace is stripped before matching so these assert the PAIRING (this arm resolves that entry) without also

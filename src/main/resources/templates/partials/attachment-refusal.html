@@ -1,0 +1,29 @@
+{!
+  Translated text for every AttachmentRefusal variant - the page-side counterpart of
+  note.AttachmentRefusalExtensions, which words the same refusals in hardcoded English for the /api/v1 body.
+  Rendered via a nested Template.render() call from NoteAttachmentsInternalResource.refusalMessage.
+
+  A refusal carried by the shared text pipeline instead (a name that is blank, too long, or holds an invisible
+  character or a square bracket) is NOT here: that is AttachmentResult.Invalid, and it renders through
+  partials/text-failure-message.html like every other rejected free-text value in the app.
+
+  Params:
+    kind     — the AttachmentRefusal constant's name(): 'EXTENSION_NOT_ALLOWED' | 'EMPTY_FILE' |
+               'DUPLICATE_NAME' | 'UNKNOWN_ATTACHMENT' | 'UNREADABLE'
+    accepted — 'EXTENSION_NOT_ALLOWED' only: the deployment's accepted extensions as one comma-separated
+               phrase, never translated. It is composed in Java rather than looped here because HOW MANY
+               there are is a property of the deployment, not of the language - repeating the markup in
+               every bundle would ask five translators to keep a per-deployment count in step. See
+               .claude/I18N.md, and partials/import-reason.html for the same reasoning about a header row.
+
+  Every arm is escaped as it renders (no `.raw` anywhere), so `accepted` needs no escaping on the way in.
+  A {#switch} with no matching arm renders NOTHING and fails no build, so a new constant needs its arm added
+  here - TemplateSwitchCoverageTest is what fails when it is not.
+!}
+{#switch kind}
+    {#is 'EXTENSION_NOT_ALLOWED'}{msg:attachmentExtensionNotAllowed(accepted)}
+    {#is 'EMPTY_FILE'}{msg:attachmentEmptyFile}
+    {#is 'DUPLICATE_NAME'}{msg:attachmentDuplicateName}
+    {#is 'UNKNOWN_ATTACHMENT'}{msg:attachmentUnknown}
+    {#is 'UNREADABLE'}{msg:attachmentUnreadable}
+{/switch}

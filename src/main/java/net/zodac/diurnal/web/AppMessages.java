@@ -843,6 +843,92 @@ public interface AppMessages {
     @Message("Note cannot contain more than {max} combining marks in a row.")
     String noteNoStackedMarks(int max);
 
+    /**
+     * A blank attachment name.
+     *
+     * @return the default (English) text
+     */
+    @Message("Attachment name cannot be empty.")
+    String attachmentNameBlank();
+
+    /**
+     * An over-long attachment name.
+     *
+     * @param max the maximum, never translated
+     * @return the default (English) text
+     */
+    @Message("Attachment name must be at most {max} characters.")
+    String attachmentNameLength(int max);
+
+    /**
+     * An attachment name carrying an invisible or text-direction character.
+     *
+     * @return the default (English) text
+     */
+    @Message("Attachment name cannot contain invisible or text-direction characters.")
+    String attachmentNameNoInvisibleChars();
+
+    /**
+     * An attachment name carrying too many stacked combining marks.
+     *
+     * @param max the maximum consecutive marks allowed, never translated
+     * @return the default (English) text
+     */
+    @Message("Attachment name cannot contain more than {max} combining marks in a row.")
+    String attachmentNameNoStackedMarks(int max);
+
+    /**
+     * An attachment name carrying a square bracket, which the token that embeds it in the note is written with.
+     *
+     * @return the default (English) text
+     */
+    @Message("Attachment name cannot contain square brackets.")
+    String attachmentNameNoSquareBrackets();
+
+    // ── Note attachment refusals (partials/attachment-refusal.html) ──────────
+
+    /**
+     * An attachment whose extension this deployment does not accept, naming the ones it does.
+     *
+     * @param accepted the accepted extensions as one comma-separated phrase, never translated - how many there are is a property of the deployment
+     *                 rather than of the language, so the list is composed once and handed in whole
+     * @return the default (English) text
+     */
+    @Message("This site only accepts these attachment types: {accepted}.")
+    String attachmentExtensionNotAllowed(String accepted);
+
+    /**
+     * An upload carrying no bytes at all.
+     *
+     * @return the default (English) text
+     */
+    @Message("That file is empty, so there is nothing to attach.")
+    String attachmentEmptyFile();
+
+    /**
+     * A rename to a name another file on the same day already has.
+     *
+     * @return the default (English) text
+     */
+    @Message("This day already has an attachment with that name.")
+    String attachmentDuplicateName();
+
+    /**
+     * A request naming an attachment that is not there - already deleted, or never the acting account's.
+     *
+     * @return the default (English) text
+     */
+    @Message("That attachment is no longer there.")
+    String attachmentUnknown();
+
+    /**
+     * An attachment whose stored name could not be opened, so the note's own text cannot be kept in step with it.
+     *
+     * @return the default (English) text
+     */
+    @Message("That attachment could not be opened.")
+    String attachmentUnreadable();
+
     // ── First-run setup (setup.html) ─────────────────────────────────────────
 
     /**
@@ -2314,6 +2400,134 @@ public interface AppMessages {
     String noteInputPlaceholder();
 
     /**
+     * The note box's attach-a-file button.
+     *
+     * @return the default (English) text
+     */
+    @Message("Attach a file")
+    String attachFile();
+
+    /**
+     * The overlay shown across the note box while a file is being dragged over it.
+     *
+     * @return the default (English) text
+     */
+    @Message("Drop to attach to this note")
+    String dropToAttach();
+
+    /**
+     * The note box's status line while an upload is in flight.
+     *
+     * @return the default (English) text
+     */
+    @Message("Attaching…")
+    String attaching();
+
+    /**
+     * The note box's fallback status when an upload fails with no usable message to show instead.
+     *
+     * @return the default (English) text
+     */
+    @Message("Could not attach the file.")
+    String couldNotAttachFile();
+
+    /**
+     * The refusal shown when a chosen file is larger than the deployment accepts. It NAMES the ceiling, which it can now that the page carries the
+     * configured figure ({@code AttachmentPolicy#maxLabel}) - a refusal the user cannot act on is only half a message, and the same wording serves
+     * whether the file was caught in the browser before the upload started or by the server's own {@code 413}.
+     *
+     * @param max the deployment's attachment ceiling, already worded (e.g. {@code "25 MB"}) and never translated
+     * @return the default (English) text
+     */
+    @Message("That file is too large to attach. The most this site accepts is {max}.")
+    String attachmentTooLarge(String max);
+
+    /**
+     * The accessible name of the button that abandons an upload in progress, beside the progress bar.
+     *
+     * @return the default (English) text
+     */
+    @Message("Cancel upload")
+    String cancelUpload();
+
+    /**
+     * An attachment's size on the note box's hover card, in kilobytes.
+     *
+     * <p>
+     * <strong>One unit, not a scale.</strong> A per-unit message pair would have to be picked between in the browser, which means both strings on the
+     * page and a rule in the script deciding which applies — for a figure that is already bounded by {@code MAX_ATTACHMENT_SIZE}, so
+     * it almost never leaves kilobytes. The number arrives already grouped for the viewer's locale.
+     *
+     * @param size the size in kilobytes, already formatted for the locale and never translated again
+     * @return the default (English) text
+     */
+    @Message("{size} KB")
+    String attachmentSizeKb(String size);
+
+    /**
+     * The hover card's rename control.
+     *
+     * @return the default (English) text
+     */
+    @Message("Rename")
+    String renameAttachment();
+
+    /**
+     * The hover card's download control.
+     *
+     * @return the default (English) text
+     */
+    @Message("Download")
+    String downloadAttachment();
+
+    /**
+     * The hover card's delete control.
+     *
+     * @return the default (English) text
+     */
+    @Message("Remove")
+    String removeAttachment();
+
+    /**
+     * The label on the rename field inside the hover card.
+     *
+     * @return the default (English) text
+     */
+    @Message("New name")
+    String newAttachmentName();
+
+    /**
+     * The accessible name of the note hover card's image preview, which opens the file full size in a new tab.
+     *
+     * <p>
+     * Its own entry rather than {@link #viewPreviewFullSize(String)}: that one names the thing it opens, and the name
+     * here is a filename the server never renders into this link - the card is one element reused for whichever
+     * attachment the pointer is over, so its text is set in the browser.
+     *
+     * @return the default (English) text
+     */
+    @Message("Open full size in a new tab")
+    String openAttachmentFullSize();
+
+    /**
+     * The Settings Data card's checkbox for including note attachments in an export. Shown only when the account has at least one - a checkbox that
+     * can only ever say "include the nothing you have" is a control that explains a feature rather than operating one.
+     *
+     * @return the default (English) text
+     */
+    @Message("Export attachments")
+    String exportAttachments();
+
+    /**
+     * The in-place delete-confirmation prompt on the attachment hover card. Worded as a question about the FILE rather than about the token, because
+     * removing one deletes the stored file as well as taking its mention out of the note.
+     *
+     * @return the default (English) text
+     */
+    @Message("Remove this attachment?")
+    String removeAttachmentPrompt();
+
+    /**
      * Clear.
      *
      * @return the default (English) text
@@ -2396,6 +2610,80 @@ public interface AppMessages {
      */
     @Message("Search your notes…")
     String searchNotesPlaceholder();
+
+    /**
+     * The paperclip shown on a result row whose day holds a file.
+     *
+     * @return the default (English) text
+     */
+    @Message("This day has an attachment")
+    String dayHasAnAttachment();
+
+    /**
+     * The heading of the notes page's second table, which lists the account's files rather than its days.
+     *
+     * @return the default (English) text
+     */
+    @Message("Attachments")
+    String attachmentsCardTitle();
+
+    /**
+     * The attachments table's subtitle. Worded as the notes page's own subtitle is ("View and search through your notes"), so the second table reads
+     * as a sibling of the first rather than as a different kind of thing.
+     *
+     * @return the default (English) text
+     */
+    @Message("View and search through every file attached to a note")
+    String attachmentsSubtitle();
+
+    /**
+     * Search attachments placeholder.
+     *
+     * @return the default (English) text
+     */
+    @Message("Search your attachments…")
+    String searchAttachmentsPlaceholder();
+
+    /**
+     * The attachments table's display-name column header - the name the note embeds the file by, which a rename changes.
+     *
+     * @return the default (English) text
+     */
+    @Message("Name")
+    String attachmentNameColumnHeader();
+
+    /**
+     * The attachments table's uploaded-file-name column header. Worded as the FILE rather than as a second "name", because the point of the column
+     * beside it is that the two can differ - one is what the user calls it, this one is what it is.
+     *
+     * @return the default (English) text
+     */
+    @Message("File")
+    String attachmentFileColumnHeader();
+
+    /**
+     * The attachments table's file-size column header.
+     *
+     * @return the default (English) text
+     */
+    @Message("Size")
+    String attachmentSizeColumnHeader();
+
+    /**
+     * The attachments table with a search term that matched no file.
+     *
+     * @return the default (English) text
+     */
+    @Message("No attachments match your search.")
+    String noAttachmentsMatchSearch();
+
+    /**
+     * The attachments table for an account holding no file at all. It points at the dashboard, which is the only place a file can be attached.
+     *
+     * @return the default (English) text
+     */
+    @Message("No attachments yet, attach one to a note on the dashboard.")
+    String noAttachmentsYetAttachOnDashboard();
 
     // ── Stats (stats.html) ───────────────────────────────────────────────────
 
@@ -3059,10 +3347,11 @@ public interface AppMessages {
      * @param actionsLabel the archive's action count, worded (e.g. "3 actions")
      * @param logsLabel the archive's log-entry count, worded
      * @param notesLabel the archive's note count, worded
+     * @param attachmentsLabel the archive's attachment count, worded
      * @return the default (English) text
      */
-    @Message("This archive holds {actionsLabel}, {logsLabel} and {notesLabel}.")
-    String importArchiveHolds(String actionsLabel, String logsLabel, String notesLabel);
+    @Message("This archive holds {actionsLabel}, {logsLabel}, {notesLabel} and {attachmentsLabel}.")
+    String importArchiveHolds(String actionsLabel, String logsLabel, String notesLabel, String attachmentsLabel);
 
     /**
      * The import preview's data-replacement warning.
@@ -3082,21 +3371,23 @@ public interface AppMessages {
     String importNothingToRemove();
 
     /**
-     * The success banner after a confirmed import - the past-tense counterpart of {@link #importArchiveHolds(String, String, String)}, worded
+     * The success banner after a confirmed import - the past-tense counterpart of {@link #importArchiveHolds(String, String, String, String)}, worded
      * separately (rather than reused) because "holds" reads as still-describing-the-file, not as a completed action.
      *
      * @param actionsLabel the imported action count, worded (e.g. "3 actions")
      * @param logsLabel the imported log-entry count, worded
      * @param notesLabel the imported note count, worded
+     * @param attachmentsLabel the imported attachment count, worded
      * @return the default (English) text
      */
-    @Message("Imported {actionsLabel}, {logsLabel} and {notesLabel}.")
-    String importAppliedSummary(String actionsLabel, String logsLabel, String notesLabel);
+    @Message("Imported {actionsLabel}, {logsLabel}, {notesLabel} and {attachmentsLabel}.")
+    String importAppliedSummary(String actionsLabel, String logsLabel, String notesLabel, String attachmentsLabel);
 
     /**
-     * A count of actions, singular-aware ({@code "1 action"} / {@code "3 actions"}) - one of the three figures {@link #importArchiveHolds(String,
-     * String, String)}/{@link #importAppliedSummary(String, String, String)} embed. A raw count rather than a Java-composed word, since a Java
-     * call can never be locale-aware (see this interface's own class Javadoc) - {@code transfer.ImportSummary} carries the number only.
+     * A count of actions, singular-aware ({@code "1 action"} / {@code "3 actions"}) - one of the four figures
+     * {@link #importArchiveHolds(String, String, String, String)}/{@link #importAppliedSummary(String, String, String, String)} embed. A raw count
+     * rather than a Java-composed word, since a Java call can never be locale-aware (see this interface's own class Javadoc) -
+     * {@code transfer.ImportSummary} carries the number only.
      *
      * @param count the action count
      * @return the default (English) text
@@ -3125,18 +3416,69 @@ public interface AppMessages {
     String importNotesCount(int count);
 
     /**
-     * Everything the account holds right now, worded as one phrase ({@code "4 actions, 120 day counts and 30 notes"}) - what
+     * A count of note attachments, singular-aware ({@code "1 attachment"} / {@code "6 attachments"}) - see {@link #importActionsCount(int)} for why a
+     * raw count is not enough.
+     *
+     * @param count the attachment count
+     * @return the default (English) text
+     */
+    @Message("{#if count == 1}1 attachment{#else}{count} attachments{/if}")
+    String importAttachmentsCount(int count);
+
+    /**
+     * Everything the account holds right now, worded as one phrase ({@code "4 actions, 120 day counts, 30 notes and 2 attachments"}) - what
      * {@link #importRemovesExisting(String)} embeds. One atomic entry (not three counts joined in a template) so a translator controls the whole
      * sentence's word order and conjunction placement, not just each count's plural form.
      *
      * @param actions the account's current action count
      * @param logs the account's current day-count entry count
      * @param notes the account's current note count
+     * @param attachments the account's current attachment count
      * @return the default (English) text
      */
-    @Message("{#if actions == 1}1 action{#else}{actions} actions{/if}, {#if logs == 1}1 day count{#else}{logs} day counts{/if} and "
-        + "{#if notes == 1}1 note{#else}{notes} notes{/if}")
-    String importReplacedSummary(int actions, int logs, int notes);
+    @Message("{#if actions == 1}1 action{#else}{actions} actions{/if}, {#if logs == 1}1 day count{#else}{logs} day counts{/if}, "
+        + "{#if notes == 1}1 note{#else}{notes} notes{/if} and "
+        + "{#if attachments == 1}1 attachment{#else}{attachments} attachments{/if}")
+    String importReplacedSummary(int actions, int logs, int notes, int attachments);
+
+    /**
+     * An attachments row naming an archive entry the archive does not hold.
+     *
+     * @param file the entry the row named, never translated
+     * @return the default (English) text
+     */
+    @Message("The archive does not contain the attachment file {file}.")
+    String importMissingAttachmentFile(String file);
+
+    /**
+     * An attachments row naming an archive entry that holds no bytes.
+     *
+     * @param file the entry the row named, never translated
+     * @return the default (English) text
+     */
+    @Message("The attachment file {file} is empty.")
+    String importEmptyAttachment(String file);
+
+    /**
+     * The same day is given two attachments of one name.
+     *
+     * @param name the attachment name both rows carry, never translated
+     * @param date the day they share, never translated
+     * @return the default (English) text
+     */
+    @Message("There is already an attachment named '{name}' on {date}.")
+    String importDuplicateAttachment(String name, String date);
+
+    /**
+     * An attachments row naming a file whose extension this deployment does not accept.
+     *
+     * @param name     the attachment name the row carries, never translated
+     * @param accepted the accepted extensions as one comma-separated phrase, never translated - how many there are is a property of the deployment
+     *                 rather than of the language
+     * @return the default (English) text
+     */
+    @Message("The attachment '{name}' is not one of the accepted types: {accepted}.")
+    String importAttachmentTypeNotAllowed(String name, String accepted);
 
     /**
      * The generic refusal banner for a {@code Rejected} import (one or more rows failed validation) - as opposed to a {@code Malformed} archive

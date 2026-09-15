@@ -172,13 +172,16 @@ class AppMessagesIT extends IntegrationTestBase {
         assertThat(appMessages.importNotesCount(88))
             .as("unexpected value")
             .isEqualTo("88 notes");
+        assertThat(appMessages.importAttachmentsCount(1))
+            .as("unexpected value")
+            .isEqualTo("1 attachment");
     }
 
     @Test
     void importReplacedSummary_wordsEverythingTheAccountHoldsAsOnePhrase() {
-        assertThat(appMessages.importReplacedSummary(4, 120, 1))
+        assertThat(appMessages.importReplacedSummary(4, 120, 1, 2))
             .as("the preview names what is about to be removed, in the user's own terms")
-            .isEqualTo("4 actions, 120 day counts and 1 note");
+            .isEqualTo("4 actions, 120 day counts, 1 note and 2 attachments");
     }
 
     @Test

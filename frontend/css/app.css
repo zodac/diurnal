@@ -236,6 +236,20 @@
        guarantee, and this marks "your search matched here", which is about the search, not about notes. */
     --color-mark-bg: rgb(99 102 241 / 0.18);
 
+    /* The pill drawn behind an attachment's [[name]] token inside the note box. A translucent brand tint for the
+       same reason --color-mark-bg is one: it is painted BEHIND the user's own text, in a mirror layer, so it has
+       to leave whatever that text's colour is legible in both themes. It is a different token from the search
+       highlight because the two mean different things and appear in different places - one marks "your search
+       matched here", this marks "there is a file here" - and reusing one would make a later change to either
+       silently move the other. */
+    --color-attachment-chip-bg: rgb(99 102 241 / 0.16);
+    --color-attachment-chip-edge: rgb(99 102 241 / 0.42);
+
+    /* The wash over the note box while a file is dragged over it. A translucent brand tint of its own rather than
+       --color-brand-subtle, which is that in LIGHT and a solid fill in dark (it is the calendar's "today" fill there) -
+       a solid one here hides the note the user is dropping onto, which is the one thing they need to still see. */
+    --color-dropzone-bg: rgb(99 102 241 / 0.14);
+
     /* Confirm-delete data-table row highlight ring (the edit ring is brand-derived, see @generated:brand). */
     --color-ring-confirm: #fca5a5;   /* red-300 */
 
@@ -304,6 +318,11 @@
     --color-success: #4ade80;        /* green-400 */
 
     --color-mark-bg: rgb(129 140 248 / 0.34);
+
+    --color-attachment-chip-bg: rgb(129 140 248 / 0.30);
+    --color-attachment-chip-edge: rgb(129 140 248 / 0.60);
+
+    --color-dropzone-bg: rgb(129 140 248 / 0.22);
 
     --color-ring-confirm: #b91c1c;   /* red-700 */
 
@@ -1256,6 +1275,27 @@
            Both properties are re-set: the tint carries the signal, the text keeps the row's own colour. */
         .note-mark { background-color: var(--color-mark-bg); color: inherit; border-radius: .125rem; padding: 0 .0625rem; }
 
+        /* The paperclip beside a result row's date. Faint, because it is a marker rather than a control - the
+           row's own link is what is clickable, and a second emphasised thing in the cell would compete with it. */
+        .note-row-clip { display: inline-flex; vertical-align: middle; margin-inline-start: .375rem; color: var(--color-text-faint); }
+        .note-row-clip svg { width: .875rem; height: .875rem; }
+
+        /* ── Notes page: the attachments table ────────────────────────────────
+           A file's name is a link, so it carries the row's emphasis where the notes table's snippet cell is
+           muted running text. The cell (not the link) does the truncating: `text-overflow` acts on a block's
+           own inline content, so an inline-flex link inside it would be clipped with no ellipsis - which is
+           also why the paperclip is an inline-block glyph rather than a flex item. */
+        .note-attachment-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .note-attachment-link { color: var(--color-text); font-weight: 500; transition: color .15s; }
+        /* The uploaded file name beside the display name. Muted and unweighted, so the pair reads as "this file, which
+           is called that" rather than as two competing labels - and so the column carries no pull to click it. */
+        .note-attachment-file { color: var(--color-text-muted); }
+        .note-attachment-link:hover { color: var(--color-brand); }
+        .note-attachment-link svg {
+            display: inline-block; vertical-align: -.125em; margin-inline-end: .375rem;
+            width: .875rem; height: .875rem; color: var(--color-text-faint);
+        }
+
         /* An import-refusal row names the archive member it came from, and several refusal sentences name one
            inside the sentence itself (partials/import-panel.html, partials/import-reason.html) - always one of
            the fixed, ASCII, never-translated CSV filenames from transfer.TransferFiles. Both are plain <strong>
@@ -1711,7 +1751,244 @@
   overflow-y: auto;
   line-height: 1.45;
   font-family: inherit;
+  /* Above the mirror, and transparent so the pills the mirror paints show through. The .form-input border,
+     radius and focus ring still belong to this element — only the FILL moves to the layer behind, which is
+     what .note-highlights supplies. */
+  position: relative;
+  z-index: 1;
+  background-color: transparent;
+  /* The gutter is reserved whether or not the box is currently scrolling, and the mirror reserves the same one.
+     Without it, the scrollbar appearing narrows THIS element's content box and not the mirror's, so a long note
+     wraps at two different widths and every pill below the first wrap is drawn against the wrong words. This is
+     the one place in the app that wants a gutter - see the note on `html` above for why the root does not. */
+  scrollbar-gutter: stable;
 }
+
+/* ── The attachment mirror ────────────────────────────────────────────────
+   The layer that makes an embedded file look different from the prose around it. It holds exactly the
+   textarea's text, laid out with exactly the textarea's metrics, drawn in transparent ink — so the only thing
+   it contributes visually is the tinted pill behind each [[name]] token. The real text stays the textarea's
+   own, which is why the caret, selection, IME and the character counter are all untouched by this.
+
+   IT SITS BEHIND, NOT IN FRONT. An overlay on top would have to swallow pointer events to keep the box
+   typeable, and would then be unable to hand any back to a pill; the hover card is instead placed by
+   hit-testing the pill rectangles with getBoundingClientRect (note.js), which needs no pointer events at all.
+
+   EVERY METRIC BELOW IS A KEEP-IN-SYNC PAIR WITH .form-input AND .note-input (UI_PATTERNS.md section 6): a
+   difference of one pixel in padding, font size or line height slides the pills away from the words they are
+   meant to sit behind. The values are .form-input's own (`rounded-lg px-3 py-2 text-sm`, a 1px border) plus
+   .note-input's line-height. */
+.note-editor {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.note-highlights {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background-color: var(--color-input-bg);
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  color: transparent;
+  pointer-events: none;
+  z-index: 0;
+  /* The other half of the pair on .note-input: both reserve the gutter, so both wrap at the same width. */
+  scrollbar-gutter: stable;
+}
+/* No padding and no border on the pill: either would make the token occupy more width in the mirror than it
+   does in the textarea, and every character after it on the line would then be drawn in the wrong place. The
+   breathing space is a box-shadow, which paints outside the box without taking any room. */
+.note-chip {
+  background-color: var(--color-attachment-chip-bg);
+  border-radius: 0.25rem;
+  box-shadow: 0 0 0 2px var(--color-attachment-chip-bg), inset 0 0 0 1px var(--color-attachment-chip-edge);
+}
+.note-chip-active {
+  background-color: var(--color-attachment-chip-edge);
+  box-shadow: 0 0 0 2px var(--color-attachment-chip-edge), inset 0 0 0 1px var(--color-brand);
+}
+
+/* ── The drop zone ────────────────────────────────────────────────────────
+   Shown across the writing area only while a file is over the panel, so the box says what a drop will do
+   before it happens. It covers the textarea rather than the whole card, because that is the target: dropping
+   on the buttons below does the same thing, and the overlay would only hide them. */
+.note-dropzone {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--color-brand);
+  border-radius: 0.5rem;
+  background-color: var(--color-dropzone-bg);
+  pointer-events: none;
+}
+/* `hidden` has to be re-asserted for the two elements in this block that set a `display` AND are toggled by the
+   hidden attribute. Everything here is UN-LAYERED (see the block header), and an unlayered declaration beats
+   Tailwind's `@layer base` preflight - so `[hidden] { display: none }` loses to `display: flex`/`block` above and
+   the element is permanently visible. The same defensive re-assertion the `.dt-*` and chart blocks make. */
+.note-dropzone[hidden] {
+  display: none;
+}
+
+/* Sits ON the wash, so it carries the card's own surface and text colours rather than the brand: brand-on-tint is
+   the one combination here with no contrast guarantee in either theme. The brand shows in the border instead. */
+.note-dropzone-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-brand);
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.625rem;
+}
+
+/* ── The upload's progress ────────────────────────────────────────────────
+   A determinate bar: the file's size is known before the request starts, so how far along it is can be
+   reported honestly rather than with a spinner that only says "something is happening". Its own height is
+   the whole of the layout change while it is showing, which is why it is a 3px rail rather than a panel. */
+.note-progress {
+  margin-top: 0.5rem;
+  height: 3px;
+  border-radius: 999px;
+  background-color: var(--color-border);
+  overflow: hidden;
+}
+.note-progress-bar {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background-color: var(--color-brand);
+  transition: width 120ms linear;
+}
+
+/* The upload's progress bar and the button that abandons it, on one row: the rail takes the space, the button keeps
+   its own. */
+.note-progress-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
+.note-progress-row[hidden] { display: none; }
+.note-progress-row .note-progress { flex: 1 1 auto; margin-top: 0; }
+
+/* ── The attachment hover card ────────────────────────────────────────────
+   One card, moved to whichever pill the pointer is over (see note.js). Positioned absolutely within
+   #note-panel, which is already `relative`, so it cannot be clipped by the textarea's own scroll box.
+   Physical `left`/`top` rather than logical properties: the position is computed in viewport pixels from a
+   measured rectangle, so it is already direction-agnostic by the time it reaches here. */
+.note-attachment-card {
+  position: absolute;
+  z-index: 30;
+  /* Wide enough for the three action buttons AND the close button a pinned card adds, on ONE row: at a narrower
+     width the close wraps to a line of its own, which makes pinning change the card's height - the very shift the
+     two states are supposed to differ without. */
+  width: 17.5rem;
+  max-width: calc(100% - 1rem);
+  padding: 0.5rem;
+  /* DASHED while the card is merely following the pointer, SOLID once it has been pinned by a click (below). The
+     border is the whole of the difference, deliberately: the card's contents are identical in both states, so the
+     edge is what says whether letting go of the pointer will take it away. */
+  border: 1px dashed var(--color-border);
+  border-radius: 0.5rem;
+  background-color: var(--color-surface);
+  box-shadow: 0 10px 25px rgb(0 0 0 / 0.15);
+}
+/* The ONLY difference between the two states, deliberately: same padding, same contents, same size - so pinning a card
+   does not make it jump. The close button it gains sits at the end of the existing button row (dashboard.html). */
+.note-attachment-card-pinned { border-style: solid; }
+/* The pinned card's way out, and the upload's. `margin-inline-start: auto` pushes it to the far end of whichever row it
+   sits in, which is the end that mirrors correctly under RTL. */
+.note-attachment-close {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 0.25rem;
+  color: var(--color-text-muted);
+  transition: color .15s, background-color .15s;
+}
+.note-attachment-close:hover { color: var(--color-text); background-color: var(--color-surface-muted); }
+.note-attachment-close:focus-visible { outline: 2px solid var(--color-brand-ring); outline-offset: 1px; }
+.note-attachment-close[hidden] { display: none; }
+.note-attachment-close svg { width: 0.875rem; height: 0.875rem; }
+/* Deliberately shallow: the card floats inside a note box whose default height is --note-default-h (19rem), so a
+   preview any taller leaves the card covering the whole of the writing it is anchored in. This is a thumbnail that
+   says WHICH image it is, not a viewer. */
+.note-attachment-preview-link { display: block; margin-bottom: 0.375rem; border-radius: 0.375rem; }
+.note-attachment-preview-link[hidden] { display: none; }
+/* The focus ring the link would otherwise not show, since its only child is an image. */
+.note-attachment-preview-link:focus-visible { outline: 2px solid var(--color-brand-ring); outline-offset: 2px; }
+.note-attachment-preview {
+  display: block;
+  width: 100%;
+  max-height: 4.5rem;
+  object-fit: contain;
+  border-radius: 0.375rem;
+  background-color: var(--color-surface-muted);
+}
+/* The browser's own audio controls, sized to the card rather than to their default ~300px - a native player left at
+   its intrinsic width overflows a 15rem card and pushes the name and buttons out of it. The height is the shortest
+   Chrome and Firefox will draw a full control strip at; below it they start dropping the timeline. */
+.note-attachment-audio {
+  display: block;
+  width: 100%;
+  height: 2.25rem;
+  margin-bottom: 0.375rem;
+}
+.note-attachment-audio[hidden] { display: none; }
+.note-attachment-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-attachment-size {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.375rem;
+}
+.note-attachment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.note-attachment-btn {
+  border-radius: 0.375rem;
+  border: 1px solid var(--color-input-border);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.note-attachment-btn:hover { background-color: var(--color-surface-muted); color: var(--color-text); }
+/* The navbar's Log out treatment: danger-coloured text, deepening on hover through the same `transition-colors`,
+   and NO fill or coloured frame - the colour is the whole of the signal. Red at rest rather than only on hover,
+   because a destructive button that looks destructive only once the pointer is on it has already been pressed by
+   anyone who was not going to hover first (the same reason .dt-btn-danger is red at rest). */
+.note-attachment-btn-danger { color: var(--color-danger); }
+.note-attachment-btn-danger:hover { background-color: transparent; color: var(--color-danger-strong); }
+/* The in-place delete confirmation, which replaces the action row rather than sitting under it - so the card does
+   not grow (and so move) at the moment the pointer is resting on one of its buttons. */
+.note-attachment-confirm .dt-confirm-prompt { display: block; margin-bottom: 0.375rem; }
+.note-attachment-actions[hidden],
+.note-attachment-confirm[hidden] {
+  display: none;
+}
+.note-attachment-rename { margin-top: 0.375rem; }
+.note-attachment-rename-input { width: 100%; }
 
 /* While a drag is in progress: kill text selection and pointer-driven scrolling everywhere, so a drag
    that leaves the handle does not select the page or scroll the textarea under the cursor. */
@@ -1800,6 +2077,23 @@
   color: var(--color-text-muted);
 }
 .note-btn-secondary:hover { background-color: var(--color-surface-muted); }
+/* The attach control: .note-btn-secondary's frame at the same height, sized for a glyph instead of a word. The row
+   holds the character counter and three worded buttons already, and the note panel is one dashboard column wide -
+   a fourth worded button overflows it at the default width. */
+.note-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-input-border);
+  color: var(--color-text-muted);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.note-btn-icon svg { width: 0.9375rem; height: 0.9375rem; }
+.note-btn-icon:hover { background-color: var(--color-surface-muted); color: var(--color-text); }
+.note-btn-icon:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
 
 /* ── Stats-page frequency graph (modal + bar chart) ───────────────────────── */
 /* Lives here (un-layered, like the calendar block above) because the chart is a self-contained widget

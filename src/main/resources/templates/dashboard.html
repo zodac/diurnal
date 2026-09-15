@@ -92,7 +92,18 @@
                  any day (see NoteService). !}
             <div id="note-panel" dir="{language:dir(language)}" class="{#if showStatsSummary}lg:col-start-3 lg:row-start-2 {/if}card p-4 flex flex-col min-w-0 relative"
                  data-note-date="{summaryDate}" data-note-max="{inject:textFields.note.maxLength}"
-                 data-note-counter="{showNoteCounter}">
+                 data-note-counter="{showNoteCounter}"
+                 {! The three strings note.js composes for the attachment flow. Carried on THIS panel rather than added to
+                      layout.html's window.Diurnal.i18n block, because that block is an inline script whose CSP hash is
+                      pinned by SecurityHeadersFilterIT - and these are wanted on exactly one page. Read off data-* and
+                      HTML-attribute-escaped by Qute, so a translation carrying an apostrophe is harmless. !}
+                 data-max-attachment-bytes="{inject:attachments.maxBytes}"
+                 data-i18n-attaching="{msg:attaching}" data-i18n-could-not-attach="{msg:couldNotAttachFile}"
+                 data-i18n-attachment-too-large="{msg:attachmentTooLarge(inject:attachments.maxLabel)}"
+                 {! The size carries its unit inside the translated message, with a %SIZE% slot where the number
+                      belongs in THIS language's word order - a data-* attribute can only hold text, so the number
+                      cannot be an element. Same keep-in-sync shape as layout.html's lockout clock token. !}
+                 data-i18n-attachment-size="{msg:attachmentSizeKb('%SIZE%')}">
                 <div class="flex items-center justify-between gap-2 mb-2">
                     <h3 class="text-base font-medium text-ink">{msg:noteHeading}</h3>
                     <span id="note-status" class="help-text" aria-live="polite"></span>
@@ -114,23 +125,71 @@
                      navigation included) is the right mechanism, not a CSS-only unicode-bidi rule. Without
                      it, an all-English note's trailing punctuation visually migrates to the front of the
                      sentence while the page is RTL. !}
-                <textarea id="note-input" class="form-input note-input" aria-describedby="note-count" dir="auto"
-                          placeholder="{msg:noteInputPlaceholder}">{noteContent}</textarea>
+                {! The editor is the textarea PLUS a mirror layer behind it. The mirror holds the same text with the
+                     same metrics, drawn transparent, and paints a tinted pill behind every [[name]] token that names a
+                     file this day actually holds - which is what makes an embedded attachment look distinct from the
+                     prose without the box having to stop being a plain textarea. Nothing is drawn on TOP of the
+                     textarea, so typing, selecting, the caret and the character counter are all untouched; the hover
+                     card is placed by hit-testing the mirror's own pill rectangles (note.js). !}
+                <div class="note-editor">
+                    <div id="note-highlights" class="note-highlights" dir="auto" aria-hidden="true"></div>
+                    <textarea id="note-input" class="form-input note-input" aria-describedby="note-count" dir="auto"
+                              placeholder="{msg:noteInputPlaceholder}">{noteContent}</textarea>
+                    {! Shown only while a file is being dragged over the panel. aria-hidden because it is pure
+                         affordance: the same upload is reachable from the Attach button beside Save. !}
+                    <div id="note-dropzone" class="note-dropzone" aria-hidden="true" hidden>
+                        <span class="note-dropzone-label">{msg:dropToAttach}</span>
+                    </div>
+                </div>
+
+                {! The upload's own progress, driven by XMLHttpRequest.upload.onprogress. A determinate bar rather than a
+                     spinner: the size is known before the request starts, so how far along it is can be told honestly. !}
+                {! The bar and its cancel button are one row: an upload large enough to be worth a progress bar is large
+                     enough to be worth abandoning, and the control belongs beside the thing it stops rather than in the
+                     status line at the top of the card. The button aborts the XHR (note.js), which is what actually stops
+                     the bytes - nothing is stored for a request that never completed. !}
+                <div id="note-progress-row" class="note-progress-row" hidden>
+                    <div id="note-progress" class="note-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                        <div id="note-progress-bar" class="note-progress-bar"></div>
+                    </div>
+                    <button type="button" id="note-attach-cancel" class="note-attachment-close" aria-label="{msg:cancelUpload}">
+                        {#include partials/icon name='close' /}
+                    </button>
+                </div>
 
                 <div id="note-error" class="mt-2 empty:hidden"></div>
 
                 {! Clear empties the box but does NOT write: it leaves the emptied note for the user to Save
                      (or Undo), so no destructive write ever happens on a single click. It is hidden unless the
                      STORED note is non-empty, since there is nothing to clear otherwise. !}
-                <div class="flex items-center justify-between gap-2 mt-2">
+                {! flex-wrap, and a counter that may shrink: with the character count switched on, a narrow note panel
+                     (a small window, or a box the user has dragged narrow) used to push Save off the end of the row
+                     rather than wrapping. The counter gives way first (min-w-0), and the button group wraps to its own
+                     line before anything is lost. !}
+                <div class="flex flex-wrap items-center justify-between gap-2 mt-2">
                     {! Shown only while a day is selected and the box is typeable — a count against a
                          disabled, empty box is noise. Muted under the limit, red over it.
                          Always RENDERED, even for a user who has turned the counter off in Settings: the
                          element is what `aria-describedby` above points at, and note.js reveals it anyway
                          while a note is over its bound, where it is the only explanation for Save going
                          inert. The preference is therefore a condition on `hidden`, not on the markup. !}
-                    <span id="note-count" class="note-count" hidden></span>
-                    <div class="flex items-center gap-2">
+                    <span id="note-count" class="note-count min-w-0" hidden></span>
+                    <div class="flex items-center gap-2 ms-auto">
+                        {! The file picker is the same upload the drop zone performs, for anyone not dragging - a keyboard
+                             user, a touch device, or a browser with no drag support. `accept` is only a hint to the
+                             picker (a dropped file ignores it entirely), so the server's own extension check is what
+                             actually decides; it is omitted altogether when the deployment accepts everything. !}
+                        <input type="file" id="note-attach-input" class="sr-only"
+                               {#if inject:attachments.acceptAttribute}accept="{inject:attachments.acceptAttribute}"{/if}>
+                        {! An ICON button, where the three beside it are words: the row already carries the counter and
+                             three controls, and the note panel is one grid column wide - a fourth worded button pushes
+                             Save off the end of it at the default width. The glyph says "attach" as well as the word
+                             does, and the accessible name plus the hover tooltip carry the wording for everyone else. !}
+                        <button type="button" id="note-attach" class="group relative note-btn-icon"
+                                aria-label="{msg:attachFile}">
+                            {#include partials/icon name='paperclip' /}
+                            {#include partials/tooltip text=msg:attachFile pos='top' align='center' /}
+                        </button>
                         <button type="button" id="note-clear" class="note-btn-secondary" hidden>{msg:clear}</button>
                         <button type="button" id="note-undo" class="note-btn-secondary">{msg:undo}</button>
                         <button type="button" id="note-save" class="note-btn-primary">{msg:save}</button>
@@ -142,6 +201,70 @@
                      driven by the Pointer Events handler in dashboard.js (the same approach the
                      settings stats picker uses). Decorative, so hidden from assistive tech — the box
                      is fully usable at its default size, and the textarea scrolls. !}
+                {! ONE hover card, reused for whichever attachment the pointer is over, rather than one per token: the
+                     tokens live inside a text layer that is rebuilt on every keystroke, so a card rendered among them
+                     would be destroyed mid-interaction. It is positioned by note.js against the pill it belongs to.
+                     The download link's href and the preview's src are set from the server-supplied URL on the
+                     attachment itself - never built here - so a sub-path deployment keeps its prefix. !}
+                {! Two states, told apart by their OUTLINE. Hovering a pill opens a transient card, drawn with a dashed
+                     border: it follows the pointer from pill to pill and closes when the pointer leaves. CLICKING one
+                     pins it - solid border, and a close button, because a card that no longer answers to the pointer
+                     needs a way out that is not "guess". note.js owns the flag; the class is the whole of the styling
+                     difference. !}
+                <div id="note-attachment-card" class="note-attachment-card" hidden>
+                    {! The thumbnail opens the file full size in a new tab, which is the only way to see it at its
+                         own size: the card is a few rem tall by design (it floats inside a note box of --note-default-h,
+                         so anything larger covers the writing it is anchored in). rel="noopener" because the target is
+                         a user-supplied file - the tab it opens must not get a handle on this one. The href is set
+                         beside the src in note.js, from the URL the server put on the attachment. !}
+                    <a id="note-attachment-preview-link" class="note-attachment-preview-link" target="_blank"
+                       rel="noopener noreferrer" aria-label="{msg:openAttachmentFullSize}" hidden>
+                        <img id="note-attachment-preview" class="note-attachment-preview" alt="">
+                    </a>
+                    {! A sound file gets the browser's own player instead of a thumbnail. `preload="none"` is deliberate: this
+                         endpoint serves the whole file in one response (an attachment is sealed as a single blob, so there are no
+                         range requests to satisfy), and hovering a pill must not pull a megabyte down for a clip nobody plays.
+                         It is NOT wrapped in the "open full size" link the thumbnail uses - a link around the controls would
+                         swallow every click meant for play or the scrubber. note.js pauses it whenever the card closes. !}
+                    <audio id="note-attachment-player" class="note-attachment-audio" controls preload="none" hidden></audio>
+                    <div id="note-attachment-name" class="note-attachment-name js-phrase" data-tip-full></div>
+                    {! No js-digits: that pass transcodes ASCII digits on an HTMX swap, and nothing swaps this card - note.js
+                         formats the figure with toLocaleString when it writes it, which does the same job at the one moment
+                         it is needed. !}
+                    <div id="note-attachment-size" class="note-attachment-size"></div>
+                    <div id="note-attachment-actions" class="note-attachment-actions">
+                        <a id="note-attachment-download" class="note-attachment-btn" download>{msg:downloadAttachment}</a>
+                        <button type="button" id="note-attachment-rename" class="note-attachment-btn">{msg:renameAttachment}</button>
+                        <button type="button" id="note-attachment-delete" class="note-attachment-btn note-attachment-btn-danger">{msg:removeAttachment}</button>
+                        {! Only a PINNED card shows it - the hover one closes itself, so a way out would be a control nobody
+                             asked for. It sits at the end of this row rather than floating in the corner so that pinning a
+                             card ADDS a button to a row that was already there, instead of reserving a strip at the top and
+                             shifting everything down: the two states must differ by their outline, not by their layout. !}
+                        <button type="button" id="note-attachment-close" class="note-attachment-close" aria-label="{msg:close}" hidden>
+                            {#include partials/icon name='close' /}
+                        </button>
+                    </div>
+                    {! The in-place delete confirmation, the same shape every other destructive action in the app takes
+                         (partials/confirm-actions.html): the prompt, then the destructive button on the LEFT and Cancel
+                         on the RIGHT - where Remove itself sat, so a double-click safely dismisses rather than deletes.
+                         It is written out here rather than included, because that partial drives its buttons with HTMX
+                         and these are fetch-driven by note.js (an attachment write answers JSON the box repaints from,
+                         not a fragment to swap). !}
+                    <div id="note-attachment-confirm" class="note-attachment-confirm" hidden>
+                        <span class="dt-confirm-prompt">{msg:removeAttachmentPrompt}</span>
+                        <div class="note-attachment-actions">
+                            <button type="button" id="note-attachment-delete-confirm"
+                                    class="note-attachment-btn note-attachment-btn-danger">{msg:deleteLabel}</button>
+                            <button type="button" id="note-attachment-delete-cancel" class="note-attachment-btn">{msg:cancel}</button>
+                        </div>
+                    </div>
+                    <div id="note-attachment-rename-row" class="note-attachment-rename" hidden>
+                        <label for="note-attachment-rename-input" class="sr-only">{msg:newAttachmentName}</label>
+                        <input type="text" id="note-attachment-rename-input" class="form-input note-attachment-rename-input"
+                               dir="auto" autocomplete="off">
+                    </div>
+                </div>
+
                 <span class="note-resize note-resize-right"  data-note-resize="right"  aria-hidden="true"></span>
                 <span class="note-resize note-resize-bottom" data-note-resize="bottom" aria-hidden="true"></span>
                 <span class="note-resize note-resize-corner" data-note-resize="corner" aria-hidden="true"></span>

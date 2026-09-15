@@ -70,6 +70,83 @@ window.Diurnal = window.Diurnal || {};
     const noteDrafts  = {} // dateStr -> unsaved edit
     let noteDate = null    // the day the box is currently showing, or null when nothing is selected
 
+    // ── Attachments ──────────────────────────────────────────────────────────
+    // A day's files, and the mirror layer that makes them look like files rather than like text. See the
+    // "attachment mirror" block in app.css for why the mirror sits BEHIND the textarea rather than over it,
+    // and note.NoteTokens for the [[name]] token the note's own text carries.
+    const noteEditor      = notePanel.querySelector('.note-editor')
+    const noteHighlights  = document.getElementById('note-highlights')
+    const noteDropzone    = document.getElementById('note-dropzone')
+    const noteProgress    = document.getElementById('note-progress')
+    const noteProgressBar = document.getElementById('note-progress-bar')
+    const noteAttachBtn   = document.getElementById('note-attach')
+    const noteAttachInput = document.getElementById('note-attach-input')
+    const attachCard      = document.getElementById('note-attachment-card')
+    const attachPreview   = document.getElementById('note-attachment-preview')
+    const attachPreviewLink = document.getElementById('note-attachment-preview-link')
+    const attachPlayer    = document.getElementById('note-attachment-player')
+    const attachClose     = document.getElementById('note-attachment-close')
+    const progressRow     = document.getElementById('note-progress-row')
+    const attachCancel    = document.getElementById('note-attach-cancel')
+    const attachName      = document.getElementById('note-attachment-name')
+    const attachSize      = document.getElementById('note-attachment-size')
+    const attachDownload  = document.getElementById('note-attachment-download')
+    const attachRenameBtn = document.getElementById('note-attachment-rename')
+    const attachActions   = document.getElementById('note-attachment-actions')
+    const attachDeleteBtn = document.getElementById('note-attachment-delete')
+    const attachConfirm   = document.getElementById('note-attachment-confirm')
+    const attachDeleteOk  = document.getElementById('note-attachment-delete-confirm')
+    const attachDeleteNo  = document.getElementById('note-attachment-delete-cancel')
+    const attachRenameRow = document.getElementById('note-attachment-rename-row')
+    const attachRenameInp = document.getElementById('note-attachment-rename-input')
+
+    // The three strings this module composes, plus the size phrasing. Carried on the panel rather than in
+    // layout.html's window.Diurnal.i18n block, which is an inline script whose CSP hash is pinned by
+    // SecurityHeadersFilterIT - and these are wanted on exactly one page. See the panel's own comment.
+    // The deployment's attachment ceiling, so an over-sized file is refused before a byte is sent (see tooLarge).
+    const MAX_ATTACHMENT_BYTES = Number(notePanel.dataset.maxAttachmentBytes || 0)
+
+    const ATTACH_TEXT = {
+        attaching: notePanel.dataset.i18nAttaching || '',
+        couldNotAttach: notePanel.dataset.i18nCouldNotAttach || '',
+        tooLarge: notePanel.dataset.i18nAttachmentTooLarge || '',
+        size: notePanel.dataset.i18nAttachmentSize || ''
+    }
+    // Keep-in-sync pair with AppMessages#attachmentSizeKb's own '%SIZE%' argument (UI_PATTERNS.md section 6).
+    const SIZE_TOKEN = '%SIZE%'
+    // How full the progress rail starts. Small enough to read as "just begun", large enough to be a visible bar.
+    const START_PROGRESS = 0.08
+    // How long the pointer must rest on a pill before the transient card appears. A pointer crossing the box passes over
+    // every pill on its way, and a card that opened instantly under each one would flicker rather than inform. A CLICK
+    // bypasses this entirely, because a click is a request.
+    const HOVER_DELAY_MS = 1000
+
+    const noteAttachments = {}   // dateStr -> [{id, name, byteSize, image, url, token}]
+    const attachRequests  = {}   // dateStr -> in-flight load, so a day is never fetched twice at once
+    let cardAttachment = null    // the attachment the hover card is currently describing
+    let cardDate = null          // and the day it belongs to, so a late response cannot act on another day
+    let cardHideTimer = null
+    // Whether the open card was PINNED by a click. A pinned card ignores the pointer entirely - it does not follow it to
+    // another pill and does not close when it leaves - so the only ways out are its own close button, Escape, or a
+    // click outside the panel. A hover-opened card is the other state, and is what closes itself.
+    let cardPinned = false
+    // The upload currently in flight, so the cancel button beside the progress bar can abort it. Null between uploads.
+    let uploadInFlight = null
+    let cardShowTimer = null
+    let dragDepth = 0            // dragenter/dragleave fire per CHILD, so the zone is counted rather than toggled
+
+    // A bare + rather than a {1,100} quantifier: this file is served as-is but is read by the same Qute-aware
+    // tooling as the templates, where a `{n}` reads as an expression and corrupts the pattern (the same reason
+    // ISO_DATE below spells out `\d\d\d\d`). A negated class cannot backtrack catastrophically, and the
+    // server bounds the name anyway.
+    const ATTACHMENT_TOKEN = /\[\[([^[\]\r\n]+)]]/g
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, function (c) {
+            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;'}[c]
+        })
+    }
+
     // ── The draft that outlives the page ─────────────────────────────────────
     // A draft only ever lived in the map above, so clicking a navbar link discarded half-written prose:
     // every page here is a full load, which re-executes this script against empty caches. The draft being
@@ -151,6 +228,9 @@ window.Diurnal = window.Diurnal || {};
     function dropNoteMonth(ym) {
         const prefix = `${ym  }-`
         Object.keys(noteSaved).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete noteSaved[d] } })
+        // The month's attachment lists go with its notes, for the same reason and on the same schedule: they are
+        // a per-day cache of the same journal, and leaving them behind would make eviction bound only half of it.
+        Object.keys(noteAttachments).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete noteAttachments[d] } })
     }
 
     // Whether a day has a note, for the calendar's green day number. An unloaded month reads as `false`, so a
@@ -169,6 +249,7 @@ window.Diurnal = window.Diurnal || {};
         const draft = noteDrafts[dateStr]
         noteInput.value = draft === undefined ? (noteSaved[dateStr] || '') : draft
         refreshNoteState()
+        renderHighlights()
         if (!keepStatus) {
             setNoteStatus(noteIsDirty() ? window.Diurnal.i18n.unsavedChanges : '', 'brand')
         }
@@ -179,6 +260,9 @@ window.Diurnal = window.Diurnal || {};
         noteDate = dateStr
         setNoteEnabled(true)
         showNote(dateStr)
+        // The day's files, warmed the same way its note is. Until they land the mirror draws no pills, so a
+        // [[name]] token simply reads as text for the moment before its file is known - never as a broken one.
+        ensureAttachments(dateStr).then(function () {}).catch(function () {})
         if (noteSaved[dateStr] === undefined) {
             // The month's notes ride the calendar's cache, so this is a no-op read for any month already
             // resident (the visible one and its neighbours) and one range request otherwise.
@@ -197,12 +281,16 @@ window.Diurnal = window.Diurnal || {};
     function setNoteEnabled(enabled) {
         if (!noteInput) {return}
         noteInput.disabled = !enabled
+        if (noteAttachBtn) { noteAttachBtn.disabled = !enabled }
         if (!enabled) {
             noteInput.value = ''
             setNoteStatus('')
             if (noteError) { noteError.innerHTML = '' }
+            closeCard()
+            hideProgress()
         }
         refreshNoteState()
+        renderHighlights()
     }
 
     // The status line carries two different kinds of message, so it is driven EXPLICITLY at each call site
@@ -286,6 +374,10 @@ window.Diurnal = window.Diurnal || {};
             persistDraft()
             if (noteError) { noteError.innerHTML = '' }
             refreshNoteState()
+            // The pills follow the text as it is typed, including a token being edited away character by
+            // character - and the hover card goes with them, since the rectangles it was placed against are gone.
+            closeCard()
+            renderHighlights()
             setNoteStatus(noteIsDirty() ? window.Diurnal.i18n.unsavedChanges : '', 'brand')
         })
     }
@@ -318,8 +410,13 @@ window.Diurnal = window.Diurnal || {};
                 persistDraft()
                 if (noteDate === dateStr) {
                     noteInput.value = stored.content // the STORED (normalised) form, not what was typed
+                    // A save is also what collects the files the note no longer names (NoteService), so the day's
+                    // attachment cache is no longer authoritative - it is dropped and re-read.
+                    delete noteAttachments[dateStr]
+                    ensureAttachments(dateStr).then(function () {}).catch(function () {})
                 }
                 refreshNoteState()
+                renderHighlights()
                 if (noteDate === dateStr) { flashNoteStatus(window.Diurnal.i18n.saved, 'success') }
                 // The cache was just updated in place, so the grid only needs repainting — writing the first
                 // note on a day turns its number green, clearing the last one turns it back.
@@ -356,10 +453,638 @@ window.Diurnal = window.Diurnal || {};
             noteDrafts[noteDate] = ''
             persistDraft()
             if (noteError) { noteError.innerHTML = '' }
+            closeCard()
             refreshNoteState()
+            renderHighlights()
             setNoteStatus(noteIsDirty() ? window.Diurnal.i18n.unsavedChanges : '', 'brand')
             noteInput.focus()
         })
+    }
+
+
+    // ── The mirror ───────────────────────────────────────────────────────────
+    // Rebuild the layer behind the textarea: the note's own text, drawn transparent, with a pill around every
+    // [[name]] token that names a file this day actually holds. A token naming nothing is left as plain text,
+    // which is what makes a hand-typed "[[see the appendix]]" ordinary prose rather than a broken attachment.
+    //
+    // Runs on every keystroke, which sounds expensive and is not: it is one string pass and one innerHTML
+    // write over at most NOTE_MAX characters, on the same event that already re-counts the note's code points.
+    function renderHighlights() {
+        if (!noteHighlights) {return}
+        const value = noteInput.value
+        const known = attachmentNames()
+        let html = ''
+        let cut = 0
+        let match
+        ATTACHMENT_TOKEN.lastIndex = 0
+        while ((match = ATTACHMENT_TOKEN.exec(value)) !== null) {
+            if (!known.has(match[1])) { continue }
+            html += escapeHtml(value.slice(cut, match.index))
+            html += `<span class="note-chip" data-attachment-name="${  escapeHtml(match[1])  }">${  escapeHtml(match[0])  }</span>`
+            cut = match.index + match[0].length
+        }
+        // The trailing newline is a browser quirk, not padding: a `white-space: pre-wrap` box collapses a final
+        // line break, so without it the mirror is one line shorter than the textarea once the note ends on one.
+        noteHighlights.innerHTML = `${html + escapeHtml(value.slice(cut))  }\n`
+        noteHighlights.scrollTop = noteInput.scrollTop
+    }
+
+    function attachmentsForDay(dateStr) {
+        return noteAttachments[dateStr] || []
+    }
+
+    function attachmentNames() {
+        const names = new Set()
+        attachmentsForDay(noteDate).forEach(function (attachment) { names.add(attachment.name) })
+        return names
+    }
+
+    function attachmentByName(name) {
+        return attachmentsForDay(noteDate).filter(function (a) { return a.name === name })[0] || null
+    }
+
+    // Fill the day's attachment cache, once per day. A day with no files is still RECORDED as loaded (an empty
+    // array), so flicking back and forth across a month costs one request per day at most - the same rule the
+    // note cache itself follows with its recorded absences.
+    function ensureAttachments(dateStr) {
+        if (noteAttachments[dateStr] !== undefined) { return Promise.resolve() }
+        if (attachRequests[dateStr] !== undefined) { return attachRequests[dateStr] }
+        const request = fetch(window.Diurnal.url(`/internal/note-attachments/${  dateStr}`), { headers: { 'Accept': 'application/json' } })
+            .then(requireSession)
+            .then(function (resp) { return resp.ok ? resp.json() : { attachments: [] } })
+            .then(function (body) {
+                // An already-known value wins, the same rule the note cache's own merge follows: an upload that finished while this was in flight
+                // has already put the new file in, and overwriting with the list the server held BEFORE it would take the pill straight back off.
+                if (noteAttachments[dateStr] === undefined) { noteAttachments[dateStr] = body.attachments || [] }
+                if (noteDate === dateStr) { renderHighlights() }
+            })
+            .catch(function () { noteAttachments[dateStr] = [] })
+            .then(function () { delete attachRequests[dateStr] })
+        attachRequests[dateStr] = request
+        return request
+    }
+
+    // ── Uploading ────────────────────────────────────────────────────────────
+    // XMLHttpRequest rather than fetch, for the one thing fetch still cannot do: report how much of a request
+    // BODY has been sent. `fetch` can only stream a request body over HTTP/2 with a ReadableStream, which is
+    // neither universally supported nor available over plain HTTP - and a progress indicator that only ever
+    // showed a spinner would be a worse answer than the determinate bar this gives.
+    //
+    // An expired session arrives in the same two shapes it does for fetch (see Diurnal.requireSession), so the
+    // same check is made here against the status and the URL the request actually ended on.
+    // Checked HERE rather than left to the server's 413, because the server's answer arrives only after the file has
+    // been sent: for anything large that means a progress bar filling for a minute, and for a file large enough the
+    // connection is dropped mid-body and the browser reports a bare ERR_CONNECTION_RESET with no message at all. The
+    // server still refuses it too (RequestBodyLimitFilter, on Content-Length) - this is the courtesy, not the control.
+    function tooLarge(file) {
+        return MAX_ATTACHMENT_BYTES > 0 && file.size > MAX_ATTACHMENT_BYTES
+    }
+
+    function uploadFiles(files) {
+        if (noteDate === null || files.length === 0) {return}
+        const dateStr = noteDate
+        // Copied out of the live FileList SYNCHRONOUSLY, before anything is awaited: the picker's own handler clears
+        // `input.value` the moment this returns (so choosing the same file twice still fires a change), and a
+        // DataTransfer's list does not outlive its drop event either - so a list read later is an empty one.
+        const queued = Array.prototype.slice.call(files)
+        // An over-sized file is refused before anything is sent, and refused ALONE: the others in the same drop are
+        // still uploaded, since one file being too big says nothing about the rest.
+        const oversized = queued.filter(tooLarge)
+        const sendable = queued.filter(function (file) { return !tooLarge(file) })
+        if (oversized.length > 0) {
+            failUpload(dateStr, ATTACH_TEXT.tooLarge)
+            if (sendable.length === 0) {return}
+        }
+        // The day's existing files are read FIRST, because the answer is appended to them: starting while that read
+        // is still in flight would leave the cache holding the new file and nothing else. For the day on screen
+        // this resolved as it was selected, so it costs nothing.
+        ensureAttachments(dateStr).then(function () {
+            if (noteDate !== dateStr) {return}
+            // One at a time, in the order they were dropped: each upload's answer carries the name it was actually
+            // given, which depends on what is already on the day - so two in flight together could be handed the
+            // same name. Sequencing them also keeps the progress bar describing one thing.
+            uploadFile(sendable[0], sendable.slice(1))
+        }).catch(function () {})
+    }
+
+    function uploadFile(file, remaining) {
+        const dateStr = noteDate
+        const xhr = new XMLHttpRequest()
+        // Held so the cancel button can abort it. One upload is ever in flight (they are sequenced), so one handle is
+        // all there is to keep.
+        uploadInFlight = xhr
+        xhr.open('POST', window.Diurnal.url(`/internal/note-attachments/${  dateStr  }?filename=${  encodeURIComponent(file.name)}`))
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+        xhr.setRequestHeader('Accept', 'application/json')
+        xhr.responseType = 'text'
+        xhr.upload.onprogress = function (ev) { if (ev.lengthComputable) { showProgress(ev.loaded / ev.total) } }
+        // Filled the moment the last byte is SENT, which is honest - what is left after that is the server's own
+        // work, not the upload's. Without it a small file never animates at all: the whole body goes in one chunk,
+        // onprogress may not fire even once, and the rail sits empty for the round trip as though nothing happened.
+        xhr.upload.onload = function () { showProgress(1) }
+        xhr.onload = function () { finishUpload(xhr, dateStr, remaining) }
+        xhr.onerror = function () { failUpload(dateStr, ATTACH_TEXT.couldNotAttach) }
+        // A cancelled upload is not a failure to report: the user asked for it, so the bar and the status simply go,
+        // the queue behind it is dropped, and nothing is said. Whatever reached the server is discarded with the
+        // request - an attachment row is written only once the whole body has arrived.
+        xhr.onabort = function () {
+            uploadInFlight = null
+            hideProgress()
+            if (noteDate === dateStr) { setNoteStatus(noteIsDirty() ? window.Diurnal.i18n.unsavedChanges : '', 'brand') }
+        }
+        if (noteError) { noteError.innerHTML = '' }
+        setNoteStatus(ATTACH_TEXT.attaching)
+        // A visible sliver rather than nothing: a rail at exactly zero reads as a control that has failed to start.
+        showProgress(START_PROGRESS)
+        xhr.send(file)
+    }
+
+    function finishUpload(xhr, dateStr, remaining) {
+        uploadInFlight = null
+        hideProgress()
+        if (sessionExpired(xhr)) {
+            window.location.assign(window.Diurnal.url('/login'))
+            return
+        }
+        if (xhr.status === 413) {
+            failUpload(dateStr, ATTACH_TEXT.tooLarge)
+            return
+        }
+        if (xhr.status < 200 || xhr.status > 299) {
+            failUpload(dateStr, refusalMessage(xhr))
+            return
+        }
+
+        let body = null
+        try { body = JSON.parse(xhr.responseText) } catch (e) { body = null }
+        if (body === null || !body.attachment) {
+            failUpload(dateStr, ATTACH_TEXT.couldNotAttach)
+            return
+        }
+
+        noteAttachments[dateStr] = attachmentsForDay(dateStr).concat([body.attachment])
+        // The token goes in at the caret only while the day it belongs to is still the one on screen; the file
+        // is stored either way, and the next save of that day is what settles whether the note still names it.
+        if (noteDate === dateStr) {
+            insertToken(body.attachment.token)
+        }
+        setNoteStatus(noteIsDirty() ? window.Diurnal.i18n.unsavedChanges : '', 'brand')
+        if (remaining.length > 0 && noteDate === dateStr) { uploadFile(remaining[0], remaining.slice(1)) }
+    }
+
+    function failUpload(dateStr, message) {
+        uploadInFlight = null
+        hideProgress()
+        if (noteDate !== dateStr) {return}
+        setNoteStatus('')
+        if (noteError) { noteError.innerHTML = window.Diurnal.bannerHtml(message || ATTACH_TEXT.couldNotAttach) }
+    }
+
+    // The server's own worded refusal, which is a whole translated sentence on this surface. Anything else -
+    // a proxy's HTML error page, an empty body - falls back to the generic line rather than showing the user
+    // whatever markup came back.
+    function refusalMessage(xhr) {
+        try {
+            const body = JSON.parse(xhr.responseText)
+            return (body && body.message) || ATTACH_TEXT.couldNotAttach
+        } catch (e) {
+            return ATTACH_TEXT.couldNotAttach
+        }
+    }
+
+    function sessionExpired(xhr) {
+        if (xhr.status === 401) { return true }
+        const finalUrl = xhr.responseURL || ''
+        return finalUrl !== '' && new URL(finalUrl, window.location.href).pathname === window.Diurnal.url('/login')
+    }
+
+    function showProgress(fraction) {
+        if (!noteProgress || !noteProgressBar || !progressRow) {return}
+        const percent = Math.max(0, Math.min(100, Math.round(fraction * 100)))
+        progressRow.hidden = false
+        noteProgress.setAttribute('aria-valuenow', String(percent))
+        noteProgressBar.style.width = `${percent  }%`
+    }
+
+    function hideProgress() {
+        if (!noteProgress || !noteProgressBar || !progressRow) {return}
+        progressRow.hidden = true
+        noteProgressBar.style.width = '0'
+    }
+
+    // Write the token where the caret is, as an ordinary unsaved edit: an upload stores the FILE, and the note
+    // is written by the user pressing Save like any other change they make. Spaces are added either side only
+    // where there is not already whitespace, so the token does not end up welded onto the previous word.
+    function insertToken(token) {
+        const start = noteInput.selectionStart
+        const end = noteInput.selectionEnd
+        const value = noteInput.value
+        const before = value.slice(0, start)
+        const after = value.slice(end)
+        const lead = (before === '' || /\s$/.test(before)) ? '' : ' '
+        const trail = (after === '' || /^\s/.test(after)) ? '' : ' '
+        const inserted = lead + token + trail
+        noteInput.value = before + inserted + after
+        const caret = before.length + inserted.length
+        noteInput.setSelectionRange(caret, caret)
+        noteDrafts[noteDate] = noteInput.value
+        persistDraft()
+        refreshNoteState()
+        renderHighlights()
+        noteInput.focus()
+    }
+
+    // ── Drag and drop ────────────────────────────────────────────────────────
+    // The whole panel is the target, not just the textarea: a user aiming a file at "the note" is aiming at the
+    // card, and a drop that lands on the button row two pixels low should not silently do nothing. The overlay
+    // is drawn over the writing area, which is where the eye is.
+    function filesInDrag(ev) {
+        const types = ev.dataTransfer ? ev.dataTransfer.types : null
+        return Boolean(types) && Array.prototype.indexOf.call(types, 'Files') !== -1
+    }
+
+    function showDropzone(shown) {
+        if (noteDropzone) { noteDropzone.hidden = !shown }
+    }
+
+    function clearDropzone() {
+        dragDepth = 0
+        showDropzone(false)
+    }
+
+    if (noteDropzone) {
+        notePanel.addEventListener('dragenter', function (ev) {
+            if (!filesInDrag(ev) || noteInput.disabled) {return}
+            ev.preventDefault()
+            dragDepth++
+            showDropzone(true)
+        })
+        notePanel.addEventListener('dragover', function (ev) {
+            if (!filesInDrag(ev) || noteInput.disabled) {return}
+            // Both of these are required for a drop to fire at all, and the effect is what makes the cursor say
+            // "copy" rather than "move" while the file is over the box.
+            ev.preventDefault()
+            ev.dataTransfer.dropEffect = 'copy'
+        })
+        // Counted rather than toggled: dragenter/dragleave fire for every CHILD element the pointer crosses, so a
+        // plain toggle flickers the overlay off the moment the file passes over the textarea.
+        //
+        // Deliberately NOT gated on filesInDrag, unlike the two handlers above: a leave that is not recognised as
+        // carrying files would leave the count standing and the overlay showing over a box with no drag anywhere
+        // near it, which reads as the note box having broken.
+        notePanel.addEventListener('dragleave', function () {
+            dragDepth = Math.max(0, dragDepth - 1)
+            if (dragDepth === 0) { showDropzone(false) }
+        })
+        // The backstop for a drag that ends somewhere this panel never hears about - released outside the window,
+        // cancelled with Escape, or dropped on another element entirely. Each of those can leave the count above
+        // standing, and the overlay is the one piece of this feature that is wrong to leave on screen.
+        document.addEventListener('dragend', clearDropzone)
+        document.addEventListener('drop', clearDropzone)
+        notePanel.addEventListener('drop', function (ev) {
+            if (!filesInDrag(ev)) {return}
+            ev.preventDefault()
+            clearDropzone()
+            if (noteInput.disabled || noteDate === null) {return}
+            uploadFiles(ev.dataTransfer.files)
+        })
+    }
+
+    if (noteAttachBtn && noteAttachInput) {
+        noteAttachBtn.addEventListener('click', function () { noteAttachInput.click() })
+        noteAttachInput.addEventListener('change', function () {
+            uploadFiles(noteAttachInput.files)
+            // Cleared so that choosing the SAME file twice in a row still fires a change event the second time.
+            noteAttachInput.value = ''
+        })
+    }
+
+    // ── The hover card ───────────────────────────────────────────────────────
+    // The mirror is behind the textarea and takes no pointer events, so which pill the pointer is over is
+    // answered by measuring: every pill's own client rectangles are compared against the pointer. getClientRects
+    // (plural) rather than getBoundingClientRect, because a token that wraps across two lines is two rectangles,
+    // and its bounding box would cover the whole width of the line between them.
+    function chipAt(x, y) {
+        if (!noteHighlights) { return null }
+        const chips = noteHighlights.querySelectorAll('.note-chip')
+        for (let i = 0; i < chips.length; i++) {
+            const rects = chips[i].getClientRects()
+            for (let r = 0; r < rects.length; r++) {
+                const rect = rects[r]
+                if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) { return chips[i] }
+            }
+        }
+        return null
+    }
+
+    function openCard(chip) {
+        const attachment = attachmentByName(chip.dataset.attachmentName)
+        if (attachment === null) { return }
+        clearTimeout(cardHideTimer)
+        if (cardAttachment !== null && cardAttachment.id === attachment.id && !attachCard.hidden) {
+            // Already showing this one: leave it exactly as it is, or moving the pointer along a pill would
+            // restart a rename the user had begun typing into.
+            return
+        }
+
+        cardAttachment = attachment
+        cardDate = noteDate
+        attachName.textContent = attachment.name
+        attachSize.textContent = ATTACH_TEXT.size.replace(SIZE_TOKEN, kilobytes(attachment.byteSize))
+        attachDownload.setAttribute('href', attachment.url)
+        attachDownload.setAttribute('download', attachment.name)
+        // What the card can show is the server's answer, not a guess made here: `preview` is decided from the name the
+        // file was UPLOADED under, which a rename cannot change (AttachmentNames.previewFor).
+        const isImage = attachment.preview === 'image'
+        attachPreviewLink.hidden = !isImage
+        // The src is only set for an image, so a non-image never costs a request - and it is REMOVED on the way
+        // out rather than emptied, or the previous file's picture would flash behind the next one's name and a
+        // src="" would have the browser re-request the page itself.
+        setPreviewSource(isImage ? attachment.url : null)
+        setPlayerSource(attachment.preview === 'audio' ? attachment.url : null)
+        attachRenameRow.hidden = true
+        showConfirm(false)
+        attachCard.hidden = false
+        positionCard(chip)
+        chip.classList.add('note-chip-active')
+    }
+
+    function positionCard(chip) {
+        const panelBox = notePanel.getBoundingClientRect()
+        const chipBox = chip.getClientRects()[0]
+        if (!chipBox) { return }
+        const cardWidth = attachCard.offsetWidth
+        const cardHeight = attachCard.offsetHeight
+        const left = Math.max(4, Math.min(chipBox.left - panelBox.left, panelBox.width - cardWidth - 4))
+        // Below the pill by default, above it when there is no room - so the card never hangs off the bottom of
+        // a box the user has not resized.
+        const below = chipBox.bottom - panelBox.top + 6
+        const top = (below + cardHeight <= panelBox.height) ? below : Math.max(4, chipBox.top - panelBox.top - cardHeight - 6)
+        attachCard.style.left = `${left  }px`
+        attachCard.style.top = `${top  }px`
+    }
+
+    function closeCard() {
+        clearTimeout(cardHideTimer)
+        clearTimeout(cardShowTimer)
+        if (!attachCard) {return}
+        attachCard.hidden = true
+        cardPinned = false
+        attachCard.classList.remove('note-attachment-card-pinned')
+        if (attachClose !== null) { attachClose.hidden = true }
+        attachRenameRow.hidden = true
+        showConfirm(false)
+        setPreviewSource(null)
+        setPlayerSource(null)
+        cardAttachment = null
+        cardDate = null
+        if (noteHighlights) {
+            noteHighlights.querySelectorAll('.note-chip-active').forEach(function (chip) { chip.classList.remove('note-chip-active') })
+        }
+    }
+
+    // Closing is delayed so the pointer can travel the six pixels from the pill to the card without the card
+    // disappearing under it on the way. Cancelled by anything that re-enters either.
+    // The image AND the link around it: the thumbnail is what the card shows, and the link is how the file is seen at
+    // its own size. Both are cleared on the way out rather than emptied, or the previous file's picture would flash
+    // behind the next one's name and a src="" would have the browser re-request the page itself.
+    // The player is PAUSED before its src goes, not merely hidden: a hidden <audio> keeps playing, and removing the
+    // attribute without pausing leaves some browsers decoding what they had already buffered. Cleared the same way the
+    // thumbnail is - removed rather than emptied, since src="" re-requests the page itself.
+    function setPlayerSource(url) {
+        if (attachPlayer === null) {return}
+        if (url === null) {
+            attachPlayer.pause()
+            attachPlayer.removeAttribute('src')
+            attachPlayer.load()
+            attachPlayer.hidden = true
+        } else if (attachPlayer.getAttribute('src') !== url) {
+            attachPlayer.setAttribute('src', url)
+            attachPlayer.hidden = false
+        }
+    }
+
+    function setPreviewSource(url) {
+        if (url === null) {
+            attachPreview.removeAttribute('src')
+            attachPreviewLink.removeAttribute('href')
+        } else {
+            attachPreview.setAttribute('src', url)
+            attachPreviewLink.setAttribute('href', url)
+        }
+    }
+
+    function pinCard() {
+        cardPinned = true
+        clearTimeout(cardHideTimer)
+        attachCard.classList.add('note-attachment-card-pinned')
+        if (attachClose !== null) { attachClose.hidden = false }
+    }
+
+    function scheduleCloseCard() {
+        clearTimeout(cardHideTimer)
+        if (cardPinned) {return}
+        // A clip that is PLAYING holds the card open: the pointer has to leave the pill to reach anything else on the
+        // page, and closing under it would either cut the sound off mid-word or leave it coming from a hidden element.
+        // An explicit close (Escape, or a click outside the panel) still closes, and pauses on the way - see closeCard.
+        if (attachPlayer !== null && !attachPlayer.paused) {return}
+        cardHideTimer = setTimeout(closeCard, 200)
+    }
+
+    function kilobytes(bytes) {
+        // Rounded UP, and never to zero: a file that exists is at least one kilobyte's worth of "there is
+        // something here", and "0 KB" reads as an empty file the server would have refused.
+        return Math.max(1, Math.ceil(bytes / 1024)).toLocaleString(window.Diurnal.lang)
+    }
+
+    if (noteEditor && attachCard) {
+        noteEditor.addEventListener('mousemove', function (ev) {
+            if (noteInput.disabled) {return}
+            // A pinned card is not the pointer's to move or to close - see cardPinned.
+            if (cardPinned) {return}
+            const chip = chipAt(ev.clientX, ev.clientY)
+            if (chip === null) {
+                clearTimeout(cardShowTimer)
+                if (!attachCard.hidden) { scheduleCloseCard() }
+                return
+            }
+            // A DWELL, not an immediate open: a pointer crossing the note box on its way somewhere else passes over
+            // every pill in its path, and a card that appeared under each of them would be a flicker rather than an
+            // answer. Already showing this pill? Leave it - re-arming the timer on every mousemove would mean a card
+            // that never settled. A CLICK is unaffected and opens at once (it pins, below): the delay is the cost of
+            // not having asked for anything.
+            if (!attachCard.hidden && cardAttachment !== null && cardAttachment.name === chip.dataset.attachmentName) {return}
+            clearTimeout(cardShowTimer)
+            cardShowTimer = setTimeout(function () { openCard(chip) }, HOVER_DELAY_MS)
+        })
+        // A click as well as a hover, because a touch device has no hover at all: without this an attachment could be
+        // attached on a phone and then never renamed or removed on one. It is the same hit test - the pill is in a
+        // layer that takes no pointer events, so what is actually clicked is the textarea underneath, and where the
+        // pointer landed is answered by measuring rather than by the event's target.
+        //
+        // It only ever OPENS. Closing on a miss reads as the obvious other half and is not: a click on a pill also
+        // moves the caret, which can scroll the focused box into view, so the pointer-down and the pointer-up can
+        // land on different text - and the card the same gesture had just opened would shut again.
+        noteEditor.addEventListener('click', function (ev) {
+            const chip = chipAt(ev.clientX, ev.clientY)
+            if (chip === null) {return}
+            // PINS it, which is the whole difference between clicking a pill and passing over one: the card stays until
+            // it is dismissed, so the file can be renamed, played or read at leisure without the pointer pinning it in
+            // place. Pinning AFTER openCard, so clicking the pill a hover-card is already showing pins that card rather
+            // than being swallowed by its "already showing this one" short-circuit.
+            clearTimeout(cardShowTimer)
+            openCard(chip)
+            pinCard()
+        })
+        // What closes a card opened by a tap, on a device that has no pointer to move away: anything outside the
+        // panel, or Escape. Both are what the rest of the app's dismissable surfaces already answer to.
+        document.addEventListener('click', function (ev) {
+            if (!attachCard.hidden && !notePanel.contains(ev.target)) { closeCard() }
+        })
+        document.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Escape' && !attachCard.hidden) { closeCard() }
+        })
+        noteEditor.addEventListener('mouseleave', scheduleCloseCard)
+        attachCard.addEventListener('mouseenter', function () { clearTimeout(cardHideTimer) })
+        attachCard.addEventListener('mouseleave', scheduleCloseCard)
+        // A clip that reaches its end releases the card again: scheduleCloseCard refuses to close while something is
+        // playing, so without this the card would sit open until the pointer happened to visit and leave it. The usual
+        // delay still applies, and the mouseenter above still cancels it, so a pointer resting on the card keeps it.
+        if (attachPlayer !== null) {
+            attachPlayer.addEventListener('ended', scheduleCloseCard)
+        }
+        if (attachClose !== null) {
+            attachClose.addEventListener('click', closeCard)
+        }
+        if (attachCancel !== null) {
+            attachCancel.addEventListener('click', function () {
+                if (uploadInFlight !== null) { uploadInFlight.abort() }
+            })
+        }
+        // The mirror is redrawn on every keystroke, so the rectangles the card was placed against are gone the
+        // moment the user types - and a card left floating over unrelated text is worse than no card.
+        noteInput.addEventListener('scroll', function () {
+            noteHighlights.scrollTop = noteInput.scrollTop
+            closeCard()
+        })
+    }
+
+    if (attachRenameBtn) {
+        attachRenameBtn.addEventListener('click', function () {
+            if (cardAttachment === null) {return}
+            showConfirm(false)
+            attachRenameRow.hidden = false
+            attachRenameInp.value = cardAttachment.name
+            attachRenameInp.focus()
+            attachRenameInp.select()
+        })
+    }
+
+    if (attachRenameInp) {
+        attachRenameInp.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Escape') { attachRenameRow.hidden = true; return }
+            if (ev.key !== 'Enter') {return}
+            ev.preventDefault()
+            renameAttachment(cardAttachment, cardDate, attachRenameInp.value)
+        })
+    }
+
+    // Remove asks first, in place, the way every other destructive action in the app does - a file is not recoverable
+    // once it is gone, and the card is reached by hovering rather than by a deliberate click, so the button it offers
+    // is the easiest one in the box to press by accident.
+    function showConfirm(asking) {
+        if (!attachConfirm || !attachActions) {return}
+        attachConfirm.hidden = !asking
+        attachActions.hidden = asking
+    }
+
+    if (attachDeleteBtn) {
+        attachDeleteBtn.addEventListener('click', function () {
+            attachRenameRow.hidden = true
+            showConfirm(true)
+        })
+    }
+    if (attachDeleteNo) {
+        attachDeleteNo.addEventListener('click', function () { showConfirm(false) })
+    }
+    if (attachDeleteOk) {
+        attachDeleteOk.addEventListener('click', function () { deleteAttachment(cardAttachment, cardDate) })
+    }
+
+    // A rename and a delete BOTH rewrite the day's stored note server-side, in the same transaction as the row
+    // they follow - so the answer carries the note as it now stands, and the saved cache is replaced from it
+    // rather than edited here. The DRAFT is a different matter: it is the user's own unsaved writing, which the
+    // server has never seen, so the same token change is applied to it locally instead of throwing it away.
+    function renameAttachment(attachment, dateStr, submitted) {
+        if (attachment === null || dateStr === null) {return}
+        postAttachment(window.Diurnal.url(`/internal/note-attachments/${  dateStr  }/${  attachment.id  }/rename`), dateStr,
+            JSON.stringify({ name: submitted }), function (body) {
+                const renamed = body.attachment
+                replaceToken(dateStr, attachment.name, renamed.token)
+                noteAttachments[dateStr] = attachmentsForDay(dateStr).map(function (a) { return a.id === renamed.id ? renamed : a })
+                applyStoredNote(dateStr, body.noteContent)
+            })
+    }
+
+    function deleteAttachment(attachment, dateStr) {
+        if (attachment === null || dateStr === null) {return}
+        postAttachment(window.Diurnal.url(`/internal/note-attachments/${  dateStr  }/${  attachment.id  }/delete`), dateStr, null,
+            function (body) {
+            replaceToken(dateStr, attachment.name, '')
+            noteAttachments[dateStr] = attachmentsForDay(dateStr).filter(function (a) { return a.id !== attachment.id })
+            applyStoredNote(dateStr, body.noteContent)
+        })
+    }
+
+    // `url` arrives already prefixed by Diurnal.url at the call site rather than being built here: the guard that
+    // keeps a sub-path deployment working (AppPathsAreCentralisedTest) reads the SOURCE, so a path literal has to
+    // sit inside that call to be recognised as wrapped at all.
+    function postAttachment(url, dateStr, body, onSuccess) {
+        const options = { method: 'POST', headers: { 'Accept': 'application/json' } }
+        if (body !== null) {
+            options.headers['Content-Type'] = 'application/json'
+            options.body = body
+        }
+        fetch(url, options)
+            .then(requireSession)
+            .then(function (resp) {
+                if (!resp.ok) {
+                    return resp.json().then(function (failure) { throw new Error(failure && failure.message) })
+                }
+                return resp.json()
+            })
+            .then(function (answer) {
+                closeCard()
+                onSuccess(answer)
+                if (noteDate === dateStr) { showNote(dateStr) }
+                renderHighlights()
+                cal.noteChanged()
+            })
+            .catch(function (err) {
+                if (noteDate !== dateStr) {return}
+                if (noteError) {
+                    noteError.innerHTML = window.Diurnal.bannerHtml(err && err.message ? err.message : ATTACH_TEXT.couldNotAttach)
+                }
+            })
+    }
+
+    // The same token change the server made to the STORED note, applied to the unsaved draft. An empty `to`
+    // removes the token. The prose around it is left exactly as it was, matching what the server does.
+    function replaceToken(dateStr, from, to) {
+        const draft = noteDrafts[dateStr]
+        if (draft === undefined) {return}
+        noteDrafts[dateStr] = draft.split(`[[${  from  }]]`).join(to)
+        persistDraft()
+    }
+
+    function applyStoredNote(dateStr, content) {
+        if (typeof content !== 'string') {return}
+        noteSaved[dateStr] = content
+        // A draft that has caught up with what is now stored is no longer an unsaved edit.
+        if (noteDrafts[dateStr] === content) {
+            delete noteDrafts[dateStr]
+            persistDraft()
+        }
     }
 
     // ── Note box resize ──────────────────────────────────────────────────────
