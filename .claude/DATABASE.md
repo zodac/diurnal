@@ -1,6 +1,6 @@
 # Database: Schema, Migrations, Queries & the Vendor Seam
 
-> **This file is ~21 KB. Read only the section you need** - `grep -n '^#' .claude/DATABASE.md` for its
+> **This file is ~22 KB. Read only the section you need** - `grep -n '^#' .claude/DATABASE.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Schema at a glance**
@@ -21,9 +21,9 @@ index or a query change.
 
 ## Schema at a glance
 
-Eight entities, all Panache, all in the package that owns the feature — there is no `entity` package. The four
-that carry audit columns (`User`, `Action`, `ActionLog`, `Note`) extend `persistence.AuditedEntity`, a
-`@MappedSuperclass` holding `created_at`/`updated_at` and the `@PreUpdate` that stamps the latter; the other four
+Nine entities, all Panache, all in the package that owns the feature — there is no `entity` package. The five
+that carry audit columns (`User`, `Action`, `ActionLog`, `Note`, `NoteAttachment`) extend `persistence.AuditedEntity`,
+a `@MappedSuperclass` holding `created_at`/`updated_at` and the `@PreUpdate` that stamps the latter; the other four
 extend `PanacheEntityBase` directly.
 
 | Table                 | Entity              | Package        | Notes                                                         |
@@ -32,13 +32,14 @@ extend `PanacheEntityBase` directly.
 | `actions`             | `Action`            | `action`       | `actions_user_name_unique (user_id, name)` answers every read |
 | `action_logs`         | `ActionLog`         | `log`          | Natural PK `(user_id, action_id, log_date)`; no surrogate id  |
 | `notes`               | `Note`              | `note`         | `content_encrypted bytea`; there is no plaintext column       |
+| `note_attachments`    | `NoteAttachment`    | `note`         | The file and BOTH its names are sealed; the id is assigned    |
 | `user_notes_keys`     | `UserNotesKey`      | `note`         | Per-account data key, wrapped under the configured master key |
 | `sessions`            | `Session`           | `auth.session` | The app's ONLY `@ManyToOne` — see "Known traps"               |
 | `ip_lockouts`         | `IpLockout`         | `auth.lockout` | Pruned to a week; deliberately unindexed on `ip_address`      |
 | `subject_stats_cache` | `SubjectStatsCache` | `stats.cache`  | One row per `(user, subject)`; a sink, depends on nothing     |
 
 The app has essentially **no JPA relations** (`Session.user` is the only one), which is what keeps the query layer
-free of N+1s. Account deletion is carried by `ON DELETE CASCADE` from `users(id)` — six such clauses across the
+free of N+1s. Account deletion is carried by `ON DELETE CASCADE` from `users(id)` — seven such clauses across the
 schema, one per table that hangs off an account — not by application code walking the tables. (The seventh
 cascade in the schema is `action_logs.action_id` → `actions(id)`, which is what makes an action delete take its
 logs with it.)
@@ -125,18 +126,20 @@ The reasoning behind the schema lives in `V1__initial_schema.sql`'s section comm
 or index it explains. This is the index into them, so a question that has already been answered is not re-litigated
 from scratch:
 
-| Section                     | The decision it records                                                                                       |
-|-----------------------------|---------------------------------------------------------------------------------------------------------------|
-| `users` (table)             | Why preferences sit on the account row; why `timezone`/`week_start` are NULL-means-derived; the jsonb columns |
-| `idx_users_created_at`      | Deferred twice at 1,000 accounts, warranted at 50,000 (127 ms → 6.0-6.7 ms on the last page)                  |
-| `idx_actions_user_id`       | Turned the Stats rollup's disk-spilling sort into an Incremental Sort (105 ms → 53 ms)                        |
-| `action_logs` (table)       | Why it alone has no surrogate id, and why `INCLUDE (count)` makes the Stats rollups index-only                |
-| `idx_action_logs_action_id` | The one FK whose child side would otherwise have no index, so an action delete scanned the whole table        |
-| `notes` (table)             | Encryption at rest and the envelope scheme; why there is no plaintext column and no length column             |
-| `user_notes_keys`           | Why the key material is a separate table, and why the data key is per-user rather than per-application        |
-| `sessions`                  | Why only the token's SHA-256 hash is stored, and why the table holds no role state                            |
-| `ip_lockouts`               | Why enforcement stays in memory and this table is audit-only; why `ip_address` is unindexed                   |
-| `subject_stats_cache`       | Why `computed_for_date` is a column, not part of the key; why nothing rendered is stored; why no second index |
+| Section                     | The decision it records                                                                                                                 |
+|-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `users` (table)             | Why preferences sit on the account row; why `timezone`/`week_start` are NULL-means-derived; the jsonb columns                           |
+| `idx_users_created_at`      | Deferred twice at 1,000 accounts, warranted at 50,000 (127 ms → 6.0-6.7 ms on the last page)                                            |
+| `idx_actions_user_id`       | Turned the Stats rollup's disk-spilling sort into an Incremental Sort (105 ms → 53 ms)                                                  |
+| `action_logs` (table)       | Why it alone has no surrogate id, and why `INCLUDE (count)` makes the Stats rollups index-only                                          |
+| `idx_action_logs_action_id` | The one FK whose child side would otherwise have no index, so an action delete scanned the whole table                                  |
+| `notes` (table)             | Encryption at rest and the envelope scheme; why there is no plaintext column and no length column                                       |
+| `note_attachments` (V2)     | Why a file is a row rather than a directory; why BOTH filenames are sealed, and so cannot be `UNIQUE`; why no index on either can exist |
+| `note_attachments` (V4)     | Why chunked storage was reverted, and why reassembling a chunked file in SQL is impossible                                              |
+| `user_notes_keys`           | Why the key material is a separate table, and why the data key is per-user rather than per-application                                  |
+| `sessions`                  | Why only the token's SHA-256 hash is stored, and why the table holds no role state                                                      |
+| `ip_lockouts`               | Why enforcement stays in memory and this table is audit-only; why `ip_address` is unindexed                                             |
+| `subject_stats_cache`       | Why `computed_for_date` is a column, not part of the key; why nothing rendered is stored; why no second index                           |
 
 The pre-1.0.0 migrations that originally recorded these are gone (see [Migrations](#migrations)); their measurements
 were carried across verbatim, at the sizes they were taken.
