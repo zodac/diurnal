@@ -20,16 +20,17 @@ package net.zodac.diurnal.note;
 import java.util.List;
 
 /**
- * One row of the notes page: a day, spelled out, and the snippet of what was written on it.
+ * One page of the notes page's attachments table, in the shape {@code partials/pagination.html} expects from every list view in the app.
  *
  * <p>
- * The ISO {@code date} is carried alongside the human label because it is also the row's LINK - a result opens the dashboard on that day
- * ({@code /?date=…}), so the note can be read in full beside the actions logged against it.
+ * There is deliberately no "did you mean" here, unlike {@link PaginatedNotes}: a suggestion is drawn from the words of the journal itself, and a
+ * filename is not writing - a near-miss on one is a mistyped name rather than a word the account nearly holds.
  *
- * @param date     the day as an ISO-8601 string, for the dashboard deep link
- * @param dayLabel the same day spelled out for reading, via {@link net.zodac.diurnal.time.DayLabels}
- * @param snippet  the preview line's runs of text, with any search-term occurrences flagged
+ * @param items       the page's rows, most recent day first
+ * @param totalCount  the number of attachments matching the search, across all pages
+ * @param totalPages  the page count
+ * @param currentPage the returned 1-based page (clamped into range, as every web list view does)
  */
-public record NoteRow(String date, String dayLabel, List<NoteSnippetPart> snippet, boolean hasAttachment) {
+public record PaginatedAttachments(List<AttachmentRow> items, int totalCount, int totalPages, int currentPage) {
 
 }

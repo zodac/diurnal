@@ -86,6 +86,7 @@ public class NotesInternalResource {
 
     private final AppPaths appPaths;
     private final CurrentUser currentUser;
+    private final NoteAttachmentService noteAttachmentService;
     private final NoteService noteService;
     private final Template notesListTemplate;
     private final TextFailureBanner textFailureBanner;
@@ -95,16 +96,19 @@ public class NotesInternalResource {
      * shared note service.
      *
      * @param appPaths the single builder of every application URL, for the "did you mean" link a search suggestion carries
-     * @param currentUser       the current-user accessor
-     * @param noteService       the shared note-mutation service
-     * @param notesListTemplate the notes-page list partial
-     * @param textFailureBanner the shared text-pipeline rejection sentence renderer
+     * @param currentUser           the current-user accessor
+     * @param noteAttachmentService the shared attachment service, which answers which days hold a file
+     * @param noteService           the shared note-mutation service
+     * @param notesListTemplate     the notes-page list partial
+     * @param textFailureBanner     the shared text-pipeline rejection sentence renderer
      */
     @Inject
-    public NotesInternalResource(final AppPaths appPaths, final CurrentUser currentUser, final NoteService noteService,
-        @Location("partials/notes-list") final Template notesListTemplate, final TextFailureBanner textFailureBanner) {
+    public NotesInternalResource(final AppPaths appPaths, final CurrentUser currentUser, final NoteAttachmentService noteAttachmentService,
+        final NoteService noteService, @Location("partials/notes-list") final Template notesListTemplate,
+        final TextFailureBanner textFailureBanner) {
         this.appPaths = appPaths;
         this.currentUser = currentUser;
+        this.noteAttachmentService = noteAttachmentService;
         this.noteService = noteService;
         this.notesListTemplate = notesListTemplate;
         this.textFailureBanner = textFailureBanner;
@@ -169,7 +173,8 @@ public class NotesInternalResource {
         final User user = currentUser.get();
         final PaginatedHits hits = noteService.journalPage(user, searchTerm, pageNum, PageSizes.forSection(user, PageSection.NOTES));
         final Locale locale = user.locale();
-        final PaginatedNotes page = NotePages.of(hits, TextValidation.searchTerm(searchTerm), locale, appPaths);
+        final PaginatedNotes page = NotePages.of(hits, TextValidation.searchTerm(searchTerm), locale, appPaths,
+            noteAttachmentService.datesWithAttachments(user));
         return Response.ok(notesListTemplate.data("page", page, "extraQuery", NotePages.extraQuery(searchTerm))
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }

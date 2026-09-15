@@ -29,6 +29,15 @@
         <tr class="note-row">
             <td class="dt-cell dt-text-inset whitespace-nowrap">
                 <a href="{inject:paths.dashboardForDate(row.date)}" class="note-row-link">{row.dayLabel}</a>
+                {! A paperclip beside the day when that day holds a file. It sits on the DATE rather than in the
+                     snippet because an attachment belongs to the day, and because the snippet cell is a fixed-width
+                     truncating column - a marker there would be the first thing the ellipsis ate. The glyph itself is
+                     decorative, so the accessible name is on the span around it. !}
+                {#if row.hasAttachment}
+                <span class="note-row-clip" aria-label="{msg:dayHasAnAttachment}" role="img">
+                    {#include partials/icon name='paperclip' /}
+                </span>
+                {/if}
             </td>
             {! js-phrase (unicode-bidi: plaintext, app.css): the note's OWN text is arbitrary user
                  content, which may be written in either direction regardless of the viewer's own

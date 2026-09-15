@@ -1,0 +1,79 @@
+{!
+  The notes page's attachments data table (header + rows + pagination). Rendered on the full page
+  (inside #note-attachment-list) and returned wholesale by GET /internal/note-attachments/list for
+  HTMX swaps.
+  Params: page (PaginatedAttachments), searching (true when a term is narrowing the list).
+
+  Unlike the notes table above it, this table's state is NOT in the URL: its search box and its
+  pagination links both swap over HTMX only, and the page's own ?q=/?page= belong to the notes
+  half. That is why the footer is given pageUrl='' (so a link's href is "#", the same fallback the
+  dashboard's day panel uses) and searchSource, which is what carries the live term into every page
+  request (the delegated htmx:configRequest listener in app.js). `searching` is passed in rather
+  than derived from a query suffix for the same reason - there is no suffix to read.
+
+  Both names are marked up the way a note snippet is (NoteSearch.marked), and for the same reason: the
+  mark is what shows WHY this row is in the result. They differ in that a filename needs no window - it
+  is short and shown whole - so every occurrence is marked rather than one window's worth. The runs are
+  a LIST, not a marked-up string, so Qute still escapes every character of a user-supplied name on the
+  way out; never render one with .raw.
+
+  TWO name columns, and they are different things. `name` is the display name the day's note embeds
+  the file by, which a rename rewrites; `fileName` is what the file was uploaded as, which nothing
+  rewrites. They read identically until someone renames a file - that is not redundancy to tidy away,
+  it is what makes a renamed one legible beside the rest. The search box matches EITHER
+  (NoteAttachmentService.searchPage), so whichever one the reader half-remembers finds the row.
+!}
+<div class="overflow-x-auto">
+<table class="dt-table dt-table-fixed">
+    <colgroup>
+        <col style="width: 16rem">
+        <col>
+        <col>
+        <col style="width: 7rem">
+    </colgroup>
+    <thead>
+        <tr>
+            <th class="dt-head-cell dt-text-inset">{msg:dateColumnHeader}</th>
+            <th class="dt-head-cell">{msg:attachmentNameColumnHeader}</th>
+            <th class="dt-head-cell">{msg:attachmentFileColumnHeader}</th>
+            <th class="dt-head-cell">{msg:attachmentSizeColumnHeader}</th>
+        </tr>
+    </thead>
+    <tbody id="note-attachments-tbody" class="dt-tbody">
+        {#for row in page.items}
+        <tr class="note-attachment-row">
+            <td class="dt-cell dt-text-inset whitespace-nowrap">
+                <a href="{inject:paths.dashboardForDate(row.date)}" class="note-row-link">{row.dayLabel}</a>
+            </td>
+            {! js-phrase (unicode-bidi: plaintext, app.css): a filename is the user's own text and may be written in
+                 either direction regardless of the viewer's language, so it must not inherit an RTL page's base
+                 direction - the extension would visually migrate to the front of the name. The link opens in a new
+                 tab rather than navigating: an image renders and anything else downloads, and either way losing the
+                 notes page to do it would be the wrong trade. !}
+            <td class="dt-cell note-attachment-cell js-phrase" data-tip-full>
+                <a href="{row.url}" target="_blank" rel="noopener noreferrer" class="note-attachment-link">
+                    {#include partials/icon name='paperclip' /}{#for part in row.name}{#if part.highlighted}<mark class="note-mark">{part.text}</mark>{#else}{part.text}{/if}{/for}
+                </a>
+            </td>
+            {! The uploaded file name, muted and not a link: the row already has one thing to click, and this column is
+                 what the file IS rather than a second way to reach it. Same bidi treatment as the column beside it. !}
+            <td class="dt-cell note-attachment-cell note-attachment-file js-phrase" data-tip-full>{#for part in row.fileName}{#if part.highlighted}<mark class="note-mark">{part.text}</mark>{#else}{part.text}{/if}{/for}</td>
+            {! js-num (app.js): the figure is grouped for the viewer's own language, which the server cannot do -
+                 every other number the app renders goes through the same pass. !}
+            <td class="dt-cell dt-text-inset whitespace-nowrap js-num js-phrase">{msg:attachmentSizeKb(row.sizeKb)}</td>
+        </tr>
+        {/for}
+        {#if page.items.isEmpty()}
+        <tr id="note-attachments-empty-row">
+            <td colspan="4" class="dt-empty">
+                {#if searching}{msg:noAttachmentsMatchSearch}{#else}{msg:noAttachmentsYetAttachOnDashboard}{/if}
+            </td>
+        </tr>
+        {/if}
+    </tbody>
+</table>
+</div>
+
+{#include partials/pagination page=page pageUrl='' listUrl=inject:paths.internalNoteAttachmentsList target="#note-attachment-list" extraQuery=''
+          alwaysShow=true borderless=false searchSource='note-attachment-search-input' scrollTop=false
+          shownId='attachments-showing-shown' totalId='attachments-showing-total' /}

@@ -17,19 +17,20 @@
 
 package net.zodac.diurnal.note;
 
-import java.util.List;
+import java.time.LocalDate;
 
 /**
- * One row of the notes page: a day, spelled out, and the snippet of what was written on it.
+ * One attachment an account holds, with the day it belongs to — what the attachments search answers with, before either surface decides how to
+ * render it.
  *
  * <p>
- * The ISO {@code date} is carried alongside the human label because it is also the row's LINK - a result opens the dashboard on that day
- * ({@code /?date=…}), so the note can be read in full beside the actions logged against it.
+ * The day is carried alongside the file because an attachment is only addressable through it: the file URL, the note it is embedded in and the
+ * dashboard link a result row offers are all per-day, and the day is bound into the seal that opened the name in the first place (see
+ * {@link AttachmentContent}).
  *
- * @param date     the day as an ISO-8601 string, for the dashboard deep link
- * @param dayLabel the same day spelled out for reading, via {@link net.zodac.diurnal.time.DayLabels}
- * @param snippet  the preview line's runs of text, with any search-term occurrences flagged
+ * @param date       the day the file is attached to
+ * @param attachment the opened attachment
  */
-public record NoteRow(String date, String dayLabel, List<NoteSnippetPart> snippet, boolean hasAttachment) {
+public record AttachmentHit(LocalDate date, Attachment attachment) {
 
 }

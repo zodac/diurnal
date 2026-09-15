@@ -61,6 +61,19 @@ import net.zodac.diurnal.web.PageShell;
  * The search term rides the URL as {@code ?q=}, exactly as the actions list does, so the browser's back button and a bookmarked search both behave.
  * The trade-off is that a term does enter the browser's history; that is accepted for consistency with every other search in the app, but it is why
  * nothing ever writes one to the server's log (see {@link NoteService}).
+ *
+ * <p>
+ * <strong>A second table below lists the account's ATTACHMENTS</strong>, with a search box of its own that matches on the file's name and on nothing
+ * else. The two tables answer questions that only look alike: "which day did I write about the tickets" is a search of prose, while "where did that
+ * PDF go" is a search of filenames, and a single box folding one into the other would answer neither well - a note mentioning "invoice" is not the
+ * file {@code invoice.pdf}, and a file's name is not written in the note's own language. Keeping them apart also keeps each result list honest about
+ * what its rows ARE: a day, or a file.
+ *
+ * <p>
+ * Unlike the notes table, the attachments table's state is <strong>not</strong> in the URL: it swaps over HTMX and starts each page load on its first
+ * page with an empty box. A page carries one {@code ?q=}/{@code ?page=} pair at most, and giving the second table a second pair would make every
+ * bookmark, back-navigation and "did you mean" link on this page carry four parameters to restore a list that is a scroll away from being re-typed.
+ * It is the same trade the dashboard's day panel makes.
  */
 @Path("/notes")
 @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
@@ -68,22 +81,26 @@ public class NotesWebResource {
 
     private final AppPaths appPaths;
     private final CurrentUser currentUser;
+    private final NoteAttachmentService noteAttachmentService;
     private final NoteService noteService;
     private final Template notesTemplate;
 
     /**
      * Injects the page template, current-user accessor and the shared note service.
      *
-     * @param appPaths the single builder of every application URL, for the "did you mean" link a search suggestion carries
-     * @param currentUser   the current-user accessor
-     * @param noteService   the shared note service, which owns the search
-     * @param notesTemplate the full notes-page template
+     * @param appPaths              the single builder of every application URL, for the "did you mean" link a suggestion carries and each
+     *                              attachment's own file URL
+     * @param currentUser           the current-user accessor
+     * @param noteAttachmentService the shared attachment service, which owns the attachments table's search
+     * @param noteService           the shared note service, which owns the search
+     * @param notesTemplate         the full notes-page template
      */
     @Inject
-    public NotesWebResource(final AppPaths appPaths, final CurrentUser currentUser, final NoteService noteService,
-        @Location("notes") final Template notesTemplate) {
+    public NotesWebResource(final AppPaths appPaths, final CurrentUser currentUser, final NoteAttachmentService noteAttachmentService,
+        final NoteService noteService, @Location("notes") final Template notesTemplate) {
         this.appPaths = appPaths;
         this.currentUser = currentUser;
+        this.noteAttachmentService = noteAttachmentService;
         this.noteService = noteService;
         this.notesTemplate = notesTemplate;
     }
@@ -102,18 +119,29 @@ public class NotesWebResource {
         @QueryParam("page") @DefaultValue("1") final int pageNum) {
 
         final User user = currentUser.get();
-        final PaginatedHits hits = noteService.journalPage(user, searchTerm, pageNum, PageSizes.forSection(user, PageSection.NOTES));
-        final PaginatedNotes page = NotePages.of(hits, TextValidation.searchTerm(searchTerm), user.locale(), appPaths);
+        final int pageSize = PageSizes.forSection(user, PageSection.NOTES);
+        final PaginatedHits hits = noteService.journalPage(user, searchTerm, pageNum, pageSize);
+        final PaginatedNotes page = NotePages.of(hits, TextValidation.searchTerm(searchTerm), user.locale(), appPaths,
+            noteAttachmentService.datesWithAttachments(user));
 
         // Whether the account holds ANY note, which is not the same question as whether this page has rows: a search that matched nothing still
         // leaves the box enabled so the term can be cleared. That is exactly what selectionCount answers - the search has already selected every
         // note it could have matched - so this costs no query of its own, and reads the same on both branches.
         final boolean searchDisabled = hits.selectionCount() == 0L;
 
+        // The attachments table always opens on its own first page with an empty box, whatever the notes half of the page is doing: its state is
+        // HTMX-only (see attachments-list.html), so there is nothing in the URL to restore it from, and nothing about a note search that should
+        // narrow a list of files. Its box is disabled on the same rule as the notes one - an account with no attachments at all has nothing to
+        // search - and with a blank term that question is the page's own total, so it costs no query of its own either.
+        final PaginatedAttachments attachmentPage =
+            AttachmentPages.of(noteAttachmentService.searchPage(user, "", 1, pageSize), "", user.locale(), appPaths);
+
         return PageShell.forUser(notesTemplate, user)
             .data("page", page)
             .data("searchDisabled", searchDisabled)
             .data("searchTerm", searchTerm)
+            .data("attachmentPage", attachmentPage)
+            .data("attachmentSearchDisabled", attachmentPage.totalCount() == 0)
             .data("extraQuery", NotePages.extraQuery(searchTerm));
     }
 }

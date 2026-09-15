@@ -19,8 +19,10 @@ package net.zodac.diurnal.note;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.time.DayLabels;
 import org.jspecify.annotations.Nullable;
@@ -52,12 +54,15 @@ public final class NotePages {
      * @param query  the search term, used to highlight each row's snippet
      * @param locale the viewing user's locale, for each row's spelled-out day
      * @param appPaths the single builder of every application URL, for the "did you mean" link
+     * @param attachmentDates the days the account has attached a file to, which decides which rows carry a paperclip
      * @return the requested page
      */
-    public static PaginatedNotes of(final PaginatedHits hits, final String query, final Locale locale, final AppPaths appPaths) {
+    public static PaginatedNotes of(final PaginatedHits hits, final String query, final Locale locale, final AppPaths appPaths,
+        final Set<LocalDate> attachmentDates) {
         final List<NoteRow> items = hits.items()
             .stream()
-            .map(hit -> new NoteRow(hit.date().toString(), DayLabels.spelledOut(hit.date(), locale), NoteSearch.snippet(hit.content(), query)))
+            .map(hit -> new NoteRow(hit.date().toString(), DayLabels.spelledOut(hit.date(), locale),
+            NoteSearch.snippet(hit.content(), query), attachmentDates.contains(hit.date())))
             .toList();
 
         return new PaginatedNotes(items, Math.toIntExact(hits.totalCount()), hits.totalPages(), hits.currentPage(),

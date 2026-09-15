@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.IntStream;
 import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.stub.StubAppConfig;
@@ -44,10 +45,26 @@ class NotePagesTest {
     private static final int PAGE_OF_HITS = 5;
     private static final Locale EN_GB = Locale.forLanguageTag("en-GB");
     private static final AppPaths PATHS = new AppPaths(StubAppConfig.empty());
+    // The attachment-marker input, which almost every case here has nothing to say about: a row's paperclip is decided by the days handed in, not
+    // by anything the page itself computes, so only the case that is ABOUT the paperclip passes a non-empty set.
+    private static final Set<LocalDate> NO_ATTACHMENTS = Set.of();
+
+    @Test
+    void of_marksTheRowsWhoseDayHoldsAnAttachment() {
+        final PaginatedNotes marked = NotePages.of(oneHit(), "", EN_GB, PATHS, Set.of(DAY));
+        final PaginatedNotes unmarked = NotePages.of(oneHit(), "", EN_GB, PATHS, Set.of(DAY.plusDays(1)));
+
+        assertThat(marked.items().getFirst().hasAttachment())
+            .as("a day named in the attachment set carries the paperclip")
+            .isTrue();
+        assertThat(unmarked.items().getFirst().hasAttachment())
+            .as("a day not in it does not, even though the set is non-empty")
+            .isFalse();
+    }
 
     @Test
     void of_buildsRowPerHitWithBothFormsOfTheDate() {
-        final PaginatedNotes page = NotePages.of(oneHit(), "", EN_GB, PATHS);
+        final PaginatedNotes page = NotePages.of(oneHit(), "", EN_GB, PATHS, NO_ATTACHMENTS);
 
         assertThat(page.items())
             .as("one hit produces one row")
@@ -62,7 +79,7 @@ class NotePagesTest {
 
     @Test
     void of_highlightsTheSearchTermInEachRow() {
-        final PaginatedNotes page = NotePages.of(oneHit(), "5k", EN_GB, PATHS);
+        final PaginatedNotes page = NotePages.of(oneHit(), "5k", EN_GB, PATHS, NO_ATTACHMENTS);
 
         assertThat(page.items().getFirst().snippet())
             .as("the row's snippet flags the matched run so the template can mark it")
@@ -71,7 +88,7 @@ class NotePagesTest {
 
     @Test
     void of_rendersEveryHitOnThePageInOrder() {
-        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(), 12L, 12L, 3, 2, null), "", EN_GB, PATHS);
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(), 12L, 12L, 3, 2, null), "", EN_GB, PATHS, NO_ATTACHMENTS);
 
         assertThat(page.items())
             .as("every hit handed in becomes a row - the page was already selected upstream")
@@ -83,7 +100,7 @@ class NotePagesTest {
 
     @Test
     void of_carriesTheWholeResultsFiguresThroughToTheFooter() {
-        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(), 12L, 12L, 3, 2, null), "", EN_GB, PATHS);
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(), 12L, 12L, 3, 2, null), "", EN_GB, PATHS, NO_ATTACHMENTS);
 
         assertThat(page.totalCount())
             .as("the count is of every match, not just the page")
@@ -98,7 +115,7 @@ class NotePagesTest {
 
     @Test
     void of_reportsAnEmptyFirstPageWhenNothingMatched() {
-        final PaginatedNotes page = NotePages.of(new PaginatedHits(List.of(), 0L, 4L, 0, 1, null), "nothing", EN_GB, PATHS);
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(List.of(), 0L, 4L, 0, 1, null), "nothing", EN_GB, PATHS, NO_ATTACHMENTS);
 
         assertThat(page.items())
             .as("no matches means no rows")
@@ -114,7 +131,7 @@ class NotePagesTest {
     @Test
     void of_carriesTheSuggestionThroughAsLinkableWord() {
         final PaginatedHits hits = new PaginatedHits(List.of(), 0L, 4L, 0, 1, new SuggestedTerm("kaleidoscope", 2));
-        final PaginatedNotes page = NotePages.of(hits, "kaleidoscpoe", EN_GB, PATHS);
+        final PaginatedNotes page = NotePages.of(hits, "kaleidoscpoe", EN_GB, PATHS, NO_ATTACHMENTS);
 
         assertThat(page.suggestion())
             .as("an empty result offers the closest word the journal holds, with the link that searches for it")
@@ -123,7 +140,7 @@ class NotePagesTest {
 
     @Test
     void of_hasNoSuggestionWhenTheSearchFoundSomething() {
-        final PaginatedNotes page = NotePages.of(oneHit(), "5k", EN_GB, PATHS);
+        final PaginatedNotes page = NotePages.of(oneHit(), "5k", EN_GB, PATHS, NO_ATTACHMENTS);
 
         assertThat(page.suggestion())
             .as("nothing is suggested beside results the user can actually read")

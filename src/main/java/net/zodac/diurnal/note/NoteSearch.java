@@ -160,6 +160,27 @@ public final class NoteSearch {
     }
 
     /**
+     * Marks every occurrence of the search term in a SHORT string, whole — the attachments table's two name columns.
+     *
+     * <p>
+     * The counterpart of {@link #snippet(String, String)} for text that needs no window. A snippet cuts a passage out of something far longer than
+     * the row can show, so it centres on the first match and ellipses the rest; a filename is bounded at
+     * {@link net.zodac.diurnal.text.TextFields#ATTACHMENT_NAME_MAX_LENGTH} characters and is rendered in full, so windowing it could only ever hide
+     * a second match or cut a name that would have fitted. Everything else is shared: the same literal, case-insensitive rule finds the runs, and
+     * the marked text is taken from the NAME rather than from the query, so it reads in the user's own casing.
+     *
+     * @param text  the string to mark up
+     * @param query the search term, already stripped
+     * @return the string's runs of text, in reading order, with matches flagged
+     */
+    public static List<NoteSnippetPart> marked(final String text, final String query) {
+        if (query.isBlank()) {
+            return List.of(new NoteSnippetPart(text, false));
+        }
+        return highlighted(text, literal(query).matcher(text), 0, text.length());
+    }
+
+    /**
      * Builds the one-line preview shown beside a result's date: a window of the note's own text centred on the first occurrence of the search term,
      * with every occurrence inside that window flagged for highlighting.
      *

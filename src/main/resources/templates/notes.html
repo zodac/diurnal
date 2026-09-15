@@ -28,6 +28,28 @@
                 {#include partials/notes-list page=page extraQuery=extraQuery /}
             </div>
         </div>
+
+        {! The attachments table: every file on the account, searched by NAME and by nothing else. It is a second
+             table rather than a filter on the one above because the two answer different questions - "which day did I
+             write about the tickets" is a search of prose, "where did that PDF go" is a search of filenames - and a
+             row here IS a file, where a row above is a day. See NotesWebResource.
+
+             Its search box and pagination are HTMX-only, so nothing about it touches this page's ?q=/?page=; the
+             box is disabled for an account holding no file at all, exactly as the notes box is for one with no
+             note. Both boxes hx-get their own list into their own target, so neither can swap the other. !}
+        <section id="note-attachments-section" class="mt-10">
+            <h3 class="card-title mb-1">{msg:attachmentsCardTitle}</h3>
+            <p class="page-subtitle">{msg:attachmentsSubtitle}</p>
+
+            {#include partials/search-input id="note-attachment-search-input" url=inject:paths.internalNoteAttachmentsListFirstPage
+                      target="#note-attachment-list" placeholder=msg:searchAttachmentsPlaceholder disabled=attachmentSearchDisabled /}
+
+            <div class="card overflow-hidden">
+                <div id="note-attachment-list">
+                    {#include partials/attachments-list page=attachmentPage searching=false /}
+                </div>
+            </div>
+        </section>
     </main>
 
     {#include partials/footer /}

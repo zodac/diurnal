@@ -15,6 +15,11 @@
     searchSource — optional id of a live search input: emitted as `data-search-source` on the
                  page links so the delegated htmx:configRequest listener in app.js carries the
                  current search term into the request (the dashboard day panel)
+    shownId / totalId — optional ids for the two count spans, default "showing-shown"/"showing-total".
+                 A page with TWO paginated lists MUST give the second list its own pair: an `id` is
+                 unique per document (UI_PATTERNS.md section 2), and the surgical count updater finds
+                 them with getElementById, which would otherwise always answer with the first list's.
+                 The notes page is the one such page today (its attachments table)
     scrollTop  — optional, default true: scroll the window to the top on swap. Pass false for a
                  list embedded in a page that shouldn't jump (the dashboard day panel)
 
@@ -60,10 +65,10 @@
   Either way the page-navigation block (Previous / Page X of Y / Next) only appears when there's
   more than one page.
 !}
-{#let searchSource=searchSource.or('') scrollTop=scrollTop.or(true)}
+{#let searchSource=searchSource.or('') scrollTop=scrollTop.or(true) shownId=shownId.or('showing-shown') totalId=totalId.or('showing-total')}
 {#if alwaysShow || page.totalPages > 1}
 <div class="dt-pagination{#if borderless} dt-pagination--borderless{/if}">
-    <p class="js-phrase">{msg:showingOfTotal(page.items.size.countSpan('showing-shown'), page.totalCount.countSpan('showing-total')).raw}</p>
+    <p class="js-phrase">{msg:showingOfTotal(page.items.size.countSpan(shownId), page.totalCount.countSpan(totalId)).raw}</p>
     {#if page.totalPages > 1}
     <div class="flex gap-2">
         {#if page.currentPage > 1}
