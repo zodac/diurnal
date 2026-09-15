@@ -160,6 +160,31 @@ test.describe("Authentication", () => {
         await expect(page.locator("[data-form-errors]")).toContainText(/please fill in the required fields/i)
     })
 
+    test("a refusal that never reaches the app still says something, rather than nothing", async ({ page }) => {
+        // The shape that produced a silent dead button in a reverse-proxied deployment: a filter in front
+        // of the application (Quarkus's CORS filter, when the browser's Origin does not match the origin
+        // the server computes for itself) answers 403 with an EMPTY body. That body carries no
+        // [data-form-errors] slot to lift a message out of, so the handler used to un-hide an empty
+        // banner - visually identical to the button doing nothing at all.
+        await page.route("**/register", async (route) => {
+            if (route.request().method() !== "POST") { return route.continue() }
+            return route.fulfill({ status: 403, contentType: "text/plain", body: "" })
+        })
+
+        await page.goto("/register")
+        await page.fill('input[name="email"]', `silent-${Date.now()}@example.com`)
+        await page.fill('input[name="displayName"]', "Silent User")
+        await page.fill('input[name="password"]', "valid_password1")
+        await page.fill('input[name="confirmPassword"]', "valid_password1")
+        await page.locator('button[type="submit"]').click()
+
+        const banner = page.locator("[data-form-errors]")
+        await expect(banner).toBeVisible()
+        await expect(banner).not.toBeEmpty()
+        // And the button comes back, so the user can retry once whatever refused them is fixed.
+        await expect(page.locator('button[type="submit"]')).toBeEnabled()
+    })
+
     test("login submit button is disabled until both fields are filled", async ({ page }) => {
         await page.goto("/login")
         const submit = page.locator('button[type="submit"]')

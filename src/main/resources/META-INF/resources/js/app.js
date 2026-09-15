@@ -501,6 +501,11 @@ document.addEventListener('click', function (e) {
                 const retryAfter = retryAfterOf(resp)
                 if (retryAfter > 0) {
                     window.Diurnal.startLockoutCountdown(form, slot, submitBtn, retryAfter)
+                } else if (!resp.ok) {
+                    // A refusal that never reached the application (a 403 from the CORS filter, a proxy
+                    // error page) also resolves at this path, and reporting it as bad credentials would
+                    // send the user off to check a password that was never the problem.
+                    showError(window.Diurnal.i18n.somethingWentWrong)
                 } else {
                     showError(window.Diurnal.i18n.invalidCredentials)
                 }
@@ -532,10 +537,17 @@ document.addEventListener('click', function (e) {
         // whose email was rejected can just amend it and resubmit without retyping both passwords —
         // the fields stay filled, so re-enabling the submit button below is consistent with the
         // data-disable-until-complete lock.
+        // An EMPTY payload means the failing response was not this form's page at all - a filter that
+        // refused the request before it reached the resource (the CORS filter answers 403 with no body),
+        // a proxy's own error page, a 500. Rendering that as an empty banner un-hides a blank element,
+        // which on screen is indistinguishable from the button having done nothing - the one outcome a
+        // form must never produce. Fall back to the generic message instead, the same one the .catch
+        // below shows when the request could not be made at all.
         function showErrors(html) {
             if (submitBtn) { submitBtn.disabled = false }
             if (!slot) { return }
-            if (slot.innerHTML !== html) { slot.innerHTML = html }
+            const banner = html || window.Diurnal.bannerHtml(window.Diurnal.i18n.somethingWentWrong)
+            if (slot.innerHTML !== banner) { slot.innerHTML = banner }
             slot.hidden = false
         }
 
