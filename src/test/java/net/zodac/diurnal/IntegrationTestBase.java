@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -43,8 +44,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
+import net.zodac.diurnal.note.AttachmentContent;
 import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.note.NoteAttachment;
 import net.zodac.diurnal.note.NoteContent;
+import net.zodac.diurnal.note.SealedAttachment;
 import net.zodac.diurnal.note.UserNotesKey;
 import net.zodac.diurnal.note.crypto.Aes256Gcm;
 import net.zodac.diurnal.note.crypto.DataKeyEnvelope;
@@ -302,6 +306,116 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
         note.noteDate = date;
         note.contentEncrypted = sealNote(userId, date, content);
         note.persist();
+    }
+
+    /**
+     * Attaches a file to a day, sealed under the owner's own data key exactly as the application seals one — so it reads back through the attachment
+     * surfaces indistinguishably from one uploaded through them. The name is sealed exactly as given, bypassing the text pipeline, so a test may
+     * plant a value the service itself would have sanitised.
+     *
+     * @param userId the owning user
+     * @param date   the day to attach it to
+     * @param name   the display name, which the note's own text embeds as {@code [[name]]}
+     * @param file   the file's bytes
+     * @return the stored attachment's id, which every write addresses it by
+     */
+    protected static UUID newAttachment(final UUID userId, final LocalDate date, final String name, final byte[] file) {
+        return newRenamedAttachment(userId, date, name, name, file);
+    }
+
+    /**
+     * Attaches a file whose display name and uploaded file name DIFFER — the state an attachment reaches by being renamed, without having to drive a
+     * rename to get there. Every other detail is as {@link #newAttachment(UUID, LocalDate, String, byte[])} plants it.
+     *
+     * <p>
+     * Named rather than overloaded: an overload taking one more name would have {@code fileName} sitting where the other's {@code file} does, and a
+     * caller passing its arguments one position out would still compile.
+     *
+     * @param userId   the owning user
+     * @param date     the day to attach it to
+     * @param name     the display name, which the note's own text embeds as {@code [[name]]}
+     * @param fileName the name the file was uploaded under, which a rename leaves alone
+     * @param file     the file's bytes
+     * @return the stored attachment's id, which every write addresses it by
+     */
+    protected static UUID newRenamedAttachment(final UUID userId, final LocalDate date, final String name, final String fileName,
+        final byte[] file) {
+        final byte[] dataKey = dataKeyFor(userId);
+        final UUID id = UUID.randomUUID();
+        NoteAttachment.store(userId, date, id,
+            AttachmentContent.sealName(dataKey, userId, date, id, name),
+            AttachmentContent.sealFileName(dataKey, userId, date, id, fileName),
+            AttachmentContent.sealFile(dataKey, userId, date, id, file),
+            file.length);
+        return id;
+    }
+
+    /**
+     * Seals a display name the way the application seals one, for a test driving {@link NoteAttachment#renameEntry(UUID, UUID, byte[])} directly.
+     *
+     * @param userId the owning user
+     * @param date   the day the attachment belongs to
+     * @param id     the attachment's id
+     * @param name   the display name to seal
+     * @return the sealed form to store
+     */
+    protected static byte[] sealAttachmentName(final UUID userId, final LocalDate date, final UUID id, final String name) {
+        return AttachmentContent.sealName(dataKeyFor(userId), userId, date, id, name);
+    }
+
+    /**
+     * Reads a stored attachment's display name back as its owner would see it.
+     *
+     * @param userId the owning user
+     * @param date   the day the attachment belongs to
+     * @param id     the attachment's id
+     * @return the readable name, or {@code null} when the user has no such attachment or it cannot be opened
+     */
+    @Nullable
+    protected static String storedAttachmentName(final UUID userId, final LocalDate date, final UUID id) {
+        final SealedAttachment stored = NoteAttachment.sealedById(userId, id);
+        if (stored == null) {
+            return null;
+        }
+        return AttachmentContent.openName(dataKeyFor(userId), userId, date, id, stored.displayNameEncrypted()).orElse(null);
+    }
+
+    /**
+     * Reads a stored attachment's uploaded file name back as its owner would see it.
+     *
+     * @param userId the owning user
+     * @param date   the day the attachment belongs to
+     * @param id     the attachment's id
+     * @return the readable file name, or {@code null} when the user has no such attachment, it cannot be opened, or the row has none
+     */
+    @Nullable
+    protected static String storedAttachmentFileName(final UUID userId, final LocalDate date, final UUID id) {
+        final SealedAttachment stored = NoteAttachment.sealedById(userId, id);
+        if (stored == null) {
+            return null;
+        }
+        return AttachmentContent.openFileName(dataKeyFor(userId), userId, date, id, stored.fileNameEncrypted()).orElse(null);
+    }
+
+    /**
+     * Reads a stored attachment's bytes back as its owner would see them.
+     *
+     * <p>
+     * An {@link Optional} where its two sibling helpers return a nullable value, because PMD's
+     * {@code ReturnEmptyCollectionRatherThanNull} counts an array as a collection and refuses a {@code null} from one — and the shape it asks for is
+     * the one {@link AttachmentContent#openFile(byte[], UUID, LocalDate, UUID, byte[])} already answers in.
+     *
+     * @param userId the owning user
+     * @param date   the day the attachment belongs to
+     * @param id     the attachment's id
+     * @return the readable bytes, or empty when the user has no such attachment or it cannot be opened
+     */
+    protected static Optional<byte[]> storedAttachmentFile(final UUID userId, final LocalDate date, final UUID id) {
+        final byte[] stored = NoteAttachment.sealedContent(userId, id);
+        if (stored == null) {
+            return Optional.empty();
+        }
+        return AttachmentContent.openFile(dataKeyFor(userId), userId, date, id, stored);
     }
 
     /**
