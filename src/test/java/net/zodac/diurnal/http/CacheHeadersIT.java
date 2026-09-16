@@ -18,6 +18,7 @@
 package net.zodac.diurnal.http;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
 import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -80,6 +81,17 @@ class CacheHeadersIT extends IntegrationTestBase {
                 .then().statusCode(OK)
                 .header("Cache-Control", containsString("max-age=604800"))
                 .header("Cache-Control", not(containsString("immutable")));
+    }
+
+    @Test
+    void missingStaticAsset_isNotStoredDespiteItsPathsSevenDayCeiling() {
+        // The app-static filter is keyed on PATH, so a 404 under /fonts/ matches it exactly as a real font does and would go out as a week-long
+        // cacheable asset. ErrorCacheHeadersFilter strips that at the Vert.x layer: a CDN must never be able to serve a failure after its cause is
+        // fixed, which is what happened to a real deployment whose fonts were 403ed by a proxy misconfiguration.
+        given().get("/fonts/no-such-font.woff2")
+                .then().statusCode(NOT_FOUND)
+                .header("Cache-Control", containsString("no-store"))
+                .header("Cache-Control", not(containsString("max-age=604800")));
     }
 
     @Test
