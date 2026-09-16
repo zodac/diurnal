@@ -119,7 +119,7 @@ window.Diurnal = window.Diurnal || {};
     // How long the pointer must rest on a pill before the transient card appears. A pointer crossing the box passes over
     // every pill on its way, and a card that opened instantly under each one would flicker rather than inform. A CLICK
     // bypasses this entirely, because a click is a request.
-    const HOVER_DELAY_MS = 1000
+    const HOVER_DELAY_MS = 500
 
     const noteAttachments = {}   // dateStr -> [{id, name, byteSize, image, url, token}]
     const attachRequests  = {}   // dateStr -> in-flight load, so a day is never fetched twice at once

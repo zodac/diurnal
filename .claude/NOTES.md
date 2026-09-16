@@ -969,8 +969,8 @@ untouched, because the real text is still the textarea's own.
 keystroke, so a card rendered among the pills would be destroyed mid-interaction. It offers Download, Rename and Remove, plus a preview of the file
 where one is possible. Closing is delayed ~200 ms so the pointer can travel from the pill to the card without it vanishing on the way.
 
-**A hover must DWELL for a second before the card appears** (`HOVER_DELAY_MS`). A pointer crossing the note box passes over every pill in its path, and
-a card that opened under each one would flicker rather than inform; a click bypasses the delay entirely, because a click is a request.
+**A hover must DWELL for half a second before the card appears** (`HOVER_DELAY_MS`). A pointer crossing the note box passes over every pill in its
+path, and a card that opened under each one would flicker rather than inform; a click bypasses the delay entirely, because a click is a request.
 
 **Clicking a pill PINS that card**, and the two states are told apart by their outline — dashed while it is merely following the pointer, solid once
 it is pinned, with a close button that only a pinned card shows. The button sits at the END of the existing action row rather than floating in a
