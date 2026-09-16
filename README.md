@@ -466,10 +466,16 @@ memswap_limit: "2G"
 The JVM sizes its heap at 65% of whatever that limit is; the remaining 35% is metaspace, the code cache, thread stacks and the collector's own
 structures. If no limit is set at all, the entrypoint caps the heap at `1330m` (the same heap a `2G` limit produces) and says so in the log.
 
-| Variable             | Default | Description                                                                                                     |
-|----------------------|---------|-----------------------------------------------------------------------------------------------------------------|
-| `JDK_JAVA_OPTIONS`   |         | Standard JDK variable; a heap flag (for example `-Xms256m -Xmx1g`) replaces the docker ENTRYPOINT configuration |
-| `WORKER_MAX_THREADS` | `32`    | Concurrent blocking requests                                                                                    |
+The same figure also sizes the off-heap buffers a request body is read into - an eighth of it, never below `256M`. **That is the setting to raise for
+large [note attachments](#notes)**: a body larger than that bound cannot be buffered, and both halves of the budget move together rather than needing
+a JVM flag each. `MAX_MEMORY_SIZE` states the budget directly, for a deployment that would rather not express it as a container limit, or that runs
+with no limit at all; it is capped by the container limit when there is one, and ignored with a warning if it is below `256M` or not a size.
+
+| Variable             | Default | Description                                                                                           |
+|----------------------|---------|-------------------------------------------------------------------------------------------------------|
+| `MAX_MEMORY_SIZE`    |         | Total memory the JVM sizes its heap and off-heap buffers from; defaults to the container's own limit  |
+| `JDK_JAVA_OPTIONS`   |         | Standard JDK variable; a heap or direct-memory flag replaces the entrypoint's own (`-Xms256m -Xmx1g`) |
+| `WORKER_MAX_THREADS` | `32`    | Concurrent blocking requests                                                                          |
 
 ### Password Hashing Cost
 
@@ -546,8 +552,8 @@ Separately from the whole-instance backup above, each user can export their own 
 back. That export holds note content **in the clear**, so treat the file as you would the notes themselves. It is the right tool for moving one
 account between deployments; it is not a substitute for a database backup.
 
-**Note attachments are not part of it.** The archive carries no files, and because an import replaces everything the account holds, importing one
-removes the attachments that were there. Back up anything you cannot lose separately, or take a database backup instead.
+Note attachments are also included, alongside a manifest so the display name is also retained. There is a checkbox **Export attachments** which allows
+a user to not export attachments - this is enabled by default.
 
 ## User Settings
 

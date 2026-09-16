@@ -110,7 +110,7 @@ public class AppLifecycle {
         verifyOidcDiscovery();
 
         LOGGER.info("=================================================");
-        LOGGER.info("  Diurnal {} started in {}", applicationVersion.release(), ElapsedTime.format(uptime()));
+        LOGGER.info("  Diurnal v{} started in {}", applicationVersion.release(), ElapsedTime.format(uptime()));
         LOGGER.debug("  Password auth : {}", passwordAuthConfig.enabled() ? "enabled" : "disabled");
         if (quarkusOidcConfig.tenantEnabled()) {
             LOGGER.debug("  OIDC          : enabled  (issuer: {}, provider: {}, auto-redirect: {})",

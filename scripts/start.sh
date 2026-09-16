@@ -3,6 +3,11 @@
 #
 # Container entrypoint: decides how the JVM heap is sized, then hands over to the application.
 #
+# There is ONE memory figure a deployment states, and everything the JVM is given is derived from it: the
+# heap, and the off-heap buffer budget an upload is read into. That figure is the container's memory limit
+# (deploy.resources.limits.memory), or MAX_MEMORY_SIZE when a deployment states one explicitly - no JVM
+# flag has to be hand-written to move either of them, and the two cannot drift apart.
+#
 # The heap FOLLOWS THE CONTAINER'S MEMORY LIMIT (-XX:MaxRAMPercentage), so the limit docker-compose.yml
 # sets is the single knob and nothing has to be kept in sync with it. This script exists for the
 # one case a percentage cannot express: no limit at all. The JVM then resolves that percentage against
@@ -32,8 +37,8 @@ UNLIMITED_ABOVE='1099511627776'
 HEAP_PERCENT='65'
 # Absolute heap used when there is NOT. The maximum is HEAP_PERCENT of the memory limit the compose files
 # set on the `diurnal` service (deploy.resources.limits.memory, 2G - so 65% of 2g), which is where that
-# budget is configured; there is no environment variable for it. An unlimited deployment therefore tops
-# out at the same heap the documented limited one does.
+# budget is configured unless MAX_MEMORY_SIZE states one. An unlimited deployment therefore tops out at
+# the same heap the documented limited one does.
 #
 # Unlike the limited branch this is a RANGE, and the asymmetry is deliberate: with a cgroup limit the
 # budget is known and guaranteed, so committing all of it up front costs nothing, whereas here the
@@ -48,6 +53,38 @@ HEAP_PERCENT='65'
 # until touched. The reason to prefer a range here is startup robustness, nothing else.
 FALLBACK_HEAP_MIN='512m'
 FALLBACK_HEAP_MAX='1330m'
+
+# The budget assumed when nothing states one, matching the memory limit the compose files set, so an
+# unlimited deployment derives every figure below exactly as the documented limited one does.
+FALLBACK_BUDGET_BYTES='2147483648'
+# The smallest budget worth honouring (256 MiB). Below it the heap share is too small to boot into, so
+# MAX_MEMORY_SIZE is ignored with a warning rather than quietly producing a JVM that cannot start.
+MIN_BUDGET_BYTES='268435456'
+# The share of the budget given to the off-heap buffers (see MaxDirectMemorySize below), as a divisor
+# rather than a percentage so the default lands on the round figure this shipped with: 2 GiB / 8 is
+# exactly 256m. Floored, so a small deployment keeps that same 256m rather than dropping below it.
+DIRECT_MEMORY_DIVISOR='8'
+DIRECT_MEMORY_MIN_MB='256'
+BYTES_PER_MEGABYTE='1048576'
+
+# Bytes for a size written the way every other MAX_* setting in this application is: a number, optionally
+# suffixed K/M/G, binary as Quarkus' own MemorySize reads it. Empty output means "not a size", which every
+# caller treats as "ignore what was given" rather than guessing at it.
+size_in_bytes() {
+    case "${1}" in
+        *[0-9]K | *[0-9]k) digits="${1%?}"; multiplier=1024 ;;
+        *[0-9]M | *[0-9]m) digits="${1%?}"; multiplier="${BYTES_PER_MEGABYTE}" ;;
+        *[0-9]G | *[0-9]g) digits="${1%?}"; multiplier=1073741824 ;;
+        *[0-9])            digits="${1}";   multiplier=1 ;;
+        *)                 digits='';       multiplier=0 ;;
+    esac
+
+    case "${digits}" in
+        '' | *[!0-9]*) echo '' ;;
+        *) echo "$(( digits * multiplier ))" ;;
+    esac
+    return 0
+}
 
 # The container's memory limit, in bytes, or the cgroup v2 "max" sentinel. Both cgroup filesystems are
 # checked because the host decides which is mounted, and a container started under cgroup v1 exposes
@@ -75,6 +112,39 @@ case "${limit}" in
         ;;
 esac
 
+# MAX_MEMORY_SIZE is the deployer-facing knob, and it is a SIZE rather than a JVM flag: one figure, in the
+# same form as MAX_ATTACHMENT_SIZE and MAX_UPLOAD_SIZE, from which both the heap and the off-heap buffer
+# budget below are derived. A deployment that raises what it accepts - a note attachment far above the 25M
+# default, say - states the memory that needs in the same vocabulary, rather than hand-writing -Xmx and
+# -XX:MaxDirectMemorySize into JDK_JAVA_OPTIONS and having to know that both exist.
+#
+# It is CLAMPED to the container's memory limit and never overrides it. Exceeding that limit is a KERNEL
+# kill - an opaque exit 137, with no OutOfMemoryError for ExitOnOutOfMemoryError to turn into a clean
+# restart - so a figure above it would be the one setting here able to make the container die silently.
+budget_bytes=''
+budget_from_env='no'
+if [ -n "${MAX_MEMORY_SIZE:-}" ]; then
+    budget_bytes="$(size_in_bytes "${MAX_MEMORY_SIZE}")"
+    if [ -z "${budget_bytes}" ] || [ "${budget_bytes}" -lt "${MIN_BUDGET_BYTES}" ]; then
+        echo "WARN  [diurnal] MAX_MEMORY_SIZE='${MAX_MEMORY_SIZE}' is not a usable size (expected 512M, 4G or similar, and at least 256M)" \
+            "- ignoring it and sizing from the container memory limit instead"
+        budget_bytes=''
+    elif [ "${unlimited}" = 'no' ] && [ "${budget_bytes}" -gt "${limit}" ]; then
+        echo "WARN  [diurnal] MAX_MEMORY_SIZE=${MAX_MEMORY_SIZE} is above the container memory limit - using the limit instead." \
+            "Raise deploy.resources.limits.memory (and memswap_limit) in docker-compose.yml to go higher"
+        budget_bytes=''
+    else
+        budget_from_env='yes'
+    fi
+fi
+if [ -z "${budget_bytes}" ]; then
+    if [ "${unlimited}" = 'no' ]; then
+        budget_bytes="${limit}"
+    else
+        budget_bytes="${FALLBACK_BUDGET_BYTES}"
+    fi
+fi
+
 # The remaining flags are fixed, and each is here rather than in the jlink --add-options baked into the
 # JRE because they are properties of how this app is DEPLOYED, not of the runtime image.
 #
@@ -98,12 +168,16 @@ esac
 # ExitOnOutOfMemoryError below to turn into a clean restart. Bounding it keeps that failure inside the JVM
 # where it is diagnosable.
 #
-# 256m is not arbitrary. A JFR recording of a real deployment - taken with the data import/export
-# exercised, which is the only path that moves real volume through these buffers - peaked at 15.0 MB
-# across 244 buffers, so this is ~17x the measured high-water mark. It is sized against
-# quarkus.http.limits.max-body-size (MAX_UPLOAD_SIZE, default 100M) rather than that measurement alone,
-# because body buffering is what consumes direct memory and a bound below the largest accepted request
-# would be the wrong shape. RAISE THIS ALONGSIDE MAX_UPLOAD_SIZE if a deployment increases it.
+# It is a SHARE OF THE BUDGET (a DIRECT_MEMORY_DIVISOR-th of it, floored at DIRECT_MEMORY_MIN_MB) rather
+# than a pinned figure, because body buffering is what consumes direct memory: a deployment accepting note
+# attachments far above the 25M default has to be able to move this, and it moves for the same reason and
+# by the same amount as the heap does. At the default 2 GiB budget the share IS the 256m this shipped with
+# before it was derived, so an ordinary deployment sees no change.
+#
+# That 256m was not arbitrary, and the floor keeps it. A JFR recording of a real deployment - taken with
+# the data import/export exercised, which is the only path that moves real volume through these buffers -
+# peaked at 15.0 MB across 244 buffers, so it is ~17x the measured high-water mark, and it comfortably
+# covers the default quarkus.http.limits.max-body-size (MAX_UPLOAD_SIZE, 128M).
 #
 # ExitOnOutOfMemoryError pairs with `restart: unless-stopped`: a JVM that has exhausted the heap should
 # die and be restarted, not linger serving errors. HeapDumpOnOutOfMemoryError is deliberately ABSENT -
@@ -130,9 +204,25 @@ case "${JDK_JAVA_OPTIONS:-}" in
     *-Xmx*|*MaxRAMPercentage*|*-XX:MaxRAM=*) heap_max_set='yes' ;;
     *) heap_max_set='no' ;;
 esac
+direct_memory_set='no'
+case "${JDK_JAVA_OPTIONS:-}" in
+    *MaxDirectMemorySize*) direct_memory_set='yes' ;;
+    *) direct_memory_set='no' ;;
+esac
 
 set -- -XX:+UseG1GC
-if [ "${unlimited}" = 'yes' ]; then
+if [ "${budget_from_env}" = 'yes' ]; then
+    # An absolute size rather than a percentage, because a percentage resolves against the container's
+    # limit (or, unlimited, the host's memory) - which is the very figure MAX_MEMORY_SIZE is replacing.
+    heap_mb="$(( budget_bytes * HEAP_PERCENT / 100 / BYTES_PER_MEGABYTE ))"
+    if [ "${heap_min_set}" = 'no' ]; then
+        set -- "$@" "-Xms${heap_mb}m"
+    fi
+    if [ "${heap_max_set}" = 'no' ]; then
+        set -- "$@" "-Xmx${heap_mb}m"
+    fi
+    echo "INFO  [diurnal] MAX_MEMORY_SIZE=${MAX_MEMORY_SIZE} - sizing the JVM from it rather than from the container memory limit"
+elif [ "${unlimited}" = 'yes' ]; then
     if [ "${heap_min_set}" = 'no' ]; then
         set -- "$@" "-Xms${FALLBACK_HEAP_MIN}"
     fi
@@ -158,7 +248,21 @@ fi
 if [ "${heap_min_set}" = 'yes' ] || [ "${heap_max_set}" = 'yes' ]; then
     echo "INFO  [diurnal] heap size supplied via JDK_JAVA_OPTIONS - this entrypoint is not overriding it"
 fi
-set -- "$@" -XX:MaxMetaspaceSize=256m -XX:MaxDirectMemorySize=256m -XX:+ExitOnOutOfMemoryError
+if [ "${direct_memory_set}" = 'yes' ]; then
+    echo "INFO  [diurnal] direct memory size supplied via JDK_JAVA_OPTIONS - this entrypoint is not overriding it"
+fi
+
+# Metaspace is NOT detected the same way, and deliberately so: it holds loaded classes, whose number is a
+# property of the application rather than of the deployment, so there is no request size or memory limit a
+# deployment could size it against.
+set -- "$@" -XX:MaxMetaspaceSize=256m -XX:+ExitOnOutOfMemoryError
+if [ "${direct_memory_set}" = 'no' ]; then
+    direct_mb="$(( budget_bytes / DIRECT_MEMORY_DIVISOR / BYTES_PER_MEGABYTE ))"
+    if [ "${direct_mb}" -lt "${DIRECT_MEMORY_MIN_MB}" ]; then
+        direct_mb="${DIRECT_MEMORY_MIN_MB}"
+    fi
+    set -- "$@" "-XX:MaxDirectMemorySize=${direct_mb}m"
+fi
 
 # `exec` replaces this shell with the JVM, so java becomes PID 1 and receives SIGTERM from `docker stop`
 # directly. Without it the shell would hold PID 1 and the JVM would never be signalled, leaving every
