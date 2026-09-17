@@ -96,6 +96,15 @@ class ThemeTest {
 
     // ── isValid ─────────────────────────────────────────────────────────────
 
+    @Test
+    void allowedValues_namesEveryOfferedThemeAsOneCommaSeparatedPhrase() {
+        // The shared PreviewOption join, pinned over the one picker small and fixed enough to spell out: it is the phrase every rejection of an
+        // unrecognised theme, font or calendar view quotes back, so an empty or reordered one would be a rejection that explains nothing.
+        assertThat(PreviewOption.allowedValues(Theme.values()))
+            .as("the rejection has to name the themes it accepts, in this enum's own order")
+            .isEqualTo("system, light, dark");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"system", "light", "dark"})
     void isValid_offeredValue_returnsTrue(final String value) {

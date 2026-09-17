@@ -1,12 +1,13 @@
 # Data Export & Import
 
-> **This file is ~28 KB. Read only the section you need** - `grep -n '^#' .claude/TRANSFER.md` for its
+> **This file is ~37 KB. Read only the section you need** - `grep -n '^#' .claude/TRANSFER.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Why**
 > - **The format** — The details that make it "editable"
 > - **Design decisions, with the alternatives that were rejected** — Replace, not merge, All or nothing, A stateless two-step preview, Reject, never
->   coerce, A complete archive only, Hand-rolled CSV, One parser object, not an accumulator parameter
+>   coerce, A complete archive only, Settings are named, never wholesale, Hand-rolled CSV, One parser object, not an accumulator
+>   parameter
 > - **Privacy**
 > - **Untrusted input**
 > - **Surfaces**
@@ -34,7 +35,7 @@ pins exactly that.
 
 ## The format
 
-A ZIP holding four CSV members, plus one entry per attached file. UTF-8 with a leading **byte-order mark** (unless `EXPORT_CSV_BOM=false` — see
+A ZIP holding five CSV members, plus one entry per attached file. UTF-8 with a leading **byte-order mark** (unless `EXPORT_CSV_BOM=false` — see
 below), **CRLF** record separators, RFC 4180 quoting. The reader strips a BOM again — whatever was written, and
 whatever an editor has since added — and accepts CRLF, LF or a lone CR.
 
@@ -44,14 +45,18 @@ whatever an editor has since added — and accepts CRLF, LF or a lone CR.
 | `logs.csv`        | `date,action,count`       | ordered by date then action                               |
 | `notes.csv`       | `date,content`            | ordered by date; content is **plain text**                |
 | `attachments.csv` | `date,name,filename,file` | ordered by date; **optional**, and names an entry per row |
+| `settings.csv`    | `setting,value`           | one row per setting; **optional**                         |
 
 Beside them, `attachments/0001.png`, `attachments/0002.pdf`, … — one entry per attached file, holding its bytes verbatim.
 
-**`attachments.csv` is OPTIONAL where the other three are required**, and the asymmetry is deliberate. An archive exported
-before attachments existed is a complete export of what the account held at the time, and reading it as "this account has
-no attachments" is exactly right under replace-all — whereas refusing it would make every backup taken before the feature
-landed unrestorable. The three that are required are required because they validate *against each other*: a log names its
-action, so `logs.csv` without `actions.csv` cannot be checked at all.
+**`attachments.csv` and `settings.csv` are OPTIONAL where the other three are required**, and the asymmetry is deliberate.
+An archive exported before either existed is a complete export of what the account held at the time, and refusing it would
+make every backup taken before the feature landed unrestorable. The three that are required are required because they
+validate *against each other*: a log names its action, so `logs.csv` without `actions.csv` cannot be checked at all.
+
+**What an ABSENT optional member MEANS differs between the two.** An absent `attachments.csv` says "this account has no
+files", which is exactly right under replace-all. An absent `settings.csv` says *nothing at all*, and the account's own
+settings are left as they are — see "Settings are named, never wholesale" below.
 
 **`name` and `filename` are two different things, and both are carried.** `name` is the display name the day's note embeds
 the file by, which a rename rewrites; `filename` is what it was uploaded as, which nothing rewrites. They are equal until
@@ -73,6 +78,63 @@ all: under replace-all semantics the rows are recreated anyway, so renaming an a
 **The header is matched exactly** — the same names in the same order, tolerating only casing and surrounding
 whitespace. Guessing at a reordered or renamed column would let a file that means one thing be imported as
 another, and the import replaces everything, so a misread column is not a recoverable mistake.
+
+### `settings.csv`
+
+**A key/value member, not a column per preference.** A column per preference would change the member's HEADER every time a
+setting was added, and the header is matched exactly — so every archive taken before that change would stop importing. A
+row is also what lets the two *set*-valued preferences be carried without a member of their own.
+
+**A key is the `User` field's own name**, which is also the name `GET /api/v1/users/me` exposes it under
+(`UserDto.Preferences`) and the name its form control posts. One vocabulary for someone editing the archive and someone
+reading the API — and one thing to check the other against, which `SettingsAreTransferableTest` does: every
+`@Preference`-annotated field on `User` must have a `SettingKey` of the same name, or be one of the two set-valued
+preferences below.
+
+**`displayName` is the one key that is NOT a `@Preference`.** It is profile rather than preference, and it is carried
+because a restore that brings back ten years of journal but not what the account calls itself is not a restore. It is
+also **the only identity column the archive touches**: the email, the password hash, the OIDC link, the role and the
+last-login stamp are not in the format and must not be, since an import must never be a route to changing *who* an
+account is — `SettingsAreTransferableTest.noCredentialOrRoleColumnIsCarried` pins exactly that. It goes through the
+shared `TextFields.DISPLAY_NAME` pipeline like every other free-text value, so an imported name obeys the same
+blank/length/content rules a typed one does and is stored in the same normalised form.
+
+```csv
+setting,value
+calendarView,full
+decimalPlaces,1
+displayName,Ada Lovelace
+font,nova
+language,en-GB
+noteColour,#16a34a
+pageSize,5
+showNoteCounter,true
+showStatsSummary,true
+theme,system
+timezone,
+weekStart,
+pageSize.actions,25
+statsField.current-streak,shown
+statsFieldName.current-streak,Days in a row
+statsField.total-count,hidden
+```
+
+The twelve scalars come first, in `SettingKey`'s own order, then the two **families of rows** that carry a preference
+holding many values at once:
+
+- **`pageSize.<section>`** — one row per per-section "items per page" override. The bare `pageSize` beside them is the
+  general preference every section without an override follows; the match is exact, so the two can never be confused.
+- **`statsField.<key>`** (`shown`/`hidden`) and **`statsFieldName.<key>`** — the "Action stats" arrangement. **The ORDER
+  the `statsField.` rows appear in IS the arrangement order**, which is the one place in the whole format where a row's
+  position carries meaning rather than being derived from its content. It has to: the arrangement is an order, the rows
+  are its elements, and a rank column would be a second place for the same fact to live and to disagree with itself.
+  Re-ordering the rows in a spreadsheet is exactly what dragging them on the Settings page does. A name is carried apart
+  from its arrangement row because they are two different facts about one stat, and only one of them takes a value from a
+  fixed set; a stat nobody has renamed has no `statsFieldName.` row at all.
+
+**`timezone` and `weekStart` are written as EMPTY values rather than left out** when the account has not set them. The row
+then *says* "this account follows the default", which is a fact worth carrying, and reads back as the same blank reset a
+cleared picker submits — the only two preferences that have one.
 
 ### The details that make it "editable"
 
@@ -99,7 +161,8 @@ does not:
 ### Replace, not merge
 
 An import **removes every action, day count and note the account holds** and writes the archive's contents in
-their place. The account ends up holding exactly what the file describes and nothing else.
+their place. The account ends up holding exactly what the file describes and nothing else. The one thing this is
+*not* true of is the account's settings — see "Settings are named, never wholesale" below.
 
 *Rejected: merge (incoming wins).* It makes "export → edit → re-import" work as an edit workflow without the
 scary bit — but it is not a restore. A row deleted from the file stays in the database, so an archive can never
@@ -145,6 +208,44 @@ An import requires all three members. A loose `actions.csv` is refused.
 *Rejected: replacing only the collection a single uploaded CSV describes.* Deleting an action already deletes its
 logs, so a bare `actions.csv` that dropped one action would cascade away a year of counts — a very destructive
 outcome from a file that looks harmless.
+
+### Settings are named, never wholesale
+
+`settings.csv` is the one member that does **not** replace: an import applies the preferences the file NAMES and leaves
+every other one exactly as it was. A key the archive omits is not a preference being cleared — it is a file that is silent
+about it.
+
+That is not an inconsistency with replace-all, it is what replace-all *means* for this kind of data. A preference always
+HAS a value, so there is no "this account has none" state for an absent row (or an absent member) to describe. The two
+readings an absent key could otherwise have are both worse: leaving it is what a user hand-editing two rows out of twelve
+obviously means, and resetting it would make restoring a backup taken before this member existed silently change the
+account's LANGUAGE — which then changes every word of the page that tells them what happened.
+
+It also matches the contract `PreferenceUpdates` already carries for a partial `PATCH /api/v1/users/me`, and it is why
+`settings.csv` could be made optional without inventing a compatibility rule: an old archive simply names no settings.
+
+**The two exceptions are the two preferences that HAVE a "none" state.** A blank `timezone`/`weekStart` value is the
+explicit "follow the server default"/"follow the account's language" reset, exactly as a blank submission is on both
+existing surfaces — so the format distinguishes an absent row from a row carrying no value.
+
+**The two SET-valued preferences are read as a complete set, whenever the member is present.** No `pageSize.` rows means
+"no per-section overrides"; no `statsField.` rows means "never customised". They need no absent/blank distinction and
+deliberately do not have it: an override set's emptiness is a state, and the only way a file can express it is by carrying
+no rows for it — where a scalar's absence can only mean the file said nothing. Both land in the column as the single
+`NULL` representation those states already have.
+
+**An unrecognised setting key is REFUSED, not skipped**, which is the other half of "reject, never coerce" above. A
+mistyped `them,dark` that imports "successfully" and changes nothing is precisely the silent wrong outcome this format
+refuses everywhere else, and `settings.csv` is the member a user is most likely to hand-edit. The cost is the same
+documented asymmetry `NOTE_MAX_LENGTH` and `NOTE_ATTACHMENT_EXTENSIONS` already carry: retiring a preference leaves the
+stored value alone, but an archive naming it has to have that row removed before it can be restored.
+
+*Rejected: routing the write back through `ProfileService`.* Its per-field methods validate and apply together and report
+failure by RETURNING a rejection — so an already-validated value would go through a second validation with an outcome this
+path has no way to reach and no way to test. The division of labour is the one every other member already has: the RULES
+are shared (`SettingsParser` calls the identical `Theme.isValid`/`Colours.isInvalidHex`/`UserSettings.parsePageSize`/
+`PageSizes.encode`/`TextValidation` the Settings page calls), and the WRITING is the importer's, exactly as an imported
+action is written with `Action.persist` rather than through `ActionService`.
 
 ### Hand-rolled CSV
 
@@ -260,7 +361,10 @@ the attacker-reachable parser it is:
   it, being the only member of free text: at the default `NOTE_MAX_LENGTH` it holds ~3,200 notes written to their
   absolute limit and vastly more real ones. A deployment that raises `NOTE_MAX_LENGTH` shrinks that headroom
   proportionally, which is one of the things the bound's own ceiling exists to keep sane (see [`NOTES.md`](NOTES.md)).
-  It is a bound on plausible data, **not** a guarantee that every account can export.
+  It is a bound on plausible data, **not** a guarantee that every account can export. `settings.csv` does not enter into
+  it: its rows are bounded by the preference catalogue plus one per page section and one per stat, so a *legitimate* one
+  is a few hundred bytes. A hostile one is bounded by the same caps as any other member, and every row it holds that the
+  catalogue does not know is refused with its own problem, capped by `MAX_REPORTED_PROBLEMS` like all the rest.
 - `ImportParser` caps the problems it reports (`MAX_REPORTED_PROBLEMS`) while still telling the user the true
   total. It deliberately does **not** cap rows: the decompressed-byte limits above are the real bound, and a
   second row-count limit would only add a branch no test could reach without building 32 MB of fixtures.
@@ -304,6 +408,9 @@ explicitly, purely so a test can sit on each boundary exactly. The production pa
 | `POST /internal/data/import/preview` | the same, rendering the panel partial                |
 | `POST /internal/data/import`         | the same, rendering the panel partial                |
 
+`ImportSummary` (and so the JSON of all four write endpoints) carries `settings` as a **boolean**, not a count: a
+preference is replaced in place rather than removed, so there is no "what you have now" figure to pair a number with.
+
 Both take the **raw archive as the request body** (`application/zip`), not a multipart form: it is one file with
 no fields beside it, so `curl --data-binary @diurnal-export.zip` is the whole call and the browser sends exactly
 the same bytes. A refusal is `400` on the API and `422` on the internal surface — the split every other rejected
@@ -328,6 +435,9 @@ rather than the browser's `302 /login` challenge, which for a file download is i
   note an account holds.
 - Actions are inserted **and flushed** before their logs: a log names its action by name, and `ActionLog.setCounts`
   is a native statement that cannot see rows still sitting in the persistence context.
+- **Settings are written last, straight onto the `User` entity**, and only where the archive named them - nothing is
+  deleted first, because a preference is replaced in place rather than removed. See "Settings are named, never
+  wholesale" for why this does not go back through `ProfileService`.
 
 > **The logs and the notes are each written in ONE statement, not one per row** (`ActionLog.setCounts`,
 > `Note.upsertAll`). An import replaces a whole account at once — a 3-year archive is ~33,000 log entries — and
@@ -354,6 +464,19 @@ The card is driven by `fetch` in `settings.js`, not htmx, for the reason the log
 outcome answered with a `422`, and htmx logs every `4xx` to the console (unsuppressable). It is also what lets the Import button re-send the very
 bytes the preview was computed from.
 
+**An import that carried `settings.csv` RELOADS the page**, which is the same answer the language picker on that page
+already gives for the same reason: theme and font are `<html>` classes, and the language decides every word and date on
+the page, all resolved at render time. Without the reload the card would be correct and everything around it stale — and
+worse than cosmetic, since the per-section page-size panel posts its WHOLE set on save, so the next save on a stale page
+would write the pre-import overrides back.
+
+**The success panel is carried across the reload in `sessionStorage`**, and taken out of it as it is put back, so a later
+manual refresh shows the idle card. It is the only confirmation the import worked at all, and an import that changed
+nothing visible would otherwise look like one that did nothing. Only the APPLIED panel is ever stored and it holds counts
+alone — never an action name, never a note — so nothing private goes into browser storage, unlike the note draft. The
+applied panel carries `data-settings-restored`, which is what the script keys on; an archive with no settings member keeps
+the previous behaviour exactly.
+
 ## Tests
 
 | Tier                             | What it pins                                                                                                   |
@@ -362,8 +485,9 @@ bytes the preview was computed from.
 | `CsvBomDisabledIT`               | `EXPORT_CSV_BOM=false` reaches a real export, and what it writes still imports with its non-ASCII intact       |
 | `TransferArchiveTest`            | the round trip and every limit that makes unpacking an upload safe                                             |
 | `ImportParserTest`               | every validation rule, the future-note/future-log asymmetry, the problem cap, and that content is never quoted |
+| `SettingsAreTransferableTest`    | every `@Preference` field on `User` is carried by the archive - the third surface a new preference must reach  |
 | `ImportSummaryExtensionsTest`    | the preview's wording, and that every figure pluralises                                                        |
-| `TransferApiResourceIT`          | export shape, export→import→export identity, replace, rollback on refusal, cross-account isolation             |
+| `TransferApiResourceIT`          | export shape, export→import→export identity, replace, settings applied/left alone, rollback, cross-account     |
 | `TransferInternalResourceIT`     | the Settings panel's refusal rows: bold file names, a chip per header column name, single-escaped upload text  |
 | `SurfaceParityIT`                | the same archive through both surfaces leaves the same database state                                          |
-| `tests/ui/data-transfer.spec.ts` | the card end to end: export downloads, preview, confirm, cancel, and a refusal shown in place                  |
+| `tests/ui/data-transfer.spec.ts` | the card end to end: export, preview, confirm, cancel, a refusal in place, and the settings-restore reload     |

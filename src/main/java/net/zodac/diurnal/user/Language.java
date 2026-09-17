@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -383,6 +384,17 @@ public enum Language {
      */
     public static boolean isValid(final @Nullable String value) {
         return Arrays.stream(values()).anyMatch(option -> option.value.equals(value));
+    }
+
+    /**
+     * The offered values, joined for the rejection message naming what was allowed - the counterpart to {@link #isValid(String)}, so the sentence
+     * and the rule read the same catalogue. That deliberately includes {@link #PSEUDO}, which {@link #pickerOrder()} hides from the Settings
+     * dropdown but which remains a fully valid stored value. Never translated: these are BCP-47 tags, not the language names the picker shows.
+     *
+     * @return the offered values, comma-separated
+     */
+    public static String allowedValues() {
+        return Arrays.stream(values()).map(Language::value).collect(Collectors.joining(", "));
     }
 
     /**

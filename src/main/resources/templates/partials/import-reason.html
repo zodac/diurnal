@@ -5,7 +5,8 @@
                    'missingMember' | 'emptyFile' | 'wrongHeader' | 'wrongColumnCount' | 'invalidColour' |
                    'duplicateAction' | 'futureLog' | 'unknownAction' | 'nonNumericCount' | 'countOutOfRange' |
                    'duplicateLog' | 'emptyNote' | 'duplicateNote' | 'invalidDate' | 'missingAttachmentFile' |
-                   'emptyAttachment' | 'duplicateAttachment' | 'attachmentTypeNotAllowed'
+                   'emptyAttachment' | 'duplicateAttachment' | 'attachmentTypeNotAllowed' | 'unknownSetting' |
+                   'duplicateSetting' | 'invalidSettingChoice' | 'settingOutOfRange'
     maxEntries  — 'tooManyEntries' only, never translated
     detail      — 'archiveUnreadable' only, the underlying exception message, never translated
     file        — 'missingMember' | 'missingAttachmentFile' | 'emptyAttachment' only, never translated
@@ -16,12 +17,16 @@
     name        — 'duplicateAction' | 'duplicateAttachment' | 'attachmentTypeNotAllowed' only, never translated
     date        — 'futureLog' | 'duplicateLog' | 'emptyNote' | 'duplicateNote' | 'duplicateAttachment' only, never
                    translated
-    accepted    — 'attachmentTypeNotAllowed' only: the deployment's accepted extensions as one comma-separated
-                   phrase, never translated - how many there are is a property of the deployment, not of the
-                   language (the same reasoning as `header` below)
+    accepted    — 'attachmentTypeNotAllowed' | 'invalidSettingChoice' only: what that row's column DOES accept, as one
+                   comma-separated phrase - the deployment's file extensions, or the setting's own values. Never
+                   translated: they are stable identifiers (a theme name, a BCP-47 tag, an IANA zone), and how many
+                   there are is a property of the deployment, not of the language (the same reasoning as `header` below)
     actionName  — 'unknownAction' | 'duplicateLog' only, never translated
     raw         — 'nonNumericCount' | 'invalidDate' only, never translated
-    max         — 'countOutOfRange' only, never translated
+    max         — 'countOutOfRange' | 'settingOutOfRange' only, never translated
+    min         — 'settingOutOfRange' only, never translated
+    setting     — 'unknownSetting' | 'duplicateSetting' | 'invalidSettingChoice' | 'settingOutOfRange' only: the
+                   settings.csv key, never translated - the same stable name the public API exposes the preference under
 
   Every arm is escaped as it renders, so an arm may embed the archive's own text (a name, a date, a raw cell) freely.
   The FOUR arms whose wording sets a piece of the file format apart are the exception and ask for `.raw`, or Qute
@@ -66,4 +71,8 @@
     {#is 'emptyAttachment'}{msg:importEmptyAttachment(file)}
     {#is 'duplicateAttachment'}{msg:importDuplicateAttachment(name, date)}
     {#is 'attachmentTypeNotAllowed'}{msg:importAttachmentTypeNotAllowed(name, accepted)}
+    {#is 'unknownSetting'}{msg:importUnknownSetting(setting)}
+    {#is 'duplicateSetting'}{msg:importDuplicateSetting(setting)}
+    {#is 'invalidSettingChoice'}{msg:importInvalidSettingChoice(setting, accepted)}
+    {#is 'settingOutOfRange'}{msg:importSettingOutOfRange(setting, min, max)}
 {/switch}

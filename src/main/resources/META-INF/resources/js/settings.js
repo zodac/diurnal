@@ -1337,6 +1337,24 @@ if (oidcConnectArm) {
     // The panel is replaced wholesale on every response, so it is looked up per use rather than held.
     function panel() {return document.getElementById('import-panel')}
 
+    // An import that carried settings.csv has just replaced the very preferences this page is rendered FROM -
+    // theme and font are html classes, and the language decides every word and date on it - so the card is
+    // correct and everything around it is stale. Reloading is the same answer the language picker above already
+    // gives for the same reason.
+    //
+    // The success panel is carried across the reload rather than lost to it: it is the only confirmation the
+    // import worked at all, and an import that changed nothing visible would otherwise look like one that did
+    // nothing. Only the APPLIED panel is ever stored, and it holds counts alone - never an action name, never a
+    // note - so nothing private is put into browser storage (unlike the note draft, which says so at length).
+    const RESTORED_PANEL_KEY = 'diurnal.importPanel'
+
+    function reloadIfSettingsRestored() {
+        const current = panel()
+        if (!current || !current.querySelector('[data-settings-restored]')) {return}
+        try { sessionStorage.setItem(RESTORED_PANEL_KEY, current.outerHTML) } catch (e) {}
+        window.location.reload()
+    }
+
     function showPanel(html) {
         const current = panel()
         if (!current) {return}
@@ -1426,6 +1444,7 @@ if (oidcConnectArm) {
                 pending = null
                 fileInput.value = ''
                 resetFilenameLabel()
+                reloadIfSettingsRestored()
             })
         } else if (e.target.id === 'data-import-cancel') {
             pending = null
@@ -1434,4 +1453,13 @@ if (oidcConnectArm) {
             showPanel('<div id="import-panel" class="mt-3"></div>')
         }
     })
+
+    // Put back the panel the reload above interrupted, and take it out of storage as it goes, so a later manual
+    // refresh shows the idle card rather than a stale success banner.
+    let restored = null
+    try {
+        restored = sessionStorage.getItem(RESTORED_PANEL_KEY)
+        sessionStorage.removeItem(RESTORED_PANEL_KEY)
+    } catch (e) {}
+    if (restored) {showPanel(restored)}
 })()

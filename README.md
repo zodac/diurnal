@@ -555,6 +555,13 @@ account between deployments; it is not a substitute for a database backup.
 Note attachments are also included, alongside a manifest so the display name is also retained. There is a checkbox **Export attachments** which allows
 a user to not export attachments - this is enabled by default.
 
+The account's own **settings** ride along too, so restoring a backup on a new deployment brings back the display name, theme, language, timezone,
+page sizes and stats arrangement as well as the data. Nothing else off the account travels with it - not the email, the password, the linked
+identity provider or the role - so an import can never change who an account is.
+
+Settings are the one part an import does not wipe: it applies the preferences the archive names and leaves any it does not alone, so an archive
+exported before this existed still restores without resetting anything.
+
 ## User Settings
 
 Each user can customise Diurnal from the **Settings** page (top-right menu).

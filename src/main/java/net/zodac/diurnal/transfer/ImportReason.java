@@ -44,7 +44,8 @@ public sealed interface ImportReason
     ImportReason.InvalidTextField, ImportReason.InvalidColour, ImportReason.DuplicateAction, ImportReason.FutureLog, ImportReason.UnknownAction,
     ImportReason.NonNumericCount, ImportReason.CountOutOfRange, ImportReason.DuplicateLog, ImportReason.EmptyNote, ImportReason.DuplicateNote,
     ImportReason.InvalidDate, ImportReason.MissingAttachmentFile, ImportReason.EmptyAttachment, ImportReason.DuplicateAttachment,
-    ImportReason.AttachmentTypeNotAllowed {
+    ImportReason.AttachmentTypeNotAllowed, ImportReason.UnknownSetting, ImportReason.DuplicateSetting, ImportReason.InvalidSettingChoice,
+    ImportReason.SettingOutOfRange {
 
     /**
      * The English wording for this refusal, for the API's {@code 400} body — reached through
@@ -251,7 +252,8 @@ public sealed interface ImportReason
     }
 
     /**
-     * An action row's colour is not a {@code #rrggbb} hex value.
+     * A colour is not a {@code #rrggbb} hex value - an action row's, or the note colour {@code settings.csv} carries. One variant for both, because
+     * it is one rule: every user-chosen colour in the app obeys {@code colour.Colours}.
      */
     record InvalidColour() implements ImportReason {
 
@@ -376,6 +378,66 @@ public sealed interface ImportReason
         @Override
         public String message() {
             return "'" + raw + "' is not a date in YYYY-MM-DD form.";
+        }
+    }
+
+    /**
+     * A {@code settings.csv} row names a setting this application does not have.
+     *
+     * <p>
+     * Refused rather than skipped, because a mistyped key that imports "successfully" and changes nothing is exactly the silent wrong outcome this
+     * format refuses everywhere else - see {@code SettingsParser}. It also covers the two key FAMILIES: a page-size override for a section that does
+     * not exist, a stat that does not exist, and a stat name whose arrangement row is not in the file.
+     *
+     * @param setting the key the row carried
+     */
+    record UnknownSetting(String setting) implements ImportReason {
+
+        @Override
+        public String message() {
+            return "'" + setting + "' is not a setting this application has.";
+        }
+    }
+
+    /**
+     * The same setting key appears on more than one row of {@code settings.csv}.
+     *
+     * @param setting the repeated key
+     */
+    record DuplicateSetting(String setting) implements ImportReason {
+
+        @Override
+        public String message() {
+            return "The setting '" + setting + "' appears more than once.";
+        }
+    }
+
+    /**
+     * A {@code settings.csv} row's value is not one of the values that setting accepts.
+     *
+     * @param setting  the key the row carried
+     * @param accepted the values it does accept, comma-separated - a technical, never-translated list, exactly as {@link EmptyFile}'s columns are
+     */
+    record InvalidSettingChoice(String setting, String accepted) implements ImportReason {
+
+        @Override
+        public String message() {
+            return "'" + setting + "' must be one of: " + accepted + '.';
+        }
+    }
+
+    /**
+     * A {@code settings.csv} row's value is a number outside the range that setting accepts, or is not a whole number at all.
+     *
+     * @param setting the key the row carried
+     * @param min     the smallest accepted value
+     * @param max     the largest accepted value
+     */
+    record SettingOutOfRange(String setting, int min, int max) implements ImportReason {
+
+        @Override
+        public String message() {
+            return "'" + setting + "' must be a whole number between " + min + " and " + max + '.';
         }
     }
 }

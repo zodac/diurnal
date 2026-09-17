@@ -38,6 +38,13 @@
             {msg:importNothingToRemove}
         </p>
         {/if}
+        {! Settings are the one part with no count and no "what you have now": a preference is replaced in
+             place rather than removed, so the archive either names some or it does not. See ImportSummary. !}
+        {#if summary.settings}
+        <p class="help-text mt-1">
+            {msg:importReplacesSettings}
+        </p>
+        {/if}
         {! Destructive action on the LEFT, Cancel on the RIGHT — the same arrangement as every other
              confirm cluster in the app (partials/confirm-actions.html), so a double-click safely
              dismisses rather than confirming. !}
@@ -50,6 +57,15 @@
     {#else if state == 'applied'}
     {#include partials/banner variant='success' cls=''
         message=msg:importAppliedSummary(msg:importActionsCount(summary.actions), msg:importLogsCount(summary.logs), msg:importNotesCount(summary.notes), msg:importAttachmentsCount(summary.attachments)) /}
+    {! `data-settings-restored` is read by settings.js, which reloads the page: theme, font and language are all
+         resolved at render time, so the Settings page around this banner is showing the values the import has just
+         replaced. The banner survives the reload - the script stores this panel and puts it back - so the
+         confirmation is not the price of the page being correct. !}
+    {#if summary.settings}
+    <p class="help-text mt-2" data-settings-restored>
+        {msg:importAppliedSettings}
+    </p>
+    {/if}
 
     {#else if state == 'rejected'}
     {! An empty message means the generic Rejected-import refusal; a non-empty one is a Malformed archive's

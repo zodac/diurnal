@@ -50,8 +50,17 @@ public final class UserSettings {
     // "Default" pill no longer fit on one line of a phone-width Settings card, and the widest of them was
     // the least useful (a 100-row page is a scroll, not a page). It stays reachable through the stepper.
     public static final List<Integer> PAGE_SIZE_OPTIONS = List.of(5, 10, 25, 50);
-    private static final int MIN_PAGE_SIZE = 1;
-    private static final int MAX_PAGE_SIZE = 100;
+
+    /**
+     * The smallest accepted "items per page" value. Public because a rejection has to be able to SAY the bound, and one surface - the data import -
+     * words it in the reader's own language rather than reusing {@link #PAGE_SIZE_RANGE_MESSAGE}.
+     */
+    public static final int MIN_PAGE_SIZE = 1;
+
+    /**
+     * The largest accepted "items per page" value - see {@link #MIN_PAGE_SIZE} for why it is public.
+     */
+    public static final int MAX_PAGE_SIZE = 100;
 
     // Rejection message when an out-of-range or non-numeric page size is submitted.
     @NotUiFacing(reason = "reaches only the /api/v1 400 body through ProfileService.message(); the Settings row has its own bundle entry")
@@ -76,8 +85,17 @@ public final class UserSettings {
 
     // Number of decimal places used to render fractional stats (e.g. the weekly average).
     public static final int DEFAULT_DECIMAL_PLACES = 1;
-    private static final int MIN_DECIMAL_PLACES = 0;
-    private static final int MAX_DECIMAL_PLACES = 2;
+
+    /**
+     * The smallest accepted decimal-place count - see {@link #MIN_PAGE_SIZE} for why it is public.
+     */
+    public static final int MIN_DECIMAL_PLACES = 0;
+
+    /**
+     * The largest accepted decimal-place count - see {@link #MIN_PAGE_SIZE} for why it is public.
+     */
+    public static final int MAX_DECIMAL_PLACES = 2;
+
     // The complete set of choices, spanning [MIN_DECIMAL_PLACES, MAX_DECIMAL_PLACES]: more than two
     // decimals is noise on a stat averaged over days, so the Settings row offers these as pills only
     // (no stepper, no free entry) and anything else is rejected.

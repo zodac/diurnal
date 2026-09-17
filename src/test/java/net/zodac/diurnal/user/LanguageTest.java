@@ -339,6 +339,17 @@ class LanguageTest {
             .isTrue();
     }
 
+    @Test
+    void allowedValues_namesEveryOfferedTagIncludingTheDeveloperOnlyPseudolocale() {
+        // Asserted by CONTENT rather than as one literal phrase: the offered set grows whenever a language is added (see .claude/I18N.md), and a
+        // test that had to be rewritten for each would be rewritten without being read. What must hold is that the phrase names real tags - it is
+        // what a rejection quotes back - and that it includes en-XA, which the picker hides but isValid still accepts.
+        assertThat(Language.allowedValues())
+            .as("the rejection has to name the tags it accepts, the developer-only pseudolocale included")
+            .contains("en-GB", "en-US", "es-ES", "ar-SA", "ja-JP", "en-XA")
+            .contains(", ");
+    }
+
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"fr", "de", "", "EN-GB", "En-us", "english", " en-GB ", "en", "en-CA", "es", "ar", "ja", "es-MX", "ar-EG", "es-419"})

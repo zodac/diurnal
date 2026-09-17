@@ -181,7 +181,7 @@ public class TransferInternalResource {
     /*
      * One exhaustive arm per ImportReason variant, so its length/coupling is the size of the catalogue rather than complexity - see
      * ImportService.message's identical shape (the API's own composer over the same sealed type) for why splitting it is worse. Each arm names only
-     * the partial and the values that arm carries; binding the locale and rendering is the caller's single line below, so the twenty arms cannot
+     * the partial and the values that arm carries; binding the locale and rendering is the caller's single line below, so the arms cannot
      * disagree about it.
      */
     @SuppressWarnings({"OverlyLongMethod", "OverlyCoupledMethod"})
@@ -221,6 +221,13 @@ public class TransferInternalResource {
                 duplicate.name(), "date", duplicate.date().toString());
             case final ImportReason.AttachmentTypeNotAllowed notAllowed -> importReasonTemplate.data("kind", "attachmentTypeNotAllowed", "name",
                 notAllowed.name(), "accepted", String.join(", ", notAllowed.accepted()));
+            case final ImportReason.UnknownSetting unknown -> importReasonTemplate.data("kind", "unknownSetting", "setting", unknown.setting());
+            case final ImportReason.DuplicateSetting duplicate -> importReasonTemplate.data("kind", "duplicateSetting", "setting",
+                duplicate.setting());
+            case final ImportReason.InvalidSettingChoice invalidChoice -> importReasonTemplate.data("kind", "invalidSettingChoice", "setting",
+                invalidChoice.setting(), "accepted", invalidChoice.accepted());
+            case final ImportReason.SettingOutOfRange outOfRange -> importReasonTemplate.data("kind", "settingOutOfRange", "setting",
+                outOfRange.setting(), "min", outOfRange.min(), "max", outOfRange.max());
             // The one arm that is not this partial at all: a refused free-text value is worded by the shared text pipeline's own sentence, exactly
             // as ProfileRejection and RegistrationError word theirs. It binds the locale and renders through the same tail as every arm above.
             case final ImportReason.InvalidTextField invalid -> textFailureBanner.instance(invalid.failure());

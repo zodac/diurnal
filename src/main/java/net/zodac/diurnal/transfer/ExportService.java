@@ -29,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import net.zodac.diurnal.action.Action;
@@ -38,14 +39,16 @@ import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.note.NoteAttachmentService;
 import net.zodac.diurnal.note.NoteService;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.user.PageSizePref;
+import net.zodac.diurnal.user.StatFieldPref;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Builds a user's export archive: their actions, their day counts, their day notes and the files attached to those notes - four CSV members of one
- * ZIP, plus one entry per attached file.
+ * Builds a user's export archive: their actions, their day counts, their day notes, the files attached to those notes and their settings - five CSV
+ * members of one ZIP, plus one entry per attached file.
  *
  * <p>
  * <strong>The archive holds notes in the clear.</strong> They are encrypted at rest and are opened here to be written out, which is the entire
@@ -127,8 +130,8 @@ public class ExportService {
             actionNames.put(action.id, action.name);
         }
 
-        // Which writer the deployment asks for is resolved once for the whole archive rather than per member, so no export can go out with two of
-        // its three files written one way and the third the other.
+        // Which writer the deployment asks for is resolved once for the whole archive rather than per member, so no export can go out with some of
+        // its members written one way and the rest the other.
         final CsvWriter csvWriter = transferConfig.csvByteOrderMark() ? Csv::writeWithByteOrderMark : Csv::write;
 
         // The manifest and the files are built together, so a row and the entry it names cannot disagree about which file it is.
@@ -139,7 +142,8 @@ public class ExportService {
             TransferFiles.ACTIONS_FILE, actionsCsv(actions, csvWriter),
             TransferFiles.LOGS_FILE, logsCsv(user, actionNames, csvWriter),
             TransferFiles.NOTES_FILE, notesCsv(user, csvWriter),
-            TransferFiles.ATTACHMENTS_FILE, attachmentsCsv);
+            TransferFiles.ATTACHMENTS_FILE, attachmentsCsv,
+            TransferFiles.SETTINGS_FILE, settingsCsv(user, csvWriter));
 
         // The COUNTS only, never a name or a note's content.
         LOGGER.info("Data exported for user {} ({} attachment(s))", user.email, files.size());
@@ -220,6 +224,60 @@ public class ExportService {
         // Already ordered by day and then by when each was attached - the order exportAll reads them in - so the manifest reads chronologically like
         // the other two dated members, and is not re-sorted here into an order the entry numbers would then disagree with.
         return csvWriter.write(TransferFiles.ATTACHMENTS_HEADER, rows);
+    }
+
+    // Every preference the account holds, written as the key/value rows TransferFiles.SETTINGS_HEADER describes - the scalars first, in the
+    // catalogue's own order, then the two set-valued ones as their own families of rows. An account that has never customised either of those
+    // contributes no rows for it, which is exactly what tells an import "no overrides"/"never customised" rather than an arrangement to store.
+    private static String settingsCsv(final User user, final CsvWriter csvWriter) {
+        final List<List<String>> rows = new ArrayList<>();
+        for (final SettingKey setting : SettingKey.values()) {
+            rows.add(List.of(setting.key(), settingValue(user, setting)));
+        }
+
+        final @Nullable List<PageSizePref> pageSizes = user.pageSizes;
+        if (pageSizes != null) {
+            for (final PageSizePref override : pageSizes) {
+                rows.add(List.of(TransferFiles.PAGE_SIZE_PREFIX + override.section(), String.valueOf(override.pageSize())));
+            }
+        }
+
+        final @Nullable List<StatFieldPref> statsFields = user.statsFields;
+        if (statsFields != null) {
+            for (final StatFieldPref stat : statsFields) {
+                rows.add(List.of(TransferFiles.STAT_PREFIX + stat.key(), stat.enabled() ? TransferFiles.STAT_SHOWN : TransferFiles.STAT_HIDDEN));
+                // Written directly beneath its own arrangement row, so the two facts about one stat read together in a spreadsheet; only a stat
+                // someone has actually renamed has a row at all.
+                final @Nullable String label = stat.label();
+                if (label != null) {
+                    rows.add(List.of(TransferFiles.STAT_NAME_PREFIX + stat.key(), label));
+                }
+            }
+        }
+
+        // Deliberately NOT re-sorted: the stat rows' order IS the arrangement (see TransferFiles.STAT_PREFIX), so sorting the member would rewrite
+        // the very preference it is exporting.
+        return csvWriter.write(TransferFiles.SETTINGS_HEADER, rows);
+    }
+
+    // One scalar preference as the archive writes it. A resettable preference that has not been set is written as an EMPTY value rather than being
+    // left out: the row then says "this account follows the default", which is a fact worth carrying, and reads back as the same blank reset a
+    // cleared picker submits. Exhaustive over SettingKey, which is what stops a new preference being added to the catalogue and not to the export.
+    private static String settingValue(final User user, final SettingKey setting) {
+        return switch (setting) {
+            case CALENDAR_VIEW -> user.calendarView;
+            case DECIMAL_PLACES -> String.valueOf(user.decimalPlaces);
+            case DISPLAY_NAME -> user.displayName;
+            case FONT -> user.font;
+            case LANGUAGE -> user.language;
+            case NOTE_COLOUR -> user.noteColour;
+            case PAGE_SIZE -> String.valueOf(user.pageSize);
+            case SHOW_NOTE_COUNTER -> String.valueOf(user.showNoteCounter);
+            case SHOW_STATS_SUMMARY -> String.valueOf(user.showStatsSummary);
+            case THEME -> user.theme;
+            case TIMEZONE -> Objects.requireNonNullElse(user.timezone, "");
+            case WEEK_START -> Objects.requireNonNullElse(user.weekStart, "");
+        };
     }
 
     private static String emptyAttachmentsCsv(final CsvWriter csvWriter) {

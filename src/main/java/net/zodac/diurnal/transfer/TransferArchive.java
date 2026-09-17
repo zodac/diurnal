@@ -82,7 +82,7 @@ public final class TransferArchive {
      * The most entries an archive may hold, counting the ones the format does not recognise.
      *
      * <p>
-     * <strong>Attachments are what size this.</strong> Four members plus one entry per attached file. It exists so that an archive of a million
+     * <strong>Attachments are what size this.</strong> Five members plus one entry per attached file. It exists so that an archive of a million
      * one-byte members cannot spend the request being walked before the byte cap notices - the byte cap is what bounds a LARGE archive, and this
      * bounds a merely numerous one.
      *

@@ -99,6 +99,17 @@ class WeekStartTest {
             .isFalse();
     }
 
+    // ── allowedValues ───────────────────────────────────────────────────────
+
+    @Test
+    void allowedValues_namesEveryOfferedDayAsOneCommaSeparatedPhrase() {
+        // Named rather than counted: this is the phrase a rejection quotes back at whoever submitted an unrecognised day (a Settings save, a
+        // PATCH, or a settings.csv row), so what matters is that the reader can actually see which words are accepted.
+        assertThat(WeekStart.allowedValues())
+            .as("the rejection has to name the days it accepts, in this enum's own order")
+            .isEqualTo("monday, tuesday, wednesday, thursday, friday, saturday, sunday");
+    }
+
     // ── automatic ───────────────────────────────────────────────────────────
 
     @ParameterizedTest

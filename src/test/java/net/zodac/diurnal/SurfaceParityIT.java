@@ -685,7 +685,10 @@ class SurfaceParityIT extends IntegrationTestBase {
         final byte[] archive = TransferArchive.pack(Map.of(
             TransferFiles.ACTIONS_FILE, "name,colour\r\nSwimming,#22c55e\r\n",
             TransferFiles.LOGS_FILE, "date,action,count\r\n" + TODAY + ",Swimming,3\r\n",
-            TransferFiles.NOTES_FILE, "date,content\r\n" + TODAY + ",\"imported note\"\r\n"),
+            TransferFiles.NOTES_FILE, "date,content\r\n" + TODAY + ",\"imported note\"\r\n",
+            // Carried here too, because settings are the one thing an import writes onto a DIFFERENT table - a surface that forgot them would
+            // otherwise leave every assertion above passing.
+            TransferFiles.SETTINGS_FILE, "setting,value\r\ntheme,dark\r\npageSize,25\r\n"),
             Instant.now());
 
         given().contentType("application/zip").body(archive)
@@ -729,7 +732,8 @@ class SurfaceParityIT extends IntegrationTestBase {
             .isOne());
     }
 
-    // Everything an import writes, as one comparable string: the actions with their colours, the day counts, and whether the note landed.
+    // Everything an import writes, as one comparable string: the actions with their colours, the day counts, whether the note landed, and the two
+    // settings the archive above names.
     private String importedState() {
         final StringBuilder state = new StringBuilder();
         runInTx(() -> {
@@ -739,6 +743,9 @@ class SurfaceParityIT extends IntegrationTestBase {
                 .append(';')
                 .append(storedNoteContent(primaryId, TODAY))
                 .append(';');
+
+            final net.zodac.diurnal.user.User user = net.zodac.diurnal.user.User.findById(primaryId);
+            state.append(user.theme).append(';').append(user.pageSize).append(';');
         });
         return state.toString();
     }

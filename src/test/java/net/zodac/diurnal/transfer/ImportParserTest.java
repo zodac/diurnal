@@ -24,12 +24,16 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import net.zodac.diurnal.note.AttachmentPolicy;
 import net.zodac.diurnal.stub.StubAppConfig;
 import net.zodac.diurnal.stub.StubNotesAttachmentsConfig;
 import net.zodac.diurnal.text.TextField;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
+import net.zodac.diurnal.user.PageSizePref;
+import net.zodac.diurnal.user.StatFieldPref;
+import net.zodac.diurnal.user.UserSettings;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -65,7 +69,7 @@ class ImportParserTest {
         final ImportPlan expected = new ImportPlan(
             List.of(new ActionDraft("Running", "#e11d48"), new ActionDraft("Reading", "#0ea5e9")),
             List.of(new LogDraft(LocalDate.of(2026, 8, 1), "Running", 1)),
-            List.of(new NoteDraft(LocalDate.of(2026, 8, 1), "Long run today.")), List.of());
+            List.of(new NoteDraft(LocalDate.of(2026, 8, 1), "Long run today.")), List.of(), null);
         assertThat(outcome)
             .as("a well-formed archive should read into exactly the values it describes")
             .isEqualTo(new ParseOutcome.Planned(expected));
@@ -78,7 +82,7 @@ class ImportParserTest {
         final ImportPlan withFutureNote = new ImportPlan(
             List.of(new ActionDraft("Running", "#e11d48"), new ActionDraft("Reading", "#0ea5e9")),
             List.of(new LogDraft(LocalDate.of(2026, 8, 1), "Running", 1)),
-            List.of(new NoteDraft(LocalDate.of(2027, 1, 1), "a plan for the new year")), List.of());
+            List.of(new NoteDraft(LocalDate.of(2027, 1, 1), "a plan for the new year")), List.of(), null);
         assertThat(ImportParser.parse(archive(ACTIONS, LOGS, futureNote), TODAY, NOTE_FIELD, POLICY))
             .as("writing down a day in advance is legitimate, exactly as it is in the note box")
             .isEqualTo(new ParseOutcome.Planned(withFutureNote));
@@ -133,7 +137,8 @@ class ImportParserTest {
     void parse_toleratesHeaderCasingAndPadding() {
         assertThat(ImportParser.parse(archive(" Name , COLOUR \r\nRunning,#e11d48\r\n", NO_LOGS, NO_NOTES), TODAY, NOTE_FIELD, POLICY))
             .as("a spreadsheet may capitalise a header; the names and their order are what must match")
-            .isEqualTo(new ParseOutcome.Planned(new ImportPlan(List.of(new ActionDraft("Running", "#e11d48")), List.of(), List.of(), List.of())));
+            .isEqualTo(new ParseOutcome.Planned(new ImportPlan(List.of(new ActionDraft("Running", "#e11d48")), List.of(), List.of(),
+            List.of(), null)));
     }
 
     @Test
@@ -163,7 +168,8 @@ class ImportParserTest {
     void parse_ignoresBlankRows() {
         assertThat(ImportParser.parse(archive("name,colour\r\n\r\nRunning,#e11d48\r\n\r\n", NO_LOGS, NO_NOTES), TODAY, NOTE_FIELD, POLICY))
             .as("a trailing blank line from an editor is noise, not a row that failed")
-            .isEqualTo(new ParseOutcome.Planned(new ImportPlan(List.of(new ActionDraft("Running", "#e11d48")), List.of(), List.of(), List.of())));
+            .isEqualTo(new ParseOutcome.Planned(new ImportPlan(List.of(new ActionDraft("Running", "#e11d48")), List.of(), List.of(),
+            List.of(), null)));
     }
 
     @Test
@@ -211,7 +217,7 @@ class ImportParserTest {
         final ImportPlan expected = new ImportPlan(
             List.of(new ActionDraft("Running", "#e11d48"), new ActionDraft("Reading", "#0ea5e9")),
             List.of(new LogDraft(LocalDate.of(2026, 8, 1), "Running", 2)),
-            List.of(), List.of());
+            List.of(), List.of(), null);
         assertThat(ImportParser.parse(archive(ACTIONS, padded, NO_NOTES), TODAY, NOTE_FIELD, POLICY))
             .as("a difference the user cannot see must not refuse their file")
             .isEqualTo(new ParseOutcome.Planned(expected));
@@ -237,7 +243,7 @@ class ImportParserTest {
         final ImportPlan expected = new ImportPlan(
             List.of(new ActionDraft("Running", "#e11d48"), new ActionDraft("Reading", "#0ea5e9")),
             List.of(new LogDraft(LocalDate.of(2026, 8, 1), "Running", 1), new LogDraft(LocalDate.of(2026, 8, 2), "Running", 999)),
-            List.of(), List.of());
+            List.of(), List.of(), null);
         assertThat(ImportParser.parse(archive(ACTIONS, bounds, NO_NOTES), TODAY, NOTE_FIELD, POLICY))
             .as("1 and MAX_DAILY_COUNT are both valid counts, and must survive to the plan unchanged")
             .isEqualTo(new ParseOutcome.Planned(expected));
@@ -411,7 +417,7 @@ class ImportParserTest {
         assertThat(ImportParser.parse(archive(ACTIONS, NO_LOGS, NO_NOTES), TODAY, NOTE_FIELD, POLICY))
             .as("an archive with no attachments member reads as an account with no attachments")
             .isEqualTo(new ParseOutcome.Planned(new ImportPlan(
-            List.of(new ActionDraft("Running", "#e11d48"), new ActionDraft("Reading", "#0ea5e9")), List.of(), List.of(), List.of())));
+            List.of(new ActionDraft("Running", "#e11d48"), new ActionDraft("Reading", "#0ea5e9")), List.of(), List.of(), List.of(), null)));
     }
 
     @Test
@@ -503,6 +509,216 @@ class ImportParserTest {
                 new ImportReason.WrongHeader(TransferFiles.ATTACHMENTS_HEADER)));
     }
 
+    @Test
+    void parse_reportsProblemsMemberByMemberRatherThanByLineAcrossTheWholeArchive() {
+        // The report is what a user works DOWN while correcting the file, so it reads top-to-bottom through the archive: every logs.csv problem,
+        // then every notes.csv one, whatever line each is on. The logs problem is deliberately on a LATER line than the notes one, which is the
+        // only arrangement that tells the member ordering apart from a plain sort by line number.
+        final String logs = csv("date,action,count", "2026-08-01,Running,1", "2026-08-02,Running,1", "2026-08-03,Running,1",
+            "2026-08-04,Running,5000");
+        final String notes = "date,content\r\nnot-a-date,\"a note\"\r\n";
+
+        final List<ImportProblem> expected = List.of(
+            new ImportProblem(TransferFiles.LOGS_FILE, 5, new ImportReason.CountOutOfRange(999)),
+            new ImportProblem(TransferFiles.NOTES_FILE, 2, new ImportReason.InvalidDate("not-a-date")));
+        assertThat(problems(ImportParser.parse(archive(ACTIONS, logs, notes), TODAY, NOTE_FIELD, POLICY)))
+            .as("problems are ordered by the member they are in first, and only then by line within it")
+            .containsExactlyElementsOf(expected);
+    }
+
+    // ── settings.csv ───────────────────────────────────────────────────────
+
+    @Test
+    void settings_memberIsOptionalAndItsAbsenceLeavesTheAccountAlone() {
+        // Unlike attachments.csv, absence does NOT mean "the account has none" - a preference always has a value, so the only other reading would
+        // reset every one of them, changing the language out from under someone restoring a pre-settings backup.
+        assertThat(ImportParser.parse(archive(ACTIONS, NO_LOGS, NO_NOTES), TODAY, NOTE_FIELD, POLICY))
+            .as("an archive with no settings member describes no settings at all, not default settings")
+            .isEqualTo(new ParseOutcome.Planned(new ImportPlan(
+            List.of(new ActionDraft("Running", "#e11d48"), new ActionDraft("Reading", "#0ea5e9")), List.of(), List.of(), List.of(), null)));
+    }
+
+    @Test
+    void settings_readsEveryScalarPreference() {
+        final String settings = """
+            setting,value\r
+            theme,dark\r
+            displayName,Ada Lovelace\r
+            font,dyslexic\r
+            language,es-ES\r
+            calendarView,minimal\r
+            noteColour,#123456\r
+            timezone,Europe/London\r
+            weekStart,sunday\r
+            pageSize,25\r
+            decimalPlaces,2\r
+            showStatsSummary,false\r
+            showNoteCounter,true\r
+            """;
+
+        final SettingsDraft expected = new SettingsDraft("minimal", 2, "Ada Lovelace", "dyslexic", "es-ES", "#123456", 25, true, false, "dark",
+            "Europe/London", "sunday", null, null);
+        assertThat(planned(ImportParser.parse(configured(settings), TODAY, NOTE_FIELD, POLICY)).settings())
+            .as("every scalar preference the archive names should read into the value a Settings save would have stored")
+            .isEqualTo(expected);
+    }
+
+    @Test
+    void settings_aKeyTheFileOmitsIsLeftAloneRatherThanCleared() {
+        assertThat(planned(ImportParser.parse(configured("setting,value\r\ntheme,dark\r\n"), TODAY, NOTE_FIELD, POLICY)).settings())
+            .as("a preference always has a value, so a key the file does not carry is one the file is silent about")
+            .isEqualTo(new SettingsDraft(null, null, null, null, null, null, null, null, null, "dark", null, null, null, null));
+    }
+
+    @Test
+    void settings_blankResetsOnlyTheTwoPreferencesThatHaveOne() {
+        final String blanks = "setting,value\r\ntimezone,\r\nweekStart,\r\n";
+
+        assertThat(planned(ImportParser.parse(configured(blanks), TODAY, NOTE_FIELD, POLICY)).settings())
+            .as("a blank timezone/week start is the explicit reset it is on every other surface, and is carried apart from an absent row")
+            .isEqualTo(new SettingsDraft(null, null, null, null, null, null, null, null, null, null, "", "", null, null));
+
+        assertThat(problems(ImportParser.parse(configured("setting,value\r\ntheme,\r\n"), TODAY, NOTE_FIELD, POLICY)))
+            .as("no other preference has a 'none' state, so a blank value for one is simply not a value it accepts")
+            .containsExactly(new ImportProblem(TransferFiles.SETTINGS_FILE, 2,
+                new ImportReason.InvalidSettingChoice("theme", "system, light, dark")));
+    }
+
+    @Test
+    void settings_holdsTheDisplayNameToTheSameTextRulesTypingOneDoes() {
+        // The one carried setting that is not a preference, and the only identity column the archive touches at all - so it goes through the
+        // identical pipeline the Settings field does rather than being taken as read.
+        assertThat(problems(ImportParser.parse(configured("setting,value\r\ndisplayName,A\r\n"), TODAY, NOTE_FIELD, POLICY)))
+            .as("a name typed into the Account card and one read out of an archive meet the same blank/length/content rules")
+            .hasSize(1)
+            .allSatisfy(problem -> assertThat(problem.reason()).isInstanceOf(ImportReason.InvalidTextField.class));
+
+        assertThat(settings(ImportParser.parse(configured("setting,value\r\ndisplayName,  Ada Lovelace \r\n"), TODAY, NOTE_FIELD, POLICY))
+            .displayName())
+            .as("and it is stored in the SAME normalised form, so an archive cannot smuggle in padding a form would have removed")
+            .isEqualTo("Ada Lovelace");
+    }
+
+    @Test
+    void settings_refusesKeyTheApplicationDoesNotHave() {
+        // Skipping it would be an import that succeeded and changed nothing - the silent wrong outcome this format refuses everywhere else.
+        assertThat(problems(ImportParser.parse(configured("setting,value\r\nthem,dark\r\n"), TODAY, NOTE_FIELD, POLICY)))
+            .as("a mistyped setting key must be reported rather than quietly dropped")
+            .containsExactly(new ImportProblem(TransferFiles.SETTINGS_FILE, 2, new ImportReason.UnknownSetting("them")));
+    }
+
+    @Test
+    void settings_refusesTheSameKeyTwice() {
+        assertThat(problems(ImportParser.parse(configured("setting,value\r\ntheme,dark\r\ntheme,light\r\n"), TODAY, NOTE_FIELD, POLICY)))
+            .as("two rows for one setting do not say which one the account should end up with")
+            .containsExactly(new ImportProblem(TransferFiles.SETTINGS_FILE, 3, new ImportReason.DuplicateSetting("theme")));
+    }
+
+    @Test
+    void settings_refusesValueTheSettingsPageWouldRefuse() {
+        final String bad = """
+            setting,value\r
+            theme,neon\r
+            noteColour,green\r
+            showStatsSummary,yes\r
+            pageSize,0\r
+            decimalPlaces,9\r
+            """;
+
+        final List<ImportProblem> expected = List.of(
+            new ImportProblem(TransferFiles.SETTINGS_FILE, 2,
+                new ImportReason.InvalidSettingChoice("theme", "system, light, dark")),
+            new ImportProblem(TransferFiles.SETTINGS_FILE, 3, new ImportReason.InvalidColour()),
+            new ImportProblem(TransferFiles.SETTINGS_FILE, 4, new ImportReason.InvalidSettingChoice("showStatsSummary", "true, false")),
+            new ImportProblem(TransferFiles.SETTINGS_FILE, 5,
+                new ImportReason.SettingOutOfRange("pageSize", UserSettings.MIN_PAGE_SIZE, UserSettings.MAX_PAGE_SIZE)),
+            new ImportProblem(TransferFiles.SETTINGS_FILE, 6,
+                new ImportReason.SettingOutOfRange("decimalPlaces", UserSettings.MIN_DECIMAL_PLACES, UserSettings.MAX_DECIMAL_PLACES)));
+        assertThat(problems(ImportParser.parse(configured(bad), TODAY, NOTE_FIELD, POLICY)))
+            .as("an import is a bulk version of saves the user could have made one at a time, so it accepts exactly what those do")
+            .containsExactlyElementsOf(expected);
+    }
+
+    @Test
+    void settings_refusesBooleanThatIsNotTrueOrFalse() {
+        // Boolean.parseBoolean reads anything that is not "true" as false, which would store the OPPOSITE of what a typo meant.
+        assertThat(problems(ImportParser.parse(configured("setting,value\r\nshowNoteCounter,TRUE\r\n"), TODAY, NOTE_FIELD, POLICY)))
+            .as("a toggle takes exactly the two words the API writes, and nothing is coerced around them")
+            .containsExactly(new ImportProblem(TransferFiles.SETTINGS_FILE, 2,
+                new ImportReason.InvalidSettingChoice("showNoteCounter", "true, false")));
+    }
+
+    @Test
+    void settings_readsThePerSectionPageSizeOverrides() {
+        final String overrides = "setting,value\r\npageSize.notes,10\r\npageSize.actions,25\r\n";
+
+        assertThat(planned(ImportParser.parse(configured(overrides), TODAY, NOTE_FIELD, POLICY)).settings())
+            .as("the overrides should be stored in PageSection order, however the rows were laid out")
+            .isEqualTo(new SettingsDraft(null, null, null, null, null, null, null, null, null, null, null, null,
+            List.of(new PageSizePref("actions", 25), new PageSizePref("notes", 10)), null));
+    }
+
+    @Test
+    void settings_refusesOverrideForSectionThatDoesNotExist() {
+        assertThat(problems(ImportParser.parse(configured("setting,value\r\npageSize.frobnicate,10\r\n"), TODAY, NOTE_FIELD, POLICY)))
+            .as("a section key is as much a setting key as a scalar one, and is held to the same rule")
+            .containsExactly(new ImportProblem(TransferFiles.SETTINGS_FILE, 2, new ImportReason.UnknownSetting("pageSize.frobnicate")));
+    }
+
+    @Test
+    void settings_readsTheStatsArrangementInRowOrder() {
+        final String arrangement = """
+            setting,value\r
+            statsField.current-streak,shown\r
+            statsFieldName.current-streak,Days in a row\r
+            statsField.total-count,hidden\r
+            """;
+
+        assertThat(settings(ImportParser.parse(configured(arrangement), TODAY, NOTE_FIELD, POLICY)).statsFields())
+            .as("row order IS the arrangement, and a name row renames the stat above it")
+            .isNotNull()
+            .startsWith(new StatFieldPref("current-streak", true, "Days in a row"), new StatFieldPref("total-count", false, null));
+    }
+
+    @Test
+    void settings_refusesStatNameWithNoArrangementRow() {
+        // StatField.encode only consults a name for a key it was given an order for, so accepting this would lose the rename silently.
+        assertThat(problems(ImportParser.parse(configured("setting,value\r\nstatsFieldName.total-count,Everything\r\n"), TODAY, NOTE_FIELD, POLICY)))
+            .as("a rename for a stat the file does not arrange is a row that could only be dropped")
+            .containsExactly(new ImportProblem(TransferFiles.SETTINGS_FILE, 2, new ImportReason.UnknownSetting("statsFieldName.total-count")));
+    }
+
+    @Test
+    void settings_refusesStatShownValueThatIsNeitherShownNorHidden() {
+        assertThat(problems(ImportParser.parse(configured("setting,value\r\nstatsField.total-count,maybe\r\n"), TODAY, NOTE_FIELD, POLICY)))
+            .as("the arrangement's own column takes exactly the two words the export writes")
+            .containsExactly(new ImportProblem(TransferFiles.SETTINGS_FILE, 2,
+                new ImportReason.InvalidSettingChoice("statsField.total-count", "shown, hidden")));
+    }
+
+    @Test
+    void settings_holdsRenamedStatToTheSameTextRulesTypingOneDoes() {
+        final String arrangement = "setting,value\r\nstatsField.total-count,shown\r\nstatsFieldName.total-count,\"" + "x".repeat(200) + "\"\r\n";
+
+        assertThat(problems(ImportParser.parse(configured(arrangement), TODAY, NOTE_FIELD, POLICY)))
+            .as("a name typed into the Settings picker and one read out of an archive meet the same pipeline")
+            .hasSize(1)
+            .allSatisfy(problem -> assertThat(problem.reason()).isInstanceOf(ImportReason.InvalidTextField.class));
+    }
+
+    @Test
+    void settings_refusesItsOwnHeaderBeingWrong() {
+        assertThat(problems(ImportParser.parse(configured("key,value\r\ntheme,dark\r\n"), TODAY, NOTE_FIELD, POLICY)))
+            .as("the header is matched exactly here too")
+            .containsExactly(new ImportProblem(TransferFiles.SETTINGS_FILE, 1,
+                new ImportReason.WrongHeader(TransferFiles.SETTINGS_HEADER)));
+    }
+
+    // A member's rows, CRLF-terminated as an exported archive carries them.
+    private static String csv(final String header, final String... rows) {
+        return header + "\r\n" + String.join("\r\n", rows) + "\r\n";
+    }
+
     // An archive with no attachments member at all, which is what every case that is not ABOUT attachments wants - and is also the shape of an
     // export taken before attachments existed.
     private static ArchiveOutcome.Unpacked archive(final String actions, final String logs, final String notes) {
@@ -520,11 +736,30 @@ class ImportParserTest {
             TransferFiles.ATTACHMENTS_FILE, attachments), files);
     }
 
+    private static ArchiveOutcome.Unpacked configured(final String settings) {
+        return unpacked(Map.of(
+            TransferFiles.ACTIONS_FILE, ACTIONS,
+            TransferFiles.LOGS_FILE, NO_LOGS,
+            TransferFiles.NOTES_FILE, NO_NOTES,
+            TransferFiles.SETTINGS_FILE, settings), Map.of());
+    }
+
     private static ArchiveOutcome.Unpacked unpacked(final Map<String, String> members, final Map<String, byte[]> files) {
         return new ArchiveOutcome.Unpacked(members, files);
     }
 
     private static List<ImportProblem> problems(final ParseOutcome outcome) {
         return outcome instanceof final ParseOutcome.Rejected rejected ? rejected.problems() : List.of();
+    }
+
+    private static SettingsDraft settings(final ParseOutcome outcome) {
+        return Objects.requireNonNull(planned(outcome).settings(), "the archive carried a settings member, so the plan must hold one");
+    }
+
+    private static ImportPlan planned(final ParseOutcome outcome) {
+        assertThat(outcome)
+            .as("the archive should have been accepted")
+            .isInstanceOf(ParseOutcome.Planned.class);
+        return ((ParseOutcome.Planned) outcome).plan();
     }
 }

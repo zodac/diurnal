@@ -23,6 +23,7 @@ import java.time.temporal.WeekFields;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -172,6 +173,17 @@ public enum WeekStart {
      */
     public static boolean isValid(final @Nullable String value) {
         return Arrays.stream(values()).anyMatch(option -> option.value.equals(value));
+    }
+
+    /**
+     * The offered values, joined for the rejection message naming what was allowed - the counterpart to {@link #isValid(String)}, so the sentence
+     * and the rule read the same catalogue. Never translated: these are the stable identifiers, not the day names {@link #choices(String, Locale)}
+     * resolves.
+     *
+     * @return the offered values, comma-separated
+     */
+    public static String allowedValues() {
+        return Arrays.stream(values()).map(WeekStart::value).collect(Collectors.joining(", "));
     }
 
     /**

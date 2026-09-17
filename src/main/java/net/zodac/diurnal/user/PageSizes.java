@@ -119,15 +119,30 @@ public final class PageSizes {
             overrides.put(section.get(), parsed);
         }
 
+        return new PageSizeOutcome.Valid(encode(overrides));
+    }
+
+    /**
+     * Encodes an accepted set of overrides into the stored array: one {@link PageSizePref} per section, in {@link PageSection} declaration order, or
+     * {@code null} when there are none.
+     *
+     * <p>
+     * No overrides is stored as {@code NULL}, the same state a user who never opened the panel is in, so "follows the general setting everywhere"
+     * has exactly one representation in the column. Shared with the data import, which validates each row itself so that it can name the LINE a bad
+     * value was on, and then ends in this same call - so an imported set and a saved one cannot be ordered or represented differently.
+     *
+     * @param overrides the accepted overrides, keyed by section
+     * @return the array to persist, or {@code null} when there are none
+     */
+    @Nullable
+    public static List<PageSizePref> encode(final Map<PageSection, Integer> overrides) {
         if (overrides.isEmpty()) {
-            // No overrides is stored as NULL, the same state a user who never opened the panel is in, so "follows the general
-            // setting everywhere" has exactly one representation in the column.
-            return new PageSizeOutcome.Valid(null);
+            return null; // NOPMD: ReturnEmptyCollectionRatherThanNull - NULL is the stored representation of "no overrides"
         }
-        return new PageSizeOutcome.Valid(overrides.entrySet()
+        return overrides.entrySet()
             .stream()
             .map(entry -> new PageSizePref(entry.getKey().key(), entry.getValue()))
-            .toList());
+            .toList();
     }
 
     /**

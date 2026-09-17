@@ -16,3 +16,7 @@
 ### CTRL+S to Save Note
 
 - When the note box is selected, entering **CTRL+S** on the keyboard will now save the note content
+
+### Export User Settings
+
+- The export archive now also includes a user's settings, in addition to actions/notes/attachments

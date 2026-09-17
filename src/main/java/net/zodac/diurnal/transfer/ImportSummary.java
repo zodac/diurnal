@@ -25,16 +25,21 @@ package net.zodac.diurnal.transfer;
  * account already has 40 that are about to stop existing. The preview shows exactly this, which is what makes the confirmation an informed one
  * rather than a formality.
  *
+ * <p>
+ * {@link #settings()} is the one component with no second half, and deliberately so - see its own entry below.
+ *
  * @param actions             the actions the archive brings
  * @param logs                the day counts the archive brings
  * @param notes               the day notes the archive brings
  * @param attachments         the note attachments the archive brings
+ * @param settings            whether the archive describes the account's settings, which is a yes/no rather than a count: a preference is replaced
+ *     in place rather than removed, so there is no "what you have now" half to pair a number with
  * @param replacedActions     the actions the account holds now, all of which the import removes
  * @param replacedLogs        the day counts the account holds now, all of which the import removes
  * @param replacedNotes       the day notes the account holds now, all of which the import removes
  * @param replacedAttachments the note attachments the account holds now, all of which the import removes
  */
-public record ImportSummary(int actions, int logs, int notes, int attachments, int replacedActions, int replacedLogs, int replacedNotes,
-    int replacedAttachments) {
+public record ImportSummary(int actions, int logs, int notes, int attachments, boolean settings, int replacedActions, int replacedLogs,
+    int replacedNotes, int replacedAttachments) {
 
 }

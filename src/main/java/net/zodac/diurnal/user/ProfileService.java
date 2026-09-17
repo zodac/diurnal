@@ -18,13 +18,10 @@
 package net.zodac.diurnal.user;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import net.zodac.diurnal.colour.Colours;
 import net.zodac.diurnal.http.NotUiFacing;
 import net.zodac.diurnal.stats.StatField;
@@ -91,7 +88,7 @@ public class ProfileService {
 
     private static ProfileResult updateLanguage(final User user, final @Nullable String language) {
         if (language == null || !Language.isValid(language)) {
-            return new ProfileResult.Invalid(new ProfileRejection.InvalidLanguage(allowedValues(Language.values(), Language::value)));
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidLanguage(Language.allowedValues()));
         }
         return applySetting(user, "Language", language, () -> user.language = language);
     }
@@ -127,7 +124,7 @@ public class ProfileService {
             return applySetting(user, "Week start", null, () -> user.weekStart = null); // NOPMD: NullAssignment - null IS the follow-the-locale state
         }
         if (!WeekStart.isValid(weekStart)) {
-            return new ProfileResult.Invalid(new ProfileRejection.InvalidWeekStart(allowedValues(WeekStart.values(), WeekStart::value)));
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidWeekStart(WeekStart.allowedValues()));
         }
         return applySetting(user, "Week start", weekStart, () -> user.weekStart = weekStart);
     }
@@ -251,12 +248,6 @@ public class ProfileService {
 
     private static boolean stillValid(final ProfileResult result) {
         return !(result instanceof ProfileResult.Invalid);
-    }
-
-    // Language and WeekStart do not implement PreviewOption (a flag-icon/word picker is not a preview tile - see Language's Javadoc), so the join
-    // takes the value accessor rather than the interface.
-    private static <E extends Enum<E>> String allowedValues(final E[] options, final Function<E, String> valueOf) {
-        return Arrays.stream(options).map(valueOf).collect(Collectors.joining(", "));
     }
 
     private static ProfileResult applyPageSizes(final User user, final @Nullable List<PageSizePref> overrides) {

@@ -300,7 +300,11 @@ document it needs, not so the rule can be applied from this page.
   `assemble(...)` computes every figure, so a new kind of subject needs no new statistics code. →
   [`NOTES.md`](NOTES.md)
 - **A data import REPLACES everything and is all-or-nothing**, rejecting rather than coercing any bad row; an
-  export holds note content in the CLEAR. → [`TRANSFER.md`](TRANSFER.md)
+  export holds note content in the CLEAR. **SETTINGS are the one exception to "replaces": `settings.csv` applies the
+  preferences it NAMES and leaves the rest alone**, because a preference always has a value and so has no "none" state
+  an absent row could mean. Every `@Preference` field on `User` must be carried by the archive, plus the display name -
+  and NOTHING else off that entity: an import must never be a route to changing who an account is. →
+  [`TRANSFER.md`](TRANSFER.md)
 - **Every user-chosen colour obeys one shared rule set in `colour/Colours`**, and is stored and rendered exactly as
   picked in both themes — the ONE derived shade in the app is the calendar note marker, derived because it is a
   legibility floor rather than a preference. → [`FRONTEND.md`](FRONTEND.md)

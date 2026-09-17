@@ -18,6 +18,7 @@
 package net.zodac.diurnal.transfer;
 
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A fully validated archive, ready to be written as it stands.
@@ -31,7 +32,9 @@ import java.util.List;
  * @param logs        the day counts to create
  * @param notes       the day notes to create
  * @param attachments the note attachments to store
+ * @param settings    the settings to apply, or {@code null} when the archive carries no {@code settings.csv} and the account's own are left alone
  */
-public record ImportPlan(List<ActionDraft> actions, List<LogDraft> logs, List<NoteDraft> notes, List<AttachmentDraft> attachments) {
+public record ImportPlan(List<ActionDraft> actions, List<LogDraft> logs, List<NoteDraft> notes, List<AttachmentDraft> attachments,
+    @Nullable SettingsDraft settings) {
 
 }

@@ -25,6 +25,7 @@ import static net.zodac.diurnal.transfer.TransferFiles.ALL_MEMBERS;
 import static net.zodac.diurnal.transfer.TransferFiles.ATTACHMENTS_FILE;
 import static net.zodac.diurnal.transfer.TransferFiles.LOGS_FILE;
 import static net.zodac.diurnal.transfer.TransferFiles.NOTES_FILE;
+import static net.zodac.diurnal.transfer.TransferFiles.SETTINGS_FILE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -41,8 +42,11 @@ import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.note.NoteAttachment;
+import net.zodac.diurnal.user.PageSizePref;
 import net.zodac.diurnal.user.Role;
+import net.zodac.diurnal.user.StatFieldPref;
 import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.user.UserSettings;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 
@@ -71,6 +75,23 @@ class TransferApiResourceIT extends IntegrationTestBase {
 
     private static final byte[] ATTACHED_FILE = "not really a png".getBytes(StandardCharsets.UTF_8);
 
+    // What settings.csv holds for an account that has changed nothing - every entity default, in SettingKey's own order.
+    private static final String DEFAULT_SETTINGS_CSV = """
+        ﻿setting,value\r
+        calendarView,full\r
+        decimalPlaces,1\r
+        displayName,Transfer User\r
+        font,nova\r
+        language,en-GB\r
+        noteColour,#16a34a\r
+        pageSize,5\r
+        showNoteCounter,true\r
+        showStatsSummary,true\r
+        theme,system\r
+        timezone,\r
+        weekStart,\r
+        """;
+
     private UUID userId;
     private UUID otherUserId;
 
@@ -93,7 +114,11 @@ class TransferApiResourceIT extends IntegrationTestBase {
             .containsEntry(LOGS_FILE, "﻿date,action,count\r\n2026-06-13,Running,2\r\n2026-06-14,Reading,1\r\n2026-06-14,Running,5\r\n")
             .containsEntry(NOTES_FILE, "﻿date,content\r\n2026-06-13,\"Line one\nLine two\"\r\n2026-06-14,\"A note, with a comma\"\r\n")
             // The manifest names an ENTRY, not a path: a sequence number plus the stored name's own extension, so nothing a user chose reaches it.
-            .containsEntry(ATTACHMENTS_FILE, "﻿date,name,filename,file\r\n2026-06-14,route.png,route.png,attachments/0001.png\r\n");
+            .containsEntry(ATTACHMENTS_FILE, "﻿date,name,filename,file\r\n2026-06-14,route.png,route.png,attachments/0001.png\r\n")
+            // Every preference, keyed by the name the public API exposes it under. The two resettable ones are written as EMPTY values rather
+            // than left out, so the row still says "this account follows the default"; an account that has customised neither the per-section
+            // page sizes nor the stats arrangement contributes no rows for either.
+            .containsEntry(SETTINGS_FILE, DEFAULT_SETTINGS_CSV);
     }
 
     @Test
@@ -136,7 +161,8 @@ class TransferApiResourceIT extends IntegrationTestBase {
             .body("actions", Matchers.is(2))
             .body("logs", Matchers.is(3))
             .body("notes", Matchers.is(2))
-            .body("attachments", Matchers.is(1));
+            .body("attachments", Matchers.is(1))
+            .body("settings", Matchers.is(true));
 
         assertThat(unpack(exportArchive()))
             .as("an export, imported, must produce the same export again - otherwise the archive is not a backup")
@@ -162,6 +188,77 @@ class TransferApiResourceIT extends IntegrationTestBase {
         runInTx(() -> assertThat(NoteAttachment.datesForUser(userId))
             .as("the files that belonged to the journal it replaced go with it - leaving them would leave each embedded in nothing")
             .isEmpty());
+    }
+
+    @Test
+    void importData_appliesTheSettingsTheArchiveNames() {
+        seedPrimary();
+
+        final String settings = """
+            setting,value\r
+            theme,dark\r
+            language,es-ES\r
+            timezone,Europe/London\r
+            pageSize,10\r
+            pageSize.notes,25\r
+            statsField.current-streak,hidden\r
+            statsFieldName.current-streak,Days in a row\r
+            """;
+        given().contentType(APPLICATION_ZIP).body(archiveWithSettings(settings))
+            .post(IMPORT_PATH)
+            .then().statusCode(OK)
+            .body("settings", Matchers.is(true));
+
+        runInTx(() -> {
+            final User stored = User.findById(userId);
+            assertThat(List.of(stored.theme, stored.language, String.valueOf(stored.timezone), String.valueOf(stored.pageSize)))
+                .as("a preference the archive names is restored exactly as a Settings save would have stored it")
+                .containsExactly("dark", "es-ES", "Europe/London", "10");
+            assertThat(stored.pageSizes)
+                .as("and so is a per-section override, which is a family of rows rather than one")
+                .containsExactly(new PageSizePref("notes", 25));
+            assertThat(stored.statsFields)
+                .as("the arrangement comes back with its hidden stat and its rename, in the order the rows gave")
+                .isNotNull()
+                .startsWith(new StatFieldPref("current-streak", false, "Days in a row"));
+            assertThat(stored.noteColour)
+                .as("a preference the archive does NOT name is left alone - a key the file omits is one it is silent about, not one to clear")
+                .isEqualTo(UserSettings.DEFAULT_NOTE_COLOUR);
+        });
+    }
+
+    @Test
+    void importData_withNoSettingsMember_leavesTheAccountsOwnSettingsAlone() {
+        // The asymmetry with attachments.csv above, and the reason settings.csv is optional at all: an account ALWAYS has settings, so an absent
+        // member cannot be saying it has none. Reading it as "reset them" would change the language out from under a pre-settings backup.
+        seedPrimary();
+        runInTx(() -> User.<User>findById(userId).theme = "dark");
+
+        given().contentType(APPLICATION_ZIP)
+            .body(archiveOf("name,colour\r\n", "date,action,count\r\n", "date,content\r\n"))
+            .post(IMPORT_PATH)
+            .then().statusCode(OK)
+            .body("settings", Matchers.is(false));
+
+        runInTx(() -> assertThat(User.<User>findById(userId).theme)
+            .as("an archive that says nothing about settings must leave every one of them exactly as it was")
+            .isEqualTo("dark"));
+    }
+
+    @Test
+    void importData_refusesSettingsValueTheSettingsPageWouldRefuse() {
+        seedPrimary();
+
+        given().contentType(APPLICATION_ZIP).body(archiveWithSettings("setting,value\r\ntheme,neon\r\n"))
+            .post(IMPORT_PATH)
+            .then().statusCode(BAD_REQUEST)
+            .body("problems.size()", Matchers.is(1))
+            .body("problems[0].file", Matchers.equalTo(SETTINGS_FILE))
+            .body("problems[0].line", Matchers.is(2));
+
+        runInTx(() -> assertThat(Action.<Action>list("userId", userId))
+            .as("one refused settings row rejects the whole archive, exactly as a refused log row does")
+            .hasSize(2));
     }
 
     @Test
@@ -336,6 +433,14 @@ class TransferApiResourceIT extends IntegrationTestBase {
         return given().get(EXPORT_PATH)
             .then().statusCode(OK)
             .extract().asByteArray();
+    }
+
+    private static byte[] archiveWithSettings(final String settings) {
+        return TransferArchive.pack(Map.of(
+            ACTIONS_FILE, "name,colour\r\n",
+            LOGS_FILE, "date,action,count\r\n",
+            NOTES_FILE, "date,content\r\n",
+            SETTINGS_FILE, settings), Instant.now());
     }
 
     private static byte[] archiveOf(final String actions, final String logs, final String notes) {

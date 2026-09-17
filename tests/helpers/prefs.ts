@@ -12,6 +12,17 @@ export async function waitForSave(page: Page, action: Promise<unknown>): Promise
     ])
 }
 
+// Theme and calendar style are chosen from preview tiles backed by hidden radio inputs. Specs share one
+// user, so a value may already be selected; this checks the radio and always dispatches `change`, so the
+// htmx save fires regardless.
+export async function selectTile(page: Page, name: string, value: string): Promise<void> {
+    await waitForSave(page, page.locator(`input[name="${name}"][value="${value}"]`).evaluate(
+        (el: HTMLInputElement) => {
+            el.checked = true
+            el.dispatchEvent(new Event("change", { bubbles: true }))
+        }))
+}
+
 // Set a numeric preference (page size / decimal places) to `value` via its preset pill,
 // tolerating the case where it is ALREADY that value. Clicking a preset for the current value is
 // a deliberate no-op that fires no PATCH (settings.js `commit`), so `waitForSave` would hang —

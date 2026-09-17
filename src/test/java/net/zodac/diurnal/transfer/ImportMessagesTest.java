@@ -95,8 +95,16 @@ class ImportMessagesTest {
                 "The attachment 'notes.pdf' is not one of the accepted types: jpg, png."));
     }
 
+    private static List<Arguments> settingRefusals() {
+        return List.of(
+            Arguments.of(new ImportReason.UnknownSetting("them"), "'them' is not a setting this application has."),
+            Arguments.of(new ImportReason.DuplicateSetting("theme"), "The setting 'theme' appears more than once."),
+            Arguments.of(new ImportReason.InvalidSettingChoice("theme", "light, dark, system"), "'theme' must be one of: light, dark, system."),
+            Arguments.of(new ImportReason.SettingOutOfRange("pageSize", 1, 100), "'pageSize' must be a whole number between 1 and 100."));
+    }
+
     private static List<Arguments> refusals() {
-        return Stream.of(archiveRefusals(), actionRefusals(), logRefusals(), noteRefusals(), attachmentRefusals())
+        return Stream.of(archiveRefusals(), actionRefusals(), logRefusals(), noteRefusals(), attachmentRefusals(), settingRefusals())
             .flatMap(List::stream)
             .toList();
     }

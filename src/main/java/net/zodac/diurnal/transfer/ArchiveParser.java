@@ -20,6 +20,7 @@ package net.zodac.diurnal.transfer;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -122,12 +123,13 @@ final class ArchiveParser {
         final List<LogDraft> logs = parseLogs(logRows.get(), actionNames);
         final List<NoteDraft> notes = parseNotes(noteRows.get());
         final List<AttachmentDraft> attachments = parseAttachments();
-        // An import is all-or-nothing: a single refused log, note or attachment row rejects the whole archive, so this check cannot move above the
-        // parse.
+        final @Nullable SettingsDraft settings = parseSettings();
+        // An import is all-or-nothing: a single refused log, note, attachment or settings row rejects the whole archive, so this check cannot move
+        // above the parse.
         if (anyProblems()) {
             return rejected();
         }
-        return new ParseOutcome.Planned(new ImportPlan(actions, logs, notes, attachments));
+        return new ParseOutcome.Planned(new ImportPlan(actions, logs, notes, attachments, settings));
     }
 
     private Optional<List<CsvRow>> dataRows(final String file, final List<String> header) {
@@ -339,6 +341,23 @@ final class ArchiveParser {
         return new AttachmentDraft(date, name, fileName, file);
     }
 
+    // settings.csv is OPTIONAL, like attachments.csv - but its absence says something different. An account ALWAYS has settings, so there is no
+    // "this account has none" for a missing member to mean; the only other reading, resetting every preference to its default, would change the
+    // language out from under someone restoring a backup taken before this member existed. Absent therefore means "this file is silent", and the
+    // stored settings are left alone. See TransferFiles.ALL_MEMBERS.
+    private @Nullable SettingsDraft parseSettings() {
+        if (!members.containsKey(TransferFiles.SETTINGS_FILE)) {
+            return null;
+        }
+
+        final Optional<List<CsvRow>> rows = dataRows(TransferFiles.SETTINGS_FILE, TransferFiles.SETTINGS_HEADER);
+        if (rows.isEmpty()) {
+            return null;
+        }
+        // Reported through this parser's own list, so a broken settings member is counted, located and capped alongside every other member's rows.
+        return new SettingsParser(rows.get(), (line, reason) -> addProblem(TransferFiles.SETTINGS_FILE, line, reason)).parse();
+    }
+
     private @Nullable LocalDate parseDate(final String file, final CsvRow row) {
         final String raw = row.fields().getFirst().strip();
         try {
@@ -361,8 +380,16 @@ final class ArchiveParser {
         return total > 0;
     }
 
+    // Sorted so the report reads top-to-bottom through the archive - member by member, then line by line - however the rules inside one member
+    // happened to be applied. settings.csv is the member that needs it: it is a key/value file, so its rules are applied per SETTING rather than
+    // per row, and a list that jumped about inside a file is a list nobody can work down. The sort is over the REPORTED problems, which
+    // MAX_REPORTED_PROBLEMS has already bounded, and is stable - so two problems sharing a line stay in the order they were found.
     private ParseOutcome.Rejected rejected() {
-        return new ParseOutcome.Rejected(List.copyOf(reported), total);
+        final List<ImportProblem> ordered = new ArrayList<>(reported);
+        ordered.sort(Comparator
+            .comparingInt((final ImportProblem problem) -> TransferFiles.ALL_MEMBERS.indexOf(problem.file()))
+            .thenComparingInt(ImportProblem::line));
+        return new ParseOutcome.Rejected(List.copyOf(ordered), total);
     }
 
     private static boolean matchesHeader(final List<String> actual, final List<String> expected) {

@@ -101,13 +101,14 @@ public class TransferApiResource {
     @Produces(APPLICATION_ZIP)
     @Operation(
         summary = "Export all data",
-        description = "Downloads the user's actions, day counts, day notes and note attachments as a ZIP archive holding four CSV files - "
-        + "actions.csv (name, colour), logs.csv (date, action, count), notes.csv (date, content) and attachments.csv (date, name, file) - plus "
-        + "one entry under attachments/ per attached file, holding its bytes. A log names its action by name rather than by any internal "
-        + "identifier, so the archive can be edited in a spreadsheet and imported back. Note content is written in PLAIN TEXT, and an "
-        + "attachment's bytes and filename likewise: all three are encrypted in the database, and exporting them necessarily decrypts them, so "
-        + "the downloaded file has none of that protection. Pass attachments=false to leave the files out and take a text-only backup - "
-        + "attachments.csv is still written, empty, which is what tells an import that the account has none."
+        description = "Downloads the user's actions, day counts, day notes, note attachments and settings as a ZIP archive holding five CSV "
+        + "files - actions.csv (name, colour), logs.csv (date, action, count), notes.csv (date, content), attachments.csv (date, name, file) and "
+        + "settings.csv (setting, value) - plus one entry under attachments/ per attached file, holding its bytes. A log names its action by name "
+        + "rather than by any internal identifier, and a setting by the same name GET /api/v1/users/me exposes it under, so the archive can be "
+        + "edited in a spreadsheet and imported back. Note content is written in PLAIN TEXT, and an attachment's bytes and filename likewise: all "
+        + "three are encrypted in the database, and exporting them necessarily decrypts them, so the downloaded file has none of that protection. "
+        + "Pass attachments=false to leave the files out and take a text-only backup - attachments.csv is still written, empty, which is what "
+        + "tells an import that the account has none."
     )
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "200", description = "The archive, as an attachment.",
@@ -172,9 +173,11 @@ public class TransferApiResource {
         summary = "Import all data",
         description = "Imports an export archive, REPLACING everything the account holds: every existing action, day count, note and note "
         + "attachment is removed and the archive's contents are written in their place. The archive must hold actions.csv, logs.csv and "
-        + "notes.csv; attachments.csv is optional, and an archive without it describes an account with no attachments. It is accepted or refused "
-        + "as a whole - if any row is invalid, nothing at all is written - so a refused import leaves the account exactly as it was. Call the "
-        + "preview endpoint first to see what will change."
+        + "notes.csv; attachments.csv and settings.csv are optional, and an archive without attachments.csv describes an account with no "
+        + "attachments. settings.csv is different - it replaces only the preferences it names, and an archive without it leaves the account's "
+        + "settings untouched, since a preference always has a value and so has no 'none' state for an absent member to describe. It is accepted "
+        + "or refused as a whole - if any row is invalid, nothing at all is written - so a refused import leaves the account exactly as it was. "
+        + "Call the preview endpoint first to see what will change."
     )
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "200", description = "The archive was imported; the account now holds exactly what it described.",
@@ -215,6 +218,7 @@ public class TransferApiResource {
      * @param logs                the day counts the archive brings
      * @param notes               the day notes the archive brings
      * @param attachments         the note attachments the archive brings
+     * @param settings            whether the archive describes the account's settings
      * @param replacedActions     the actions the account held before the import
      * @param replacedLogs        the day counts the account held before the import
      * @param replacedNotes       the day notes the account held before the import
@@ -226,13 +230,15 @@ public class TransferApiResource {
         @Schema(examples = "340", description = "The day counts the archive brings.") int logs,
         @Schema(examples = "88", description = "The day notes the archive brings.") int notes,
         @Schema(examples = "6", description = "The note attachments the archive brings.") int attachments,
+        @Schema(examples = "true", description = "Whether the archive describes the account's settings. A yes/no rather than a count, since a "
+        + "preference is replaced in place rather than removed, so there is no 'what you have now' figure to pair it with.") boolean settings,
         @Schema(examples = "4", description = "The actions the account held before the import.") int replacedActions,
         @Schema(examples = "120", description = "The day counts the account held before the import.") int replacedLogs,
         @Schema(examples = "30", description = "The day notes the account held before the import.") int replacedNotes,
         @Schema(examples = "2", description = "The note attachments the account held before the import.") int replacedAttachments) {
 
         private static ImportSummaryDto from(final ImportSummary summary) {
-            return new ImportSummaryDto(summary.actions(), summary.logs(), summary.notes(), summary.attachments(),
+            return new ImportSummaryDto(summary.actions(), summary.logs(), summary.notes(), summary.attachments(), summary.settings(),
                 summary.replacedActions(), summary.replacedLogs(), summary.replacedNotes(), summary.replacedAttachments());
         }
     }

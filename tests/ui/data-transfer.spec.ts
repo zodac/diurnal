@@ -3,6 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { Page } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
+import { selectTile } from "../helpers/prefs"
 
 /* global window -- referenced inside page.evaluate callbacks, which run in the browser */
 
@@ -69,6 +70,33 @@ test.describe("Settings → Data", () => {
         // The archive was this account's own export, so the action it held survives the replace.
         await page.goto("/actions")
         await expect(page.getByText("Before Import")).toBeVisible()
+    })
+
+    test("importing an archive restores the settings it carries, and reloads the page onto them", async ({ authenticatedPage: page }) => {
+        // Take a backup with the theme set one way, change it, then restore: the archive has to put the exported value back. The reload is the
+        // point of the test as much as the value is - theme is an <html> class resolved at render time, so without it the page would keep showing
+        // the theme the import has just replaced, and the next save on this page would write the stale value back.
+        await page.goto("/settings")
+        await selectTile(page, "theme", "dark")
+        const archive = await exportArchive(page)
+
+        await page.goto("/settings")
+        await selectTile(page, "theme", "light")
+        await page.reload()
+        await expect(page.locator("html")).not.toHaveClass(/dark/)
+
+        await chooseArchive(page, archive)
+        await expect(page.locator("#import-panel")).toContainText("It also restores the settings")
+        await Promise.all([
+            page.waitForResponse(r => new URL(r.url()).pathname === "/internal/data/import" && r.status() === 200),
+            page.locator("#data-import-confirm").click(),
+        ])
+
+        await expect(page.locator("html")).toHaveClass(/dark/)
+        await expect(page.locator('input[name="theme"][value="dark"]')).toBeChecked()
+        // Carried across the reload in sessionStorage: it is the only confirmation the import worked, and losing it to the reload would leave an
+        // import that changed nothing visible looking like one that did nothing at all.
+        await expect(page.locator("#import-panel")).toContainText("Your settings were restored as well.")
     })
 
     test("cancelling a preview clears the panel and writes nothing", async ({ authenticatedPage: page }) => {

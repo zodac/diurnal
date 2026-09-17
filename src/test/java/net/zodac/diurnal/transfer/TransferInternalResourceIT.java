@@ -23,6 +23,7 @@ import static net.zodac.diurnal.http.HttpStatusCodes.UNPROCESSABLE_ENTITY;
 import static net.zodac.diurnal.transfer.TransferFiles.ACTIONS_FILE;
 import static net.zodac.diurnal.transfer.TransferFiles.LOGS_FILE;
 import static net.zodac.diurnal.transfer.TransferFiles.NOTES_FILE;
+import static net.zodac.diurnal.transfer.TransferFiles.SETTINGS_FILE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -251,6 +252,34 @@ class TransferInternalResourceIT extends IntegrationTestBase {
             .doesNotContain("Bad date");
     }
 
+    @Test
+    void importData_settingsRowProblems_areEachWordedForThePage() {
+        final String settings = csv("setting,value", "them,dark", "theme,neon", "theme,light", "pageSize,0",
+            "statsField.total-count,maybe", "pageSize.frobnicate,10");
+
+        final String panel = importPanel(archiveWithSettings(settings));
+
+        assertThat(panel)
+            .as("every refusal a settings.csv row can earn is worded in the panel's own list, not left to the API's English")
+            .contains("&#39;them&#39; is not a setting this application has.")
+            .contains("The setting &#39;theme&#39; appears more than once.")
+            .contains("must be one of: system, light, dark.")
+            .contains("&#39;pageSize&#39; must be a whole number between 1 and 100.")
+            .contains("&#39;statsField.total-count&#39; must be one of: shown, hidden.")
+            .contains("&#39;pageSize.frobnicate&#39; is not a setting this application has.");
+    }
+
+    @Test
+    void previewImport_archiveCarryingSettings_saysTheyWillBeReplacedToo() {
+        // Settings are the one thing the preview does not COUNT: a preference is replaced in place rather than removed, so the panel says it in a
+        // sentence of its own rather than as a fifth figure.
+        final String panel = previewPanel(archiveWithSettings("setting,value\r\ntheme,dark\r\n"));
+
+        assertThat(panel)
+            .as("a preview must say that the archive replaces settings, since nothing else on the panel counts them")
+            .contains("It also restores the settings the archive names, replacing yours.");
+    }
+
     private static String importPanel(final byte[] archive) {
         return given().contentType(APPLICATION_ZIP).body(archive)
             .post(IMPORT_PATH)
@@ -281,6 +310,14 @@ class TransferInternalResourceIT extends IntegrationTestBase {
 
     private static byte[] archiveOf(final String actions, final String logs, final String notes) {
         return TransferArchive.pack(Map.of(ACTIONS_FILE, actions, LOGS_FILE, logs, NOTES_FILE, notes), Instant.now());
+    }
+
+    private static byte[] archiveWithSettings(final String settings) {
+        return TransferArchive.pack(Map.of(
+            ACTIONS_FILE, "name,colour" + CRLF,
+            LOGS_FILE, "date,action,count" + CRLF,
+            NOTES_FILE, "date,content" + CRLF,
+            SETTINGS_FILE, settings), Instant.now());
     }
 
     // TransferArchive.pack writes only the three members the format recognises, so an archive holding more entries than the cap has to be built

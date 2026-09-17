@@ -3394,6 +3394,25 @@ public interface AppMessages {
     String importAppliedSummary(String actionsLabel, String logsLabel, String notesLabel, String attachmentsLabel);
 
     /**
+     * The import preview's settings line, shown beside the counts when the archive carries a {@code settings.csv}. Worded as a separate sentence
+     * rather than a fifth figure in {@link #importArchiveHolds(String, String, String, String)}, because settings are the one thing an import does
+     * not count and does not remove - it replaces each named preference in place, so there is no "and N settings" to pair with the other four.
+     *
+     * @return the default (English) text
+     */
+    @Message("It also restores the settings the archive names, replacing yours.")
+    String importReplacesSettings();
+
+    /**
+     * The past-tense counterpart of {@link #importReplacesSettings()}, shown under the success banner once an import that carried settings has been
+     * applied. It also explains why the page around it is about to look different.
+     *
+     * @return the default (English) text
+     */
+    @Message("Your settings were restored as well.")
+    String importAppliedSettings();
+
+    /**
      * A count of actions, singular-aware ({@code "1 action"} / {@code "3 actions"}) - one of the four figures
      * {@link #importArchiveHolds(String, String, String, String)}/{@link #importAppliedSummary(String, String, String, String)} embed. A raw count
      * rather than a Java-composed word, since a Java call can never be locale-aware (see this interface's own class Javadoc) -
@@ -3489,6 +3508,46 @@ public interface AppMessages {
      */
     @Message("The attachment '{name}' is not one of the accepted types: {accepted}.")
     String importAttachmentTypeNotAllowed(String name, String accepted);
+
+    /**
+     * A settings row naming a setting this application does not have.
+     *
+     * @param setting the key the row carried, never translated - it is the same stable name the public API exposes the preference under
+     * @return the default (English) text
+     */
+    @Message("'{setting}' is not a setting this application has.")
+    String importUnknownSetting(String setting);
+
+    /**
+     * The same setting key on more than one settings row.
+     *
+     * @param setting the repeated key, never translated
+     * @return the default (English) text
+     */
+    @Message("The setting '{setting}' appears more than once.")
+    String importDuplicateSetting(String setting);
+
+    /**
+     * A settings row whose value is not one the setting accepts.
+     *
+     * @param setting  the key the row carried, never translated
+     * @param accepted the accepted values as one comma-separated phrase, never translated - they are stable identifiers (a theme name, a BCP-47
+     *                 tag, an IANA zone), and how many there are is a property of the deployment rather than of the language
+     * @return the default (English) text
+     */
+    @Message("'{setting}' must be one of: {accepted}.")
+    String importInvalidSettingChoice(String setting, String accepted);
+
+    /**
+     * A settings row whose value is a number outside the range the setting accepts, or is not a whole number at all.
+     *
+     * @param setting the key the row carried, never translated
+     * @param min     the smallest accepted value
+     * @param max     the largest accepted value
+     * @return the default (English) text
+     */
+    @Message("'{setting}' must be a whole number between {min} and {max}.")
+    String importSettingOutOfRange(String setting, int min, int max);
 
     /**
      * The generic refusal banner for a {@code Rejected} import (one or more rows failed validation) - as opposed to a {@code Malformed} archive

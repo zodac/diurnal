@@ -1,20 +1,8 @@
 import type { Page } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
-import { establishNumericPref, pickComboOption, waitForSave } from "../helpers/prefs"
+import { establishNumericPref, pickComboOption, selectTile } from "../helpers/prefs"
 
 /* global getComputedStyle, document -- referenced inside the in-browser page.evaluate callbacks below */
-
-// Theme and calendar style are chosen from preview tiles backed by hidden radio inputs. Tests in
-// a spec share one user, so a value may already be selected; we check the radio and always dispatch
-// `change` so the htmx save fires regardless. Page size is now preset pills + a number field, driven
-// directly in each test, and every dropdown is the hand-rolled listbox (see prefs.ts's pickComboOption).
-async function selectTile(page: Page, name: string, value: string): Promise<void> {
-    await waitForSave(page, page.locator(`input[name="${name}"][value="${value}"]`).evaluate(
-        (el: HTMLInputElement) => {
-            el.checked = true
-            el.dispatchEvent(new Event("change", { bubbles: true }))
-        }))
-}
 
 // Open the Display Name field's edit mode by its Edit button. The button is scoped to
 // #display-name-view because the Account card now also has a Password field with its own Edit

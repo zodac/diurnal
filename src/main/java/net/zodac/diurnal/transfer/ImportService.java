@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Consumer;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.http.NotUiFacing;
 import net.zodac.diurnal.log.ActionLog;
@@ -43,6 +44,7 @@ import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The single owner of the data import, shared by the web UI's HTMX endpoints ({@code TransferInternalResource}) and the public REST API
@@ -66,6 +68,11 @@ import org.apache.logging.log4j.Logger;
  * {@code NoteAttachmentService.replaceAll}, which are the only things that can seal either, and the bulk deletes are the same entity statements
  * {@code AdminUserService} uses to clear an account. Actions are inserted
  * before their logs and flushed, because a log names its action by NAME and the id it needs does not exist until the action row does.
+ *
+ * <p>
+ * <strong>The account's SETTINGS are the one part an import does not replace wholesale.</strong> They are written last, and only where the archive
+ * names them: a preference always has a value, so a key the file leaves out cannot be asking for one to be removed, and {@code settings.csv} is
+ * optional precisely so that an archive taken before it existed still restores without resetting the account's language. See {@link SettingsDraft}.
  *
  * <p>
  * The caller owns the transaction: {@link #apply(User, byte[])} must be invoked from a {@code @Transactional} endpoint, so a rejection part-way
@@ -160,7 +167,7 @@ public class ImportService {
 
     private ImportResult commitOrPreview(final User user, final ImportPlan plan, final boolean commit) {
         final ImportSummary summary = new ImportSummary(
-            plan.actions().size(), plan.logs().size(), plan.notes().size(), plan.attachments().size(),
+            plan.actions().size(), plan.logs().size(), plan.notes().size(), plan.attachments().size(), plan.settings() != null,
             Math.toIntExact(Action.count("userId", user.id)),
             Math.toIntExact(ActionLog.count("userId", user.id)),
             Math.toIntExact(Note.count("userId", user.id)),
@@ -172,8 +179,8 @@ public class ImportService {
 
         write(user, plan);
         // The COUNTS only - never an action name, and never a note's content.
-        LOGGER.info("Data imported for user {}: {} action(s), {} log(s), {} note(s), {} attachment(s), replacing {}/{}/{}/{}",
-            user.email, summary.actions(), summary.logs(), summary.notes(), summary.attachments(),
+        LOGGER.info("Data imported for user {}: {} action(s), {} log(s), {} note(s), {} attachment(s), settings={}, replacing {}/{}/{}/{}",
+            user.email, summary.actions(), summary.logs(), summary.notes(), summary.attachments(), summary.settings(),
             summary.replacedActions(), summary.replacedLogs(), summary.replacedNotes(), summary.replacedAttachments());
         return new ImportResult.Applied(summary);
     }
@@ -224,6 +231,49 @@ public class ImportService {
             attachments.add(new NoteAttachmentService.AttachmentFile(draft.date(), draft.name(), draft.fileName(), draft.file()));
         }
         noteAttachmentService.replaceAll(user, attachments);
+
+        final @Nullable SettingsDraft settings = plan.settings();
+        if (settings != null) {
+            writeSettings(user, settings);
+        }
+    }
+
+    // The settings the archive described, straight onto the entity. Unlike the four collections above there is nothing to delete first - a
+    // preference is replaced in place, never removed - so this is an assignment per value the file named and nothing for the ones it did not.
+    //
+    // It does NOT go back through ProfileService, and that is the same division of labour every other member already has: the RULES are shared (the
+    // parse put every value here through the identical validator that bean calls, which is what SettingsParser exists to do), and the writing is the
+    // importer's, exactly as an imported action is written with Action.persist rather than through ActionService. Routing an already-validated value
+    // back through a validator that reports by RETURNING a rejection would also add an outcome this path has no way to reach and no way to test.
+    private static void writeSettings(final User user, final SettingsDraft settings) {
+        assignIfNamed(settings.calendarView(), value -> user.calendarView = value);
+        assignIfNamed(settings.decimalPlaces(), value -> user.decimalPlaces = value);
+        assignIfNamed(settings.displayName(), value -> user.displayName = value);
+        assignIfNamed(settings.font(), value -> user.font = value);
+        assignIfNamed(settings.language(), value -> user.language = value);
+        assignIfNamed(settings.noteColour(), value -> user.noteColour = value);
+        assignIfNamed(settings.pageSize(), value -> user.pageSize = value);
+        assignIfNamed(settings.showNoteCounter(), value -> user.showNoteCounter = value);
+        assignIfNamed(settings.showStatsSummary(), value -> user.showStatsSummary = value);
+        assignIfNamed(settings.theme(), value -> user.theme = value);
+        // Blank is the explicit reset these two alone have, and is stored as the NULL that "follow the server default"/"follow the account's
+        // language" already has exactly one representation as.
+        assignIfNamed(settings.timezone(), value -> user.timezone = value.isEmpty() ? null : value); // NOPMD: NullAssignment
+        assignIfNamed(settings.weekStart(), value -> user.weekStart = value.isEmpty() ? null : value); // NOPMD: NullAssignment
+
+        // Assigned unconditionally where the values above are not: whenever the member is present these two are the COMPLETE set, so null is "no
+        // overrides"/"never customised" rather than "the file did not say". See SettingsDraft.
+        user.pageSizes = settings.pageSizes();
+        user.statsFields = settings.statsFields();
+        user.persist();
+    }
+
+    // Written as one helper rather than a run of `if (x != null)` statements: a dozen of those in a row is an NPath the linters refuse, and the
+    // shape states the draft's contract (null is "the file did not describe this") once instead of a dozen times.
+    private static <T> void assignIfNamed(final @Nullable T value, final Consumer<T> setter) {
+        if (value != null) {
+            setter.accept(value);
+        }
     }
 
     /**
