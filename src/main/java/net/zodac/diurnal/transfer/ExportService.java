@@ -33,6 +33,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.config.ApplicationVersion;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.AttachmentNames;
 import net.zodac.diurnal.note.Note;
@@ -77,7 +78,9 @@ public class ExportService {
 
     private static final Logger LOGGER = LogManager.getLogger(ExportService.class);
 
-    private static final String FILE_NAME_PREFIX = "diurnal-export-";
+    private static final String FILE_NAME_PREFIX = "diurnal-export";
+    private static final String FILE_NAME_SEPARATOR = "_";
+    private static final String FILE_NAME_VERSION_PREFIX = "v";
     private static final String FILE_NAME_SUFFIX = ".zip";
 
     // ISO-8601 with the time's colons written as hyphens: a colon is illegal in a Windows file name and awkward on a command line everywhere else,
@@ -88,23 +91,26 @@ public class ExportService {
     // resolves, not somewhere a user-chosen name belongs - it carries the extension only so that unzipping the archive gives files that open.
     private static final Pattern NOT_ENTRY_SAFE = Pattern.compile("[^a-z0-9]");
 
+    private final ApplicationVersion applicationVersion;
     private final AppClock clock;
     private final NoteAttachmentService noteAttachmentService;
     private final NoteService noteService;
     private final TransferConfig transferConfig;
 
     /**
-     * Injects the shared notes service, which opens the user's notes, the shared attachment service, the application clock, and the archive-shape
-     * settings.
+     * Injects the running application's release version, which stamps the download name, the application clock, the shared attachment service, the
+     * shared notes service, which opens the user's notes, and the archive-shape settings.
      *
+     * @param applicationVersion    the single accessor for the running application's release version
      * @param clock                 the application clock for date-boundary logic
      * @param noteAttachmentService the shared attachment service, which opens the user's attached files
      * @param noteService           the shared notes service
      * @param transferConfig        the archive-shape settings, read for which CSV writer each member is written with
      */
     @Inject
-    public ExportService(final AppClock clock, final NoteAttachmentService noteAttachmentService, final NoteService noteService,
-        final TransferConfig transferConfig) {
+    public ExportService(final ApplicationVersion applicationVersion, final AppClock clock, final NoteAttachmentService noteAttachmentService,
+        final NoteService noteService, final TransferConfig transferConfig) {
+        this.applicationVersion = applicationVersion;
         this.clock = clock;
         this.noteAttachmentService = noteAttachmentService;
         this.noteService = noteService;
@@ -151,7 +157,15 @@ public class ExportService {
     }
 
     /**
-     * The name the archive is offered to the browser under - {@code diurnal-export-2026-08-07T14-32-05.zip}.
+     * The name the archive is offered to the browser under - {@code diurnal-export_v1.1.0_2026-08-07T14-32-05.zip}. The three parts are separated by
+     * an underscore, leaving the hyphens to the two parts that use them internally (the app name, and the timestamp's own date).
+     *
+     * <p>
+     * <strong>The release the archive was taken from is named in it</strong>, because nothing inside the archive says so: the members carry no
+     * format version of their own, so a column added or a member's meaning widened in a later release leaves two backups sitting in a downloads
+     * folder that look alike and are not. It is the RUNNING version rather than a format number because that is the one a release note, a changelog
+     * or a bug report can be matched against. It names the archive only - the import side still reads one by its headers, so an archive written by
+     * any release is still accepted by any other, exactly as before.
      *
      * <p>
      * Stamped to the SECOND, in the user's own timezone. The date alone was ambiguous in both directions: two exports taken the same day collided,
@@ -164,7 +178,9 @@ public class ExportService {
      */
     public String fileName(final User user) {
         final LocalDateTime localNow = LocalDateTime.ofInstant(clock.now(), clock.zoneFor(user.timezone));
-        return FILE_NAME_PREFIX + FILE_NAME_TIMESTAMP.format(localNow) + FILE_NAME_SUFFIX;
+        final String version = FILE_NAME_VERSION_PREFIX + applicationVersion.release();
+        final String timestamp = FILE_NAME_TIMESTAMP.format(localNow);
+        return FILE_NAME_PREFIX + FILE_NAME_SEPARATOR + version + FILE_NAME_SEPARATOR + timestamp + FILE_NAME_SUFFIX;
     }
 
     private static String actionsCsv(final List<Action> actions, final CsvWriter csvWriter) {

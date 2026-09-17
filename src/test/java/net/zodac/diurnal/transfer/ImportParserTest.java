@@ -616,7 +616,7 @@ class ImportParserTest {
 
     @Test
     void settings_refusesValueTheSettingsPageWouldRefuse() {
-        final String bad = """
+        final String refusedSettings = """
             setting,value\r
             theme,neon\r
             noteColour,green\r
@@ -634,7 +634,7 @@ class ImportParserTest {
                 new ImportReason.SettingOutOfRange("pageSize", UserSettings.MIN_PAGE_SIZE, UserSettings.MAX_PAGE_SIZE)),
             new ImportProblem(TransferFiles.SETTINGS_FILE, 6,
                 new ImportReason.SettingOutOfRange("decimalPlaces", UserSettings.MIN_DECIMAL_PLACES, UserSettings.MAX_DECIMAL_PLACES)));
-        assertThat(problems(ImportParser.parse(configured(bad), TODAY, NOTE_FIELD, POLICY)))
+        assertThat(problems(ImportParser.parse(configured(refusedSettings), TODAY, NOTE_FIELD, POLICY)))
             .as("an import is a bulk version of saves the user could have made one at a time, so it accepts exactly what those do")
             .containsExactlyElementsOf(expected);
     }

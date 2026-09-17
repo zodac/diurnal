@@ -350,12 +350,10 @@ final class ArchiveParser {
             return null;
         }
 
-        final Optional<List<CsvRow>> rows = dataRows(TransferFiles.SETTINGS_FILE, TransferFiles.SETTINGS_HEADER);
-        if (rows.isEmpty()) {
-            return null;
-        }
         // Reported through this parser's own list, so a broken settings member is counted, located and capped alongside every other member's rows.
-        return new SettingsParser(rows.get(), (line, reason) -> addProblem(TransferFiles.SETTINGS_FILE, line, reason)).parse();
+        return dataRows(TransferFiles.SETTINGS_FILE, TransferFiles.SETTINGS_HEADER)
+                .map(rows -> new SettingsParser(rows, (line, reason) -> addProblem(TransferFiles.SETTINGS_FILE, line, reason)).parse())
+                .orElse(null);
     }
 
     private @Nullable LocalDate parseDate(final String file, final CsvRow row) {

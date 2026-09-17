@@ -26,7 +26,6 @@ import java.util.Optional;
 import java.util.function.Predicate;
 import net.zodac.diurnal.colour.Colours;
 import net.zodac.diurnal.stats.StatField;
-import net.zodac.diurnal.text.TextField;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextValidation;
@@ -103,7 +102,7 @@ final class SettingsParser {
         return new SettingsDraft(
             choice(SettingKey.CALENDAR_VIEW, CalendarView::isValid, PreviewOption.allowedValues(CalendarView.values())),
             number(SettingKey.DECIMAL_PLACES, UserSettings::parseDecimalPlaces, UserSettings.MIN_DECIMAL_PLACES, UserSettings.MAX_DECIMAL_PLACES),
-            text(SettingKey.DISPLAY_NAME, TextFields.DISPLAY_NAME),
+            displayName(),
             choice(SettingKey.FONT, Font::isValid, PreviewOption.allowedValues(Font.values())),
             choice(SettingKey.LANGUAGE, Language::isValid, Language.allowedValues()),
             colour(),
@@ -211,14 +210,14 @@ final class SettingsParser {
     // Free text, through the shared pipeline exactly as the Settings field itself is - so an imported name meets the same blank/length/content rules
     // a typed one does, and is stored in the SAME normalised form. The rejection is the pipeline's own, worded from the field and never quoting the
     // value.
-    private @Nullable String text(final SettingKey setting, final TextField field) {
-        final @Nullable CsvRow row = scalars.get(setting);
+    private @Nullable String displayName() {
+        final @Nullable CsvRow row = scalars.get(SettingKey.DISPLAY_NAME);
         if (row == null) {
             return null;
         }
 
         // The RAW column, not the stripped one: normalising is the pipeline's job, and it does more than trim.
-        final TextOutcome outcome = TextValidation.check(field, row.fields().get(1));
+        final TextOutcome outcome = TextValidation.check(TextFields.DISPLAY_NAME, row.fields().get(1));
         if (outcome instanceof TextOutcome.Valid(final String value)) {
             return value;
         }

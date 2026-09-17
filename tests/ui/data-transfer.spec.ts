@@ -29,7 +29,7 @@ async function exportArchive(page: Page): Promise<Buffer> {
 }
 
 test.describe("Settings → Data", () => {
-    test("export downloads a dated archive", async ({ authenticatedPage: page }) => {
+    test("export downloads a versioned, dated archive", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
 
         const [download] = await Promise.all([
@@ -37,8 +37,9 @@ test.describe("Settings → Data", () => {
             page.locator("#data-export-link").click(),
         ])
 
-        // Stamped to the second, in the user's own timezone, so two exports on one day do not collide.
-        expect(download.suggestedFilename()).toMatch(/^diurnal-export-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.zip$/)
+        // Underscore-delimited: the running version, then a stamp to the second in the user's own timezone, so two exports on one
+        // day do not collide. The version is matched by shape rather than by value, a release bump being none of this test's business.
+        expect(download.suggestedFilename()).toMatch(/^diurnal-export_v[^_]+_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.zip$/)
     })
 
     test("choosing an archive previews it without writing anything, and confirming imports it", async ({ authenticatedPage: page }) => {

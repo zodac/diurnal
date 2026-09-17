@@ -190,33 +190,12 @@ public class ImportService {
         ActionLog.deleteByUser(user.id);
         Action.delete("userId", user.id);
 
-        final Map<String, UUID> actionIds = new HashMap<>();
-        for (final ActionDraft draft : plan.actions()) {
-            final Action action = new Action();
-            action.userId = user.id;
-            action.name = draft.name();
-            action.colour = draft.colour();
-            action.persist();
-            actionIds.put(draft.name(), action.id);
-        }
+        final Map<String, UUID> actionIds = writeActions(user, plan.actions());
 
         // The log write below is a native statement, which does not see anything still sitting in the persistence context - so the action rows have
         // to actually be in the database before a log can reference one.
         Panache.getEntityManager().flush();
-
-        // Gathered into parallel lists and written in ONE statement rather than one per entry: a replaced history is ~33,000 entries for a 3-year
-        // archive, where the round trip per entry, not the write itself, was the cost.
-        final List<UUID> logActionIds = new ArrayList<>(plan.logs().size());
-        final List<LocalDate> logDates = new ArrayList<>(plan.logs().size());
-        final List<Integer> logCounts = new ArrayList<>(plan.logs().size());
-        for (final LogDraft draft : plan.logs()) {
-            // Never absent: the parser refuses a log whose action is not one of the plan's own, so every name here was just inserted above.
-            logActionIds.add(Objects.requireNonNull(actionIds.get(draft.actionName()), "imported log names an action the plan does not hold"));
-            logDates.add(draft.date());
-            logCounts.add(draft.count());
-        }
-        ActionLog.setCounts(statements, user.id, logActionIds, logDates, logCounts);
-        SubjectStatsCache.invalidate(user.id);
+        writeLogs(user, plan.logs(), actionIds);
 
         final Map<LocalDate, String> notes = new LinkedHashMap<>();
         for (final NoteDraft draft : plan.notes()) {
@@ -226,16 +205,50 @@ public class ImportService {
 
         // AFTER the notes, and not before: replacing a journal takes its attachments with it (an attachment is embedded IN the writing), so files
         // written first would be deleted by the very next statement.
-        final List<NoteAttachmentService.AttachmentFile> attachments = new ArrayList<>(plan.attachments().size());
-        for (final AttachmentDraft draft : plan.attachments()) {
-            attachments.add(new NoteAttachmentService.AttachmentFile(draft.date(), draft.name(), draft.fileName(), draft.file()));
-        }
-        noteAttachmentService.replaceAll(user, attachments);
+        writeAttachments(user, plan.attachments());
 
         final @Nullable SettingsDraft settings = plan.settings();
         if (settings != null) {
             writeSettings(user, settings);
         }
+    }
+
+    // Returns the id each name was inserted under, which is what lets the log write below name its action without a lookup per entry.
+    private static Map<String, UUID> writeActions(final User user, final List<ActionDraft> drafts) {
+        final Map<String, UUID> actionIds = new HashMap<>();
+        for (final ActionDraft draft : drafts) {
+            final Action action = new Action();
+            action.userId = user.id;
+            action.name = draft.name();
+            action.colour = draft.colour();
+            action.persist();
+            actionIds.put(draft.name(), action.id);
+        }
+        return actionIds;
+    }
+
+    // Gathered into parallel lists and written in ONE statement rather than one per entry: a replaced history is ~33,000 entries for a 3-year
+    // archive, where the round trip per entry, not the write itself, was the cost.
+    private void writeLogs(final User user, final List<LogDraft> drafts, final Map<String, UUID> actionIds) {
+        final List<UUID> logActionIds = new ArrayList<>(drafts.size());
+        final List<LocalDate> logDates = new ArrayList<>(drafts.size());
+        final List<Integer> logCounts = new ArrayList<>(drafts.size());
+        for (final LogDraft draft : drafts) {
+            // Never absent: the parser refuses a log whose action is not one of the plan's own, so every name here was just inserted above.
+            logActionIds.add(Objects.requireNonNull(actionIds.get(draft.actionName()), "imported log names an action the plan does not hold"));
+            logDates.add(draft.date());
+            logCounts.add(draft.count());
+        }
+        ActionLog.setCounts(statements, user.id, logActionIds, logDates, logCounts);
+        SubjectStatsCache.invalidate(user.id);
+    }
+
+    private void writeAttachments(final User user, final List<AttachmentDraft> drafts) {
+        final List<NoteAttachmentService.AttachmentFile> attachments = new ArrayList<>(drafts.size());
+        for (final AttachmentDraft draft : drafts) {
+            attachments.add(new NoteAttachmentService.AttachmentFile(draft.date(), draft.name(), draft.fileName(), draft.file()));
+        }
+        noteAttachmentService.replaceAll(user, attachments);
     }
 
     // The settings the archive described, straight onto the entity. Unlike the four collections above there is nothing to delete first - a

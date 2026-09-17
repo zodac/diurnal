@@ -326,11 +326,7 @@ public class StatsService {
         // shadowed by a row. It needs no ownership check: there is exactly one notes subject per user, and it is theirs by construction.
         final List<UUID> actionIds = requested.stream().filter(id -> !StatSubject.NOTES_ID.equals(id)).toList();
 
-        // Ordered by the request, not by the name-ascending order findByUserAndIds returns: the legend and the bar order within each column follow
-        // the order the user built the comparison in, so adding an action never re-shuffles the bars already on screen.
-        final Map<UUID, Action> ownedById = actionIds.isEmpty()
-            ? Map.of()
-            : Action.findByUserAndIds(userId, actionIds).stream().collect(Collectors.toMap(action -> action.id, action -> action));
+        final Map<UUID, Action> ownedById = ownedActions(userId, actionIds);
         if (ownedById.size() != actionIds.size()) {
             return new FrequencyResult.NotOwned();
         }
@@ -356,14 +352,7 @@ public class StatsService {
         final List<StatSubject> charted = chartedSubjects(requested, ownedById, user);
         final LocalDate windowEnd = FrequencyKeys.end(period, anchor, today);
 
-        // Each arm reads ONLY the window it draws, at the granularity it draws it. The year view used to roll up the subjects' whole history and keep
-        // the anchor year's twelve months out of it, which is a read that grows with every year the account survives to draw a chart that never does;
-        // the all-time view spans that whole history by definition, so it asks the database for the years themselves rather than folding months.
-        final Map<UUID, Map<Integer, Long>> countsByAction = switch (period) {
-            case MONTH -> dailySlots(dailyTotals(userId, actionIds, notesCharted, anchor, windowEnd));
-            case YEAR -> monthlySlots(monthlyRollups(userId, actionIds, notesCharted, anchor, windowEnd));
-            case ALL -> yearlySlots(yearlyRollups(userId, actionIds, notesCharted, anchor, windowEnd), anchor.getYear());
-        };
+        final Map<UUID, Map<Integer, Long>> countsByAction = windowCounts(userId, actionIds, notesCharted, period, anchor, windowEnd);
 
         return new FrequencyResult.Charted(FrequencyCharts.build(charted, period, anchor, countsByAction, today, earliest, language));
     }
@@ -407,6 +396,27 @@ public class StatsService {
         }
         candidates.addAll(actions);
         return List.copyOf(candidates);
+    }
+
+    // Keyed by id rather than kept as the name-ascending list findByUserAndIds returns, because the chart's own order is the order the user built
+    // the comparison in - chartedSubjects re-reads them through the requested ids so adding an action never re-shuffles the bars already on screen.
+    private static Map<UUID, Action> ownedActions(final UUID userId, final List<UUID> actionIds) {
+        if (actionIds.isEmpty()) {
+            return Map.of();
+        }
+        return Action.findByUserAndIds(userId, actionIds).stream().collect(Collectors.toMap(action -> action.id, action -> action));
+    }
+
+    // Each arm reads ONLY the window it draws, at the granularity it draws it. The year view used to roll up the subjects' whole history and keep the
+    // anchor year's twelve months out of it, which is a read that grows with every year the account survives to draw a chart that never does; the
+    // all-time view spans that whole history by definition, so it asks the database for the years themselves rather than folding months.
+    private static Map<UUID, Map<Integer, Long>> windowCounts(final UUID userId, final List<UUID> actionIds, final boolean notesCharted,
+        final FrequencyPeriod period, final LocalDate anchor, final LocalDate windowEnd) {
+        return switch (period) {
+            case MONTH -> dailySlots(dailyTotals(userId, actionIds, notesCharted, anchor, windowEnd));
+            case YEAR -> monthlySlots(monthlyRollups(userId, actionIds, notesCharted, anchor, windowEnd));
+            case ALL -> yearlySlots(yearlyRollups(userId, actionIds, notesCharted, anchor, windowEnd), anchor.getYear());
+        };
     }
 
     @Nullable

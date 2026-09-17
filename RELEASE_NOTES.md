@@ -21,6 +21,7 @@
 
 - The export archive now also includes a user's settings, in addition to actions/notes/attachments
 - There is a progress bar when uploading an archive file (helpful if there are attachments in the archive that might take longer to load)
+- Adding application version to export filename
 
 ### Statistics Graphing
 

@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.config.ReleaseVersion;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.note.NoteAttachment;
@@ -399,15 +400,19 @@ class TransferApiResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    void export_namesTheArchiveWithTheUsersOwnLocalDateAndTime() {
-        // 23:30 UTC is already 09:30 the NEXT day in Sydney, so this pins both halves at once: that the stamp carries a time at all, and that the
-        // time (and therefore the date it rolls over) is resolved in the user's timezone rather than the server's.
+    void export_namesTheArchiveWithTheRunningVersionAndTheUsersOwnLocalDateAndTime() {
+        // 23:30 UTC is already 09:30 the NEXT day in Sydney, so this pins both halves of the stamp at once: that it carries a time at all, and that
+        // the time (and therefore the date it rolls over) is resolved in the user's timezone rather than the server's.
         freezeInstant(Instant.parse("2026-06-14T23:30:15Z"), ZoneOffset.UTC);
         runInTx(() -> User.<User>findById(userId).timezone = "Australia/Sydney");
 
+        // Read rather than written out, so a release bump does not fail this: the version is the packaged VERSION resource's, the same source the
+        // footer and the OpenAPI info block report.
+        final String expected = "diurnal-export_v" + ReleaseVersion.resolve("fallback-unused") + "_2026-06-15T09-30-15.zip";
+
         given().get(EXPORT_PATH)
             .then().statusCode(OK)
-            .header("Content-Disposition", Matchers.equalTo("attachment; filename=\"diurnal-export-2026-06-15T09-30-15.zip\""));
+            .header("Content-Disposition", Matchers.equalTo("attachment; filename=\"" + expected + "\""));
     }
 
     @Test

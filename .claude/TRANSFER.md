@@ -1,6 +1,6 @@
 # Data Export & Import
 
-> **This file is ~38 KB. Read only the section you need** - `grep -n '^#' .claude/TRANSFER.md` for its
+> **This file is ~39 KB. Read only the section you need** - `grep -n '^#' .claude/TRANSFER.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Why**
@@ -48,6 +48,17 @@ whatever an editor has since added — and accepts CRLF, LF or a lone CR.
 | `settings.csv`    | `setting,value`           | one row per setting; **optional**                         |
 
 Beside them, `attachments/0001.png`, `attachments/0002.pdf`, … — one entry per attached file, holding its bytes verbatim.
+
+**The download is named `diurnal-export_v{version}_{yyyy-MM-dd}T{HH-mm-ss}.zip`** — `diurnal-export_v1.1.0_2026-09-17T14-21-54.zip`.
+Three underscore-delimited parts, which leaves the hyphens to the parts that use them internally. The **version** is the running
+release (`ApplicationVersion`, so the packaged `VERSION` file), because nothing *inside* the archive says which release wrote it:
+the members carry no format version of their own, so two backups taken either side of a column being added look alike and are not.
+The **stamp** is to the SECOND and in the USER's timezone — two exports on one day otherwise collide and the browser quietly renames
+the second to `(1)`, and a server-resolved date stamps a late-evening export with the wrong day. The colons are written as hyphens,
+a colon being illegal in a Windows filename.
+
+**Naming it is all the version does.** An import still reads an archive by its headers, so one written by any release is accepted by
+any other, and there is no version check to keep in step.
 
 **`attachments.csv` and `settings.csv` are OPTIONAL where the other three are required**, and the asymmetry is deliberate.
 An archive exported before either existed is a complete export of what the account held at the time, and refusing it would
