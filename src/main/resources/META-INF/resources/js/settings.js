@@ -1311,8 +1311,19 @@ if (oidcConnectArm) {
 // and it means the commit validates the bytes it is about to write rather than trusting an earlier
 // verdict.
 //
-// fetch, not htmx: a refused archive is an expected outcome answered with a 422, and htmx
-// unsuppressably console.errors every 4xx (the login/register/password cards fetch for the same reason).
+// Neither htmx nor fetch, but XMLHttpRequest - for two separate reasons, both of which are about this
+// being the largest upload in the app:
+//   * not htmx, because a refused archive is an expected outcome answered with a 422, and htmx
+//     unsuppressably console.errors every 4xx (the login/register/password cards avoid it the same way);
+//   * not fetch, because fetch cannot report how much of a request BODY has been sent, which is the whole
+//     of the wait for an archive carrying attachments. Same trade, and same answer, as the note box's
+//     attachment upload (note.js) - see the progress rail in settings.html.
+//
+// The body is the File ITSELF, never the ArrayBuffer of it. A Blob body is streamed off disk by the
+// browser, where an ArrayBuffer one is copied out of the tab's own heap: measured in Chromium against a
+// 40 MB archive over localhost, posting the File took 210 ms and posting its ArrayBuffer took 4,000 ms,
+// on top of the read that produced it. A File is also re-readable, so the second post costs nothing to
+// prepare - which is what this two-step flow needs of it.
 ;(function () {
     const fileInput = document.getElementById('data-import-file')
     if (!fileInput) {return}
@@ -1328,14 +1339,40 @@ if (oidcConnectArm) {
 
     // The upload bound and the two translated refusals, all server-rendered onto the input (see the note
     // beside them in settings.html). A body over the bound is refused by the HTTP layer itself with an
-    // EMPTY 413 that never reaches the application, so the size is checked HERE, before the file is
-    // read - otherwise a gigabyte is pulled into the tab only to post something the server will not read.
+    // EMPTY 413 that never reaches the application, so the size is checked HERE, before anything is sent -
+    // otherwise a gigabyte goes up the wire only to be killed mid-body by a limit the app never sees.
     const maxUploadBytes = Number(fileInput.dataset.maxUploadBytes)
     const tooLargeMessage = fileInput.dataset.tooLargeMessage
     const serverBusyMessage = fileInput.dataset.serverBusyMessage
 
     // The panel is replaced wholesale on every response, so it is looked up per use rather than held.
     function panel() {return document.getElementById('import-panel')}
+
+    // The upload's progress rail. It lives OUTSIDE #import-panel (see settings.html), so unlike the panel
+    // these three survive every swap and are held.
+    const progressRow = document.getElementById('data-import-progress-row')
+    const progress = document.getElementById('data-import-progress')
+    const progressBar = document.getElementById('data-import-progress-bar')
+
+    // How full the rail starts: a visible sliver rather than nothing, since a rail at exactly zero reads as
+    // a control that has failed to start. Smaller than the note box's 8%, because an archive is the larger
+    // upload of the two - the sliver is there to be seen, not to overstate what has actually gone.
+    const START_PROGRESS = 0.04
+
+    function showProgress(fraction) {
+        if (!progressRow || !progress || !progressBar) {return}
+        const percent = Math.max(0, Math.min(100, Math.round(fraction * 100)))
+        progressRow.hidden = false
+        progress.setAttribute('aria-valuenow', String(percent))
+        progressBar.style.width = `${percent  }%`
+    }
+
+    function hideProgress() {
+        if (!progressRow || !progress || !progressBar) {return}
+        progressRow.hidden = true
+        progress.setAttribute('aria-valuenow', '0')
+        progressBar.style.width = '0'
+    }
 
     // An import that carried settings.csv has just replaced the very preferences this page is rendered FROM -
     // theme and font are html classes, and the language decides every word and date on it - so the card is
@@ -1361,7 +1398,7 @@ if (oidcConnectArm) {
         current.outerHTML = html
         // A raw outerHTML swap, not an htmx one - htmx:afterSwap never fires here, so the digit-
         // localization DOM pass (.js-digits, e.g. the import summary's embedded action/log/note
-        // counts) has to be re-run by hand, the same as every other plain-fetch swap in this
+        // counts) has to be re-run by hand, the same as every other hand-made swap in this
         // codebase (dashboard.js's day panel/stats-summary card, stats.js's chart modal).
         window.Diurnal.localizeDigitsIn(panel())
     }
@@ -1370,8 +1407,10 @@ if (oidcConnectArm) {
         showPanel(`<div id="import-panel" class="mt-3">${window.Diurnal.bannerHtml(message)}</div>`)
     }
 
-    // The bytes of the file currently under consideration. Held only between the preview and the
-    // confirmation, and dropped as soon as either finishes.
+    // The FILE currently under consideration - the File object itself, never a copy of its bytes. Held only
+    // between the preview and the confirmation, and dropped as soon as either finishes. A File can be posted
+    // as many times as it is asked for, which is what lets the confirmation re-send exactly what the preview
+    // was computed from without a byte of it ever entering this tab's heap.
     let pending = null
 
     // 200 and 422 are the only two answers whose BODY is a rendered panel - a refused archive is an
@@ -1398,21 +1437,53 @@ if (oidcConnectArm) {
         return window.Diurnal.i18n.somethingWentWrong
     }
 
+    // Resolves once the answer has been dealt with, however it turned out - the caller's follow-up (clearing
+    // the picker, reloading a page whose settings were replaced) runs on any outcome, exactly as it did when
+    // this was a fetch whose own catch swallowed the failure.
     function post(url) {
-        return fetch(url, {
-            method: 'POST',
-            body: pending,
-            headers: {'Content-Type': 'application/zip', 'Accept': 'text/html'}
+        return new Promise(function (resolve) {
+            const xhr = new XMLHttpRequest()
+            xhr.open('POST', url)
+            xhr.setRequestHeader('Content-Type', 'application/zip')
+            xhr.setRequestHeader('Accept', 'text/html')
+            xhr.responseType = 'text'
+            xhr.upload.onprogress = function (ev) {
+                if (ev.lengthComputable) {showProgress(ev.loaded / ev.total)}
+            }
+            // Filled the moment the last byte is SENT, which is honest - what is left after that is the server
+            // reading the archive, not the upload. Without it a small archive never animates at all: the whole
+            // body goes out in one chunk and onprogress may not fire even once.
+            xhr.upload.onload = function () {showProgress(1)}
+            xhr.onload = function () {
+                hideProgress()
+                received(xhr)
+                resolve()
+            }
+            // The body is the File, so a request that ends with no answer at all is the browser failing to send
+            // it - the file having been moved, renamed or replaced since it was chosen. That is the failure this
+            // flow actually has, and the one the user can act on by choosing it again.
+            xhr.onerror = function () {
+                hideProgress()
+                failed(window.Diurnal.i18n.fileCouldNotBeRead)
+                resolve()
+            }
+            // A visible sliver rather than nothing: a rail at exactly zero reads as a control that has failed to
+            // start. Shown before send() so it is on screen for the whole of the wait.
+            showProgress(START_PROGRESS)
+            xhr.send(pending)
         })
-            .then(window.Diurnal.requireSession)
-            .then(function (resp) {
-                if (resp.ok || resp.status === REFUSED) {
-                    return resp.text().then(showPanel)
-                }
-                failed(statusMessage(resp.status))
-                return undefined
-            })
-            .catch(function () {failed(window.Diurnal.i18n.somethingWentWrong)})
+    }
+
+    function received(xhr) {
+        if (window.Diurnal.sessionExpiredXhr(xhr)) {
+            window.location.assign(window.Diurnal.url('/login'))
+            return
+        }
+        if ((xhr.status >= 200 && xhr.status < 300) || xhr.status === REFUSED) {
+            showPanel(xhr.responseText)
+            return
+        }
+        failed(statusMessage(xhr.status))
     }
 
     fileInput.addEventListener('change', function () {
@@ -1429,10 +1500,8 @@ if (oidcConnectArm) {
             failed(tooLargeMessage)
             return
         }
-        file.arrayBuffer().then(function (bytes) {
-            pending = bytes
-            return post(window.Diurnal.url('/internal/data/import/preview'))
-        }).catch(function () {failed(window.Diurnal.i18n.fileCouldNotBeRead)})
+        pending = file
+        post(window.Diurnal.url('/internal/data/import/preview'))
     })
 
     // Delegated: the Import/Cancel buttons only exist once a preview has been rendered into the panel.

@@ -143,14 +143,15 @@
                 </div>
 
                 {! The upload's own progress, driven by XMLHttpRequest.upload.onprogress. A determinate bar rather than a
-                     spinner: the size is known before the request starts, so how far along it is can be told honestly. !}
+                     spinner: the size is known before the request starts, so how far along it is can be told honestly.
+                     The rail itself is the shared .progress-rail, which the Settings import upload uses too. !}
                 {! The bar and its cancel button are one row: an upload large enough to be worth a progress bar is large
                      enough to be worth abandoning, and the control belongs beside the thing it stops rather than in the
                      status line at the top of the card. The button aborts the XHR (note.js), which is what actually stops
                      the bytes - nothing is stored for a request that never completed. !}
                 <div id="note-progress-row" class="note-progress-row" hidden>
-                    <div id="note-progress" class="note-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100">
-                        <div id="note-progress-bar" class="note-progress-bar"></div>
+                    <div id="note-progress" class="progress-rail" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                        <div id="note-progress-bar" class="progress-rail-bar"></div>
                     </div>
                     <button type="button" id="note-attach-cancel" class="note-attachment-close" aria-label="{msg:cancelUpload}">
                         {#include partials/icon name='close' /}

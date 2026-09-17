@@ -91,6 +91,17 @@ window.Diurnal.requireSession = function (resp) {
     return resp
 }
 
+// The same rule as above for the two uploads that go out over XMLHttpRequest rather than fetch (a note
+// attachment, and the Settings import) — XHR is what those need, because it is the only thing that reports
+// how much of a request BODY has been sent. An XHR follows the /internal 302 exactly as fetch does, so the
+// redirected shape is read back off `responseURL`, which is where the request actually ENDED. Reports rather
+// than redirects, because a caller has a bar and a status line of its own to clear first.
+window.Diurnal.sessionExpiredXhr = function (xhr) {
+    if (xhr.status === 401) { return true }
+    const finalUrl = xhr.responseURL || ''
+    return finalUrl !== '' && new URL(finalUrl, window.location.href).pathname === window.Diurnal.url('/login')
+}
+
 // POST a form via fetch as a URL-encoded body — the shared submission core for every
 // fetch-submitted form (the login/register cards below, the settings password steps). fetch (not
 // htmx) keeps expected, handled 4xx outcomes off the console — htmx unsuppressably console.errors

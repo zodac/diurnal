@@ -81,3 +81,6 @@ tests/.e2e-app.pid
 # (JFR chunk-encodes strings), so grepping one for a secret gives a FALSE all-clear.
 *.jfr
 *.hprof
+
+# Backup files
+*.dump

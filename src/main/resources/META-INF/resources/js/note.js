@@ -550,8 +550,8 @@ window.Diurnal = window.Diurnal || {};
     // neither universally supported nor available over plain HTTP - and a progress indicator that only ever
     // showed a spinner would be a worse answer than the determinate bar this gives.
     //
-    // An expired session arrives in the same two shapes it does for fetch (see Diurnal.requireSession), so the
-    // same check is made here against the status and the URL the request actually ended on.
+    // An expired session arrives in the same two shapes it does for fetch (see Diurnal.requireSession), which is
+    // what Diurnal.sessionExpiredXhr answers for an XHR - shared with the Settings import, the other XHR upload.
     // Checked HERE rather than left to the server's 413, because the server's answer arrives only after the file has
     // been sent: for anything large that means a progress bar filling for a minute, and for a file large enough the
     // connection is dropped mid-body and the browser reports a bare ERR_CONNECTION_RESET with no message at all. The
@@ -622,7 +622,7 @@ window.Diurnal = window.Diurnal || {};
     function finishUpload(xhr, dateStr, remaining) {
         uploadInFlight = null
         hideProgress()
-        if (sessionExpired(xhr)) {
+        if (window.Diurnal.sessionExpiredXhr(xhr)) {
             window.location.assign(window.Diurnal.url('/login'))
             return
         }
@@ -670,12 +670,6 @@ window.Diurnal = window.Diurnal || {};
         } catch (e) {
             return ATTACH_TEXT.couldNotAttach
         }
-    }
-
-    function sessionExpired(xhr) {
-        if (xhr.status === 401) { return true }
-        const finalUrl = xhr.responseURL || ''
-        return finalUrl !== '' && new URL(finalUrl, window.location.href).pathname === window.Diurnal.url('/login')
     }
 
     function showProgress(fraction) {

@@ -42,6 +42,7 @@ it, and do not start from scratch.
 | A denormalised "first logged" column                | **Rejected** — saves ~0.3 ms, six write paths, fails silently            | [database](references/database.md) |
 | Hunting an N+1                                      | **None left** — the one that existed is fixed; here is how to check      | [database](references/database.md) |
 | Speeding up notes search                            | **The one path that grows and no index can reach** — `suggest` is 70-80% | [database](references/database.md) |
+| Speeding up the data import's upload                | **Done** - post the `File`, not its `ArrayBuffer`; 4,037 ms -> 209 ms    | [transfer](references/transfer.md) |
 
 ## Before adding an index
 

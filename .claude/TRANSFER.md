@@ -1,6 +1,6 @@
 # Data Export & Import
 
-> **This file is ~37 KB. Read only the section you need** - `grep -n '^#' .claude/TRANSFER.md` for its
+> **This file is ~38 KB. Read only the section you need** - `grep -n '^#' .claude/TRANSFER.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Why**
@@ -456,13 +456,28 @@ rather than the browser's `302 /login` challenge, which for a file download is i
 
 ## The UI
 
-One "Data" card on `/settings`: an Export link, a file input, and `partials/import-panel.html`, which is
-rendered inline (idle) with the page **and** returned on its own by both internal endpoints — one partial, so the
-two forms cannot drift.
+One "Data" card on `/settings`: an Export link, a file input, a progress rail, and `partials/import-panel.html`,
+which is rendered inline (idle) with the page **and** returned on its own by both internal endpoints — one partial,
+so the two forms cannot drift.
 
-The card is driven by `fetch` in `settings.js`, not htmx, for the reason the login, register and password cards are: a refused archive is an expected
-outcome answered with a `422`, and htmx logs every `4xx` to the console (unsuppressable). It is also what lets the Import button re-send the very
-bytes the preview was computed from.
+The card is driven by `XMLHttpRequest` in `settings.js`, not htmx and not `fetch`, for two separate reasons.
+
+**Not htmx**, for the reason the login, register and password cards are not: a refused archive is an expected
+outcome answered with a `422`, and htmx logs every `4xx` to the console (unsuppressable). It is also what lets the
+Import button re-send the very bytes the preview was computed from.
+
+**Not `fetch`**, because `fetch` cannot report how much of a request BODY has been sent, and for an archive
+carrying attachments that is the whole of the wait. The upload drives the shared `.progress-rail` — the same
+determinate bar the note box's attachment upload uses (`NOTES.md`), and for the same reason: the size is known
+before the request starts. The rail sits OUTSIDE `#import-panel`, because the script replaces that element
+wholesale with every answer. Both posts drive it, the commit included.
+
+> **The body posted is the `File` itself, never an `ArrayBuffer` of it.** A `Blob` body is streamed off disk by the
+> browser; an `ArrayBuffer` one is copied out of the tab's own heap, and Chromium is dramatically slower at the
+> second. Measured against a 40 MB archive (20 attachments) over localhost, choosing the file to the confirmation
+> appearing: **4,037 ms posting the `ArrayBuffer` against 209 ms posting the `File`** — and the read that produced
+> the buffer is gone too, along with a 40 MB copy held in the tab for as long as the panel was open. A `File` is
+> re-readable, which is what lets the confirmation re-send it for nothing. See the `perf` skill.
 
 **An import that carried `settings.csv` RELOADS the page**, which is the same answer the language picker on that page
 already gives for the same reason: theme and font are `<html>` classes, and the language decides every word and date on

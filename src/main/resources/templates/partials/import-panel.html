@@ -47,9 +47,16 @@
         {/if}
         {! Destructive action on the LEFT, Cancel on the RIGHT — the same arrangement as every other
              confirm cluster in the app (partials/confirm-actions.html), so a double-click safely
-             dismisses rather than confirming. !}
+             dismisses rather than confirming.
+
+             The confirm is `.dt-btn-save` (brand) rather than the `.dt-btn-danger` (red) every OTHER
+             confirm cluster uses, and it is the one place that division is worth making: red is the
+             app's colour for something that went WRONG, and it sits here beside a panel that is listing
+             what the archive holds - so on the one confirm a user reads rather than glances at, it read
+             as a refusal of the file they had just chosen. What this button does IS destructive, and the
+             panel above it says so in words; the arrangement is what guards the click. !}
         <div class="dt-actions mt-3">
-            <button type="button" id="data-import-confirm" class="dt-btn dt-btn-danger">{msg:importAction}</button>
+            <button type="button" id="data-import-confirm" class="dt-btn dt-btn-save">{msg:importAction}</button>
             <button type="button" id="data-import-cancel" class="dt-btn dt-btn-cancel">{msg:cancel}</button>
         </div>
     </div>

@@ -99,6 +99,38 @@ test.describe("Settings → Data", () => {
         await expect(page.locator("#import-panel")).toContainText("Your settings were restored as well.")
     })
 
+    // The rail is the only thing on the card that says the archive is going anywhere at all, and it earns its
+    // place on an archive carrying attachments, where the upload is seconds rather than milliseconds. It sits
+    // OUTSIDE #import-panel deliberately: settings.js replaces that element wholesale with every answer, so a
+    // rail inside it would be destroyed by the very response it was showing the wait for.
+    test("the upload shows a progress rail, and takes it away once the answer lands", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        const archive = await exportArchive(page)
+
+        const rail = page.locator("#data-import-progress-row")
+        await expect(rail).toBeHidden()
+
+        // The answer is held until the rail has been asserted: against a local server the whole exchange is over
+        // in a few milliseconds, and nothing can be scheduled inside that.
+        let release = (): void => { /* replaced synchronously by the executor below */ }
+        const answered = new Promise<void>(resolve => { release = resolve })
+        await page.route("**/internal/data/import/preview", async route => {
+            await answered
+            await route.continue()
+        })
+
+        await page.locator("#data-import-file").setInputFiles({
+            name: "diurnal-export.zip",
+            mimeType: "application/zip",
+            buffer: archive,
+        })
+        await expect(rail).toBeVisible()
+        release()
+
+        await expect(page.locator("#data-import-confirm")).toBeVisible()
+        await expect(rail).toBeHidden()
+    })
+
     test("cancelling a preview clears the panel and writes nothing", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
         const archive = await exportArchive(page)

@@ -17,9 +17,10 @@
 
 - When the note box is selected, entering **CTRL+S** on the keyboard will now save the note content
 
-### Export User Settings
+### Import/Export
 
 - The export archive now also includes a user's settings, in addition to actions/notes/attachments
+- There is a progress bar when uploading an archive file (helpful if there are attachments in the archive that might take longer to load)
 
 ### Statistics Graphing
 

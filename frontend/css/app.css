@@ -861,6 +861,15 @@
   .help-text { @apply text-xs text-ink-muted; }
   .help-text strong { @apply text-ink; }
 
+  /* An upload's progress. A DETERMINATE bar: both places this is used know the file's size before the request
+     starts, so how far along it is can be reported honestly rather than with a spinner that only ever says
+     "something is happening". Its own height is the whole of the layout change while it is showing, which is
+     why it is a 3px rail rather than a panel.
+     Two users - the note box's attachment upload (.note-progress-row positions it beside a cancel button) and
+     the Settings Data card's archive upload - so the rail carries no margin of its own and each host places it. */
+  .progress-rail { @apply h-[3px] rounded-full bg-line overflow-hidden; }
+  .progress-rail-bar { @apply h-full w-0 rounded-full bg-brand transition-[width] duration-[120ms] ease-linear; }
+
   /* Numeric preference control: one-click preset pills + a compact −/+ stepper. Every interaction is
      a discrete commit that saves instantly, matching the auto-save model of the other preference
      controls (no blur-to-commit, no Save button). Shared by Items-per-page and Decimal places. */
@@ -1853,30 +1862,11 @@
   padding: 0.25rem 0.625rem;
 }
 
-/* ── The upload's progress ────────────────────────────────────────────────
-   A determinate bar: the file's size is known before the request starts, so how far along it is can be
-   reported honestly rather than with a spinner that only says "something is happening". Its own height is
-   the whole of the layout change while it is showing, which is why it is a 3px rail rather than a panel. */
-.note-progress {
-  margin-top: 0.5rem;
-  height: 3px;
-  border-radius: 999px;
-  background-color: var(--color-border);
-  overflow: hidden;
-}
-.note-progress-bar {
-  height: 100%;
-  width: 0;
-  border-radius: 999px;
-  background-color: var(--color-brand);
-  transition: width 120ms linear;
-}
-
 /* The upload's progress bar and the button that abandons it, on one row: the rail takes the space, the button keeps
-   its own. */
+   its own. The rail itself is the shared .progress-rail (see the components layer) - this is only its placement. */
 .note-progress-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
 .note-progress-row[hidden] { display: none; }
-.note-progress-row .note-progress { flex: 1 1 auto; margin-top: 0; }
+.note-progress-row .progress-rail { flex: 1 1 auto; }
 
 /* ── The attachment hover card ────────────────────────────────────────────
    One card, moved to whichever pill the pointer is over (see note.js). Positioned absolutely within

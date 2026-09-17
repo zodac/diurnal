@@ -35,6 +35,7 @@ Check here before writing markup:
 | A stat tile                      | `partials/stat-tile.html` and its dispatch/compact/row variants                 |
 | A rejection message on a page    | `partials/text-failure-message.html` — never the Java `@NotUiFacing` wording    |
 | A search box                     | `partials/search-input.html`                                                    |
+| An upload's progress bar         | `.progress-rail` + `.progress-rail-bar`, driven by `XMLHttpRequest.upload`      |
 
 **Extract a new partial or component class only at the thresholds `UI_PATTERNS.md` §1 sets** — not on first
 duplication.
