@@ -21,8 +21,8 @@ import java.util.Arrays;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The two windows the Stats page's frequency chart can be drawn over, and the single source of truth for that toggle: a calendar month drawn as one
- * bar per day, or a calendar year drawn as one bar per month.
+ * The three windows the Stats page's frequency chart can be drawn over, and the single source of truth for that toggle: a calendar month drawn as one
+ * bar per day, a calendar year drawn as one bar per month, or the account's whole history drawn as one bar per year.
  *
  * <p>
  * Each constant carries only the stable {@link #value()} — the {@code period} query parameter on both the internal fragment endpoint and its public
@@ -30,9 +30,10 @@ import org.jspecify.annotations.Nullable;
  * chart opens on.
  *
  * <p>
- * Deliberately NO display label: the toggle's words are resolved at the render site from {@code AppMessages} ({@code {msg:month}}/{@code {msg:year}}
- * in {@code partials/stats-chart.html}), because an English {@code label()} on the enum is the thing that renders in every language until someone
- * notices — the "third bucket" rule in {@code .claude/I18N.md}, and what {@code PageSection}/{@code IpLockoutStatus} each shipped once.
+ * Deliberately NO display label: the toggle's words are resolved at the render site from {@code AppMessages} ({@code {msg:month}}/{@code {msg:year}}/
+ * {@code {msg:allTime}} in {@code partials/stats-chart.html}), because an English {@code label()} on the enum is the thing that renders in every
+ * language until someone notices — the "third bucket" rule in {@code .claude/I18N.md}, and what {@code PageSection}/{@code IpLockoutStatus} each
+ * shipped once.
  *
  * <p>
  * The period only decides the shape of the window; {@link FrequencyKeys} owns every calendar rule for anchoring, wording and stepping one.
@@ -47,7 +48,16 @@ public enum FrequencyPeriod {
     /**
      * One calendar year, drawn as one bar per month of that year.
      */
-    YEAR("year");
+    YEAR("year"),
+
+    /**
+     * Every year the account has logged anything in, up to the current one, drawn as one bar per year.
+     *
+     * <p>
+     * Unlike the other two this is a SINGLE window rather than one of a sequence: it already spans everything there is, so it cannot be stepped (see
+     * {@link #steppable()}) and its wire key names no calendar unit.
+     */
+    ALL("all");
 
     /**
      * The window the chart opens on when no {@code period} is supplied.
@@ -67,6 +77,17 @@ public enum FrequencyPeriod {
      */
     public String value() {
         return value;
+    }
+
+    /**
+     * Whether the period's window is one of a sequence, so that a neighbouring window exists to step to at all. True for a month and a year, false
+     * for {@link #ALL}, which spans everything the account has logged and therefore has no earlier or later window: the chart's navigation buttons
+     * are disabled for it whatever the data says.
+     *
+     * @return {@code true} when the window can be stepped
+     */
+    boolean steppable() {
+        return this != ALL;
     }
 
     /**

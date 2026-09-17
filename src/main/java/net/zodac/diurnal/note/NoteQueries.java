@@ -76,6 +76,20 @@ final class NoteQueries {
             GROUP BY YEAR(n.noteDate), MONTH(n.noteDate)""";
 
     /**
+     * JPQL rolling the user's notes up into one {@link net.zodac.diurnal.log.YearlyActionTotal} per calendar year - the same projection an action
+     * produces for the frequency chart's all-time window, so the notes subject flows through the identical assembly with no parallel code path. The
+     * subject id is bound as a parameter ({@code StatSubject.NOTES_ID}) rather than selected from a column, because notes have no per-subject row.
+     *
+     * <p>
+     * The total is a plain {@code COUNT}, exactly as {@link #MONTHLY_TOTALS_JPQL}'s is: one note per day is one occurrence.
+     */
+    static final String YEARLY_TOTALS_JPQL = """
+            SELECT new net.zodac.diurnal.log.YearlyActionTotal(:subjectId, YEAR(n.noteDate), COUNT(n))
+            FROM Note n
+            WHERE n.userId = :userId AND n.noteDate >= :from AND n.noteDate <= :to
+            GROUP BY YEAR(n.noteDate)""";
+
+    /**
      * The same {@link net.zodac.diurnal.log.DailyActionTotal} rollup as {@link #DAILY_TOTALS_JPQL} over the user's <strong>whole</strong> history -
      * the minimal data the Stats page needs to compute the streak, gap and days-with-multiples figures, which are measured over every note ever
      * written and so have no {@code [:from, :to]} to pin them to (the {@link #ALL_VERSION_JPQL} split, for the same reason).

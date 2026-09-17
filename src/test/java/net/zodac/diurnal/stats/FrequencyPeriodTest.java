@@ -30,12 +30,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 class FrequencyPeriodTest {
 
     @Test
-    void values_areTheTwoOfferedWindowsInToggleOrder() {
+    void values_areTheOfferedWindowsInToggleOrder() {
         final List<String> expected = List.of(
             "month",
-            "year");
+            "year",
+            "all");
         assertThat(Stream.of(FrequencyPeriod.values()).map(FrequencyPeriod::value).toList())
-            .as("the toggle should offer exactly month then year")
+            .as("the toggle should offer exactly month, then year, then all time")
             .containsExactlyElementsOf(expected);
     }
 
@@ -47,7 +48,7 @@ class FrequencyPeriodTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"month", "year"})
+    @ValueSource(strings = {"month", "year", "all"})
     void isValid_offeredValue_isAccepted(final String value) {
         assertThat(FrequencyPeriod.isValid(value))
             .as("an offered period should be accepted")
@@ -56,7 +57,7 @@ class FrequencyPeriodTest {
 
     @ParameterizedTest
     @NullAndEmptySource
-    @ValueSource(strings = {"MONTH", "Year", "week", "day", " month"})
+    @ValueSource(strings = {"MONTH", "Year", "week", "day", " month", "All", "alltime"})
     void isValid_unrecognisedValue_isRejected(final String value) {
         assertThat(FrequencyPeriod.isValid(value))
             .as("an unrecognised period should be rejected, never coerced")
@@ -68,6 +69,30 @@ class FrequencyPeriodTest {
         assertThat(FrequencyPeriod.of("year"))
             .as("unexpected value")
             .isEqualTo(FrequencyPeriod.YEAR);
+    }
+
+    @Test
+    void of_allTimeValue_returnsPeriod() {
+        assertThat(FrequencyPeriod.of("all"))
+            .as("unexpected value")
+            .isEqualTo(FrequencyPeriod.ALL);
+    }
+
+    @Test
+    void steppable_datedWindows_haveNeighbours() {
+        assertThat(FrequencyPeriod.MONTH.steppable())
+            .as("a month sits in a sequence of months")
+            .isTrue();
+        assertThat(FrequencyPeriod.YEAR.steppable())
+            .as("a year sits in a sequence of years")
+            .isTrue();
+    }
+
+    @Test
+    void steppable_allTimeWindow_hasNone() {
+        assertThat(FrequencyPeriod.ALL.steppable())
+            .as("the all-time window already spans everything, so there is nothing either side of it")
+            .isFalse();
     }
 
     @Test

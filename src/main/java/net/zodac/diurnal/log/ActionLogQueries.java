@@ -55,6 +55,21 @@ final class ActionLogQueries {
             GROUP BY l.actionId, YEAR(l.logDate), MONTH(l.logDate)""";
 
     /**
+     * JPQL aggregating the given actions' log entries into one {@link YearlyActionTotal} per {@code (action, calendar-year)} within the inclusive
+     * {@code [:from, :to]} window, summing the daily {@code count} - one bar per year of the frequency chart's ALL-TIME window.
+     *
+     * <p>
+     * Bounded like the monthly rollup above, even though the all-time window starts at the account's first logged day: the bound is what keeps a
+     * FUTURE-dated entry (a note or a log written for a date that has not arrived) out of a window the chart cannot navigate to, and it is the same
+     * {@code [:from, :to]} every other rollup reads, so the three arms of the chart's switch stay one shape.
+     */
+    static final String YEARLY_TOTALS_JPQL = """
+            SELECT new net.zodac.diurnal.log.YearlyActionTotal(l.actionId, YEAR(l.logDate), SUM(l.count))
+            FROM ActionLog l
+            WHERE l.userId = :userId AND l.actionId IN (:actionIds) AND l.logDate >= :from AND l.logDate <= :to
+            GROUP BY l.actionId, YEAR(l.logDate)""";
+
+    /**
      * JPQL aggregating the given actions' log entries into a {@link DailyActionTotal} per {@code (action, logged-day)} within the inclusive
      * {@code [:from, :to]} window — the database-side daily rollup behind the Stats page's month frequency chart. A {@code (user, action, day)} entry
      * is unique, so the {@code SUM} collapses a single row per group; it is written as an aggregate so the projection stays a plain {@code long}

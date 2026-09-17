@@ -120,17 +120,18 @@ public class StatsApiResource {
      *
      * @param subjectId the subject to chart
      * @param compareIds the further actions to chart alongside it
-     * @param period the window's period ({@code month}/{@code year})
-     * @param at the window key ({@code yyyy-MM}/{@code yyyy})
+     * @param period the window's period ({@code month}/{@code year}/{@code all})
+     * @param at the window key ({@code yyyy-MM}/{@code yyyy}/{@code all})
      * @return the assembled frequency chart
      */
     @GET
     @Path("/{subjectId}/frequency")
     @Operation(
         summary = "Get a subject's frequency over a window",
-        description = "Returns one subject's frequency over a single calendar window as an ordered series of slots: a month window yields one "
-        + "slot per day, a year window one slot per month. Every slot of the window is returned, including the ones with nothing recorded, so the "
-        + "series is evenly spaced. A subject is either one of the user's actions or their day notes, which are charted by passing the nil ID "
+        description = "Returns one subject's frequency over a single window as an ordered series of slots: a month window yields one "
+        + "slot per day, a year window one slot per month, and the all-time window one slot per year, from the subject's first entry through the "
+        + "current year. Every slot of the window is returned, including the ones with nothing recorded, so the series is evenly spaced. A "
+        + "subject is either one of the user's actions or their day notes, which are charted by passing the nil ID "
         + "'00000000-0000-0000-0000-000000000000' (one note counts as one occurrence on its day). Up to two further subjects can be charted "
         + "alongside the first with 'compare', in which case every slot carries one bar per subject and all of them are scaled against a single "
         + "peak, so the figures are directly comparable. An unrecognised period, a malformed window key, a repeated subject, more subjects than may "
@@ -151,10 +152,12 @@ public class StatsApiResource {
         + "entry and must not repeat a subject already being charted.")
         @QueryParam("compare") final List<UUID> compareIds,
         @Parameter(name = "period", in = ParameterIn.QUERY,
-        description = "The window to chart: 'month' (one bar per day) or 'year' (one bar per month). Defaults to 'month'.")
+        description = "The window to chart: 'month' (one bar per day), 'year' (one bar per month) or 'all' (one bar per year, spanning every "
+        + "year with an entry). Defaults to 'month'.")
         @QueryParam("period") final @Nullable String period,
         @Parameter(name = "at", in = ParameterIn.QUERY,
-        description = "The window to chart, as 'yyyy-MM' for a month or 'yyyy' for a year. Defaults to the window containing today.")
+        description = "The window to chart, as 'yyyy-MM' for a month, 'yyyy' for a year, or the fixed 'all' for the all-time window, which is "
+        + "the only one of its period. Defaults to the window containing today.")
         @QueryParam("at") final @Nullable String at) {
         final User user = currentUser.get();
         // The public API stays English regardless of the caller's own language preference (see AppMessages' class
@@ -297,13 +300,13 @@ public class StatsApiResource {
     /**
      * One slot of a frequency window, as exposed by the public API.
      *
-     * @param label the short axis caption ({@code 1}-{@code 31} for a day, {@code Jan}-{@code Dec} for a month)
-     * @param fullLabel the slot spelled out ({@code 3 July 2026} / {@code July 2026})
+     * @param label the short axis caption ({@code 1}-{@code 31} for a day, {@code Jan}-{@code Dec} for a month, {@code 2026} for a year)
+     * @param fullLabel the slot spelled out ({@code 3 July 2026} / {@code July 2026} / {@code 2026})
      * @param bars one entry per charted action, in the same order as the chart's series
      */
     @Schema(description = "One slot of a frequency window.")
     record FrequencySlotDto(
-        @Schema(examples = "3", description = "The short axis caption: the day of the month, or the abbreviated month name.") String label,
+        @Schema(examples = "3", description = "The short axis caption: the day of the month, the abbreviated month name, or the year.") String label,
         @Schema(examples = "3 July 2026", description = "The slot spelled out in full.") String fullLabel,
         @Schema(description = "One entry per charted action, in the same order as the chart's series.") List<FrequencyBarDto> bars) {
 

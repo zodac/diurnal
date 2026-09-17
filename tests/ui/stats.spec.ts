@@ -17,6 +17,49 @@ async function findActionIdByName(apiCtx: APIRequestContext, name: string): Prom
     }
 }
 
+// The period toggle's own half of the frequency-graph test, extracted to keep that test inside the
+// statement budget eslint enforces: the year/month round trip, and the all-time window that is not one of
+// a sequence. `shownAt` is the month window the dialog opened on, which every flip must return to.
+async function togglesEveryPeriod(page: Page, shownAt: string): Promise<void> {
+    // The period toggle re-fetches the fragment as a year of months, re-anchored onto the year the
+    // shown month sat in.
+    await page.locator('button[data-chart-period="year"]').click()
+    await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-period", "year")
+    await expect(page.locator(".chart-plot .chart-col")).toHaveCount(12)
+
+    // Flipping back lands on the month that was showing, NOT that year's January: every month window
+    // visited is remembered against its year (stats.js `monthsShown`), so the toggle round-trips.
+    await page.locator('button[data-chart-period="month"]').click()
+    await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-at", shownAt)
+
+    // The same round trip from a window that is not the current month, so the assertion above cannot
+    // be satisfied by a January fallback that happens to match a run in January.
+    await page.locator("button[data-chart-at]").first().click()
+    await expect(page.locator(".chart-wrap")).not.toHaveAttribute("data-chart-shown-at", shownAt)
+    const stepped = await page.locator(".chart-wrap").getAttribute("data-chart-shown-at")
+    await page.locator('button[data-chart-period="year"]').click()
+    await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-period", "year")
+    await page.locator('button[data-chart-period="month"]').click()
+    await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-at", stepped ?? "")
+
+    // All time draws one column per year with an entry, through the current one, and offers neither
+    // step: it already spans everything there is. The column COUNT is deliberately not asserted - how
+    // many years the caller's back-dated log reaches into depends on today's date - so the last column
+    // is checked instead, which is always the current year.
+    await page.locator('button[data-chart-period="all"]').click()
+    await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-period", "all")
+    await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-at", "all")
+    await expect(page.locator(".chart-plot .chart-col").last().locator(".chart-tick"))
+        .toHaveText(todayStr().slice(0, 4))
+    await expect(page.locator("button[data-chart-at]").first()).toBeDisabled()
+    await expect(page.locator("button[data-chart-at]").last()).toBeDisabled()
+
+    // Coming back off it lands on the window containing today: there is no dated window it was
+    // showing to return to, and carrying its 'all' key into a dated period would be a 400.
+    await page.locator('button[data-chart-period="month"]').click()
+    await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-at", shownAt)
+}
+
 test.describe("Stats page", () => {
     test("no logged actions shows empty state", async ({ page }) => {
         const { setupTestUser } = await import("../helpers/fixtures")
@@ -229,26 +272,9 @@ test.describe("Stats page", () => {
         await expect(page.locator(".chart-chip")).toHaveCount(1)
         await expect(page.locator(".chart-plot .chart-col").first().locator(".chart-bar")).toHaveCount(1)
 
-        // The period toggle re-fetches the fragment as a year of months, re-anchored onto the year the
-        // shown month sat in.
-        await page.locator('button[data-chart-period="year"]').click()
-        await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-period", "year")
-        await expect(page.locator(".chart-plot .chart-col")).toHaveCount(12)
+        await togglesEveryPeriod(page, shownAt ?? "")
 
-        // Flipping back lands on the month that was showing, NOT that year's January: every month window
-        // visited is remembered against its year (stats.js `monthsShown`), so the toggle round-trips.
-        await page.locator('button[data-chart-period="month"]').click()
         await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-at", shownAt ?? "")
-
-        // The same round trip from a window that is not the current month, so the assertion above cannot
-        // be satisfied by a January fallback that happens to match a run in January.
-        await page.locator("button[data-chart-at]").first().click()
-        await expect(page.locator(".chart-wrap")).not.toHaveAttribute("data-chart-shown-at", shownAt ?? "")
-        const stepped = await page.locator(".chart-wrap").getAttribute("data-chart-shown-at")
-        await page.locator('button[data-chart-period="year"]').click()
-        await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-period", "year")
-        await page.locator('button[data-chart-period="month"]').click()
-        await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-at", stepped ?? "")
 
         // Escape closes the dialog.
         await page.keyboard.press("Escape")

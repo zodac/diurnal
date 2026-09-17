@@ -64,6 +64,11 @@ class ActionLogQueriesTest {
     }
 
     @Test
+    void yearlyTotalsJpql_bindsExpectedParameters() {
+        assertParameters(ActionLogQueries.YEARLY_TOTALS_JPQL, List.of(USER_ID, ACTION_IDS, FROM, TO));
+    }
+
+    @Test
     void dailyTotalsJpql_bindsExpectedParameters() {
         assertParameters(ActionLogQueries.DAILY_TOTALS_JPQL, List.of(USER_ID, ACTION_IDS, FROM, TO));
     }

@@ -159,6 +159,74 @@ class FrequencyChartIT extends IntegrationTestBase {
     }
 
     @Test
+    void frequency_allTimeWindow_hasOneBarPerYearFromTheFirstEntryToToday() {
+        final LocalDate twoYearsBack = TODAY.minusYears(2L);
+        runInTx(() -> {
+            newLog(primaryId, action.id, twoYearsBack, 3);
+            newLog(primaryId, action.id, TODAY, 2);
+        });
+
+        given().queryParam("period", "all")
+                .get("/api/v1/stats/" + action.id + "/frequency")
+                .then().statusCode(OK)
+                .body("period", equalTo("all"))
+                .body("periodKey", equalTo("all"))
+                // The separator between the two years is this language's own and is pinned by FrequencyKeysTest; what matters here is that the
+                // heading spans the years actually drawn.
+                .body("periodLabel", containsString(String.valueOf(twoYearsBack.getYear())))
+                .body("periodLabel", containsString(String.valueOf(TODAY.getYear())))
+                .body("slots.size()", equalTo(3))
+                .body("slots[0].label", equalTo(String.valueOf(twoYearsBack.getYear())))
+                .body("slots[0].bars[0].count", equalTo(3))
+                .body("slots[1].bars[0].count", equalTo(0))
+                .body("slots[2].bars[0].count", equalTo(2))
+                .body("total", equalTo(5))
+                .body("peak", equalTo(3));
+    }
+
+    @Test
+    void frequency_allTimeWindow_sumsAWholeYearIntoItsOwnBar() {
+        // Every month of the year folds into the one bar, which is the arithmetic a per-month rollup summed in the
+        // caller would get wrong by a whole slot if its year were keyed off anything but the window's first year.
+        runInTx(() -> {
+            newLog(primaryId, action.id, TODAY.withDayOfYear(1), 4);
+            newLog(primaryId, action.id, TODAY, 6);
+        });
+
+        given().queryParam("period", "all")
+                .get("/api/v1/stats/" + action.id + "/frequency")
+                .then().statusCode(OK)
+                .body("slots.size()", equalTo(1))
+                .body("slots[0].bars[0].count", equalTo(10))
+                .body("periodLabel", equalTo(String.valueOf(TODAY.getYear())));
+    }
+
+    @Test
+    void frequency_allTimeWindowAskedForByKey_isTheSameWindow() {
+        runInTx(() -> newLog(primaryId, action.id, TODAY, 1));
+
+        given().queryParam("period", "all").queryParam("at", "all")
+                .get("/api/v1/stats/" + action.id + "/frequency")
+                .then().statusCode(OK)
+                .body("periodKey", equalTo("all"))
+                .body("total", equalTo(1));
+    }
+
+    @Test
+    void frequency_datedWindowForTheAllTimePeriod_isRejected() {
+        given().queryParam("period", "all").queryParam("at", String.valueOf(TODAY.getYear()))
+                .get("/api/v1/stats/" + action.id + "/frequency")
+                .then().statusCode(BAD_REQUEST);
+    }
+
+    @Test
+    void frequency_allTimeKeyForADatedPeriod_isRejected() {
+        given().queryParam("period", "year").queryParam("at", "all")
+                .get("/api/v1/stats/" + action.id + "/frequency")
+                .then().statusCode(BAD_REQUEST);
+    }
+
+    @Test
     void frequency_actionOfAnotherUser_isNotFound() {
         given().get("/api/v1/stats/" + otherAction.id + "/frequency")
                 .then().statusCode(NOT_FOUND);
@@ -290,6 +358,23 @@ class FrequencyChartIT extends IntegrationTestBase {
         given().get("/internal/stats/chart/" + action.id)
                 .then().statusCode(OK)
                 .body(containsString(": 1 time<"));
+    }
+
+    @Test
+    void chartFragment_allTimeWindow_offersNeitherStep() {
+        runInTx(() -> {
+            newLog(primaryId, action.id, TODAY.minusYears(1L), 2);
+            newLog(primaryId, action.id, TODAY, 1);
+        });
+
+        given().queryParam("period", "all")
+                .get("/internal/stats/chart/" + action.id)
+                .then().statusCode(OK)
+                .body(containsString("data-chart-shown-period=\"all\""))
+                .body(containsString("data-chart-shown-at=\"all\""))
+                // The window spans everything there is, so both navigation buttons arrive disabled.
+                .body(containsString("disabled aria-label=\"Earlier\""))
+                .body(containsString("disabled aria-label=\"Later\""));
     }
 
     @Test

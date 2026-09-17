@@ -149,6 +149,26 @@ public class ActionLog extends AuditedEntity {
     }
 
     /**
+     * Returns the per-year summed {@code count} for each of the given actions within the inclusive {@code [from, to]} window — the yearly
+     * aggregation behind the frequency chart's all-time view. {@code actionIds} must be non-empty.
+     *
+     * @param userId the owning user (constrains the query to the indexed {@code (user_id, …)} prefix)
+     * @param actionIds the actions to aggregate
+     * @param from the inclusive start of the window
+     * @param to the inclusive end of the window
+     * @return one {@link YearlyActionTotal} per {@code (action, calendar-year)} in the window that has at least one log entry
+     */
+    public static List<YearlyActionTotal> yearlyTotalsForActions(final UUID userId, final Collection<UUID> actionIds, final LocalDate from,
+        final LocalDate to) {
+        return JpqlQuery.of(ActionLogQueries.YEARLY_TOTALS_JPQL, YearlyActionTotal.class)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.ACTION_IDS, actionIds)
+            .bind(ActionLogQueries.FROM, from)
+            .bind(ActionLogQueries.TO, to)
+            .resultList();
+    }
+
+    /**
      * Returns the earliest day any of the given actions was logged, or {@code null} when none of them has ever been logged — the bound on how far
      * back the frequency chart may be navigated. {@code actionIds} must be non-empty.
      *

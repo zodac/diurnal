@@ -74,6 +74,11 @@ class NoteQueriesTest {
     }
 
     @Test
+    void yearlyTotalsJpql_bindsExpectedParameters() {
+        assertParameters(NoteQueries.YEARLY_TOTALS_JPQL, List.of(SUBJECT_ID, USER_ID, FROM, TO));
+    }
+
+    @Test
     void earliestNoteDateJpql_bindsExpectedParameters() {
         assertParameters(NoteQueries.EARLIEST_NOTE_DATE_JPQL, List.of(USER_ID));
     }

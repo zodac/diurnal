@@ -34,8 +34,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * The counts arrive per charted action, keyed by <em>slot</em>: the day-of-month for a {@link FrequencyPeriod#MONTH} window, the month-of-year for a
- * {@link FrequencyPeriod#YEAR} one. That keeps the query projections ({@code DailyActionTotal} / {@code MonthlyActionTotal}) on the service's side of
- * the seam and leaves this class holding nothing but calendar arithmetic.
+ * {@link FrequencyPeriod#YEAR} one, and the year's offset from the first one drawn for {@link FrequencyPeriod#ALL}. That keeps the query projections
+ * ({@code DailyActionTotal} / {@code MonthlyActionTotal} / {@code YearlyActionTotal}) on the service's side of the seam and leaves this class holding
+ * nothing but calendar arithmetic.
  */
 final class FrequencyCharts {
 
@@ -60,9 +61,9 @@ final class FrequencyCharts {
      * @param charted the subjects to chart, in legend order; the first is the one the graph was opened from and is not removable
      * @param period the window's period
      * @param anchor the first day of the window
-     * @param countsByAction each charted subject's counts, keyed by day-of-month (a month window) or month-of-year (a year window); an absent
-     *     subject, or an absent slot within one, is empty
-     * @param today the current day, which bounds how far forward the chart may be stepped
+     * @param countsByAction each charted subject's counts, keyed by day-of-month (a month window), month-of-year (a year window) or 1-based year
+     *     offset from the anchor (the all-time window); an absent subject, or an absent slot within one, is empty
+     * @param today the current day, which bounds how far forward the chart may be stepped and closes the all-time window
      * @param earliest the earliest day any charted subject has an entry, which bounds how far back it may be stepped, or {@code null} when none
      *     of them has any
      * @param language the language to word the chart's month/year labels in
@@ -70,7 +71,7 @@ final class FrequencyCharts {
      */
     static FrequencyChart build(final List<StatSubject> charted, final FrequencyPeriod period, final LocalDate anchor,
         final Map<UUID, Map<Integer, Long>> countsByAction, final LocalDate today, final @Nullable LocalDate earliest, final Language language) {
-        final int slots = slotCount(period, anchor);
+        final int slots = slotCount(period, anchor, today);
 
         long total = 0L;
         long peak = 0L;
@@ -104,17 +105,20 @@ final class FrequencyCharts {
 
         final LocalDate previous = FrequencyKeys.shift(period, anchor, -1);
         final LocalDate next = FrequencyKeys.shift(period, anchor, 1);
+        // An all-time window spans everything there is, so neither step is offered whatever the data holds - without this it would step to ITSELF,
+        // since a window with no neighbours shifts to its own anchor.
+        final boolean steppable = period.steppable();
         return new FrequencyChart(
             period,
             FrequencyKeys.key(period, anchor),
-            FrequencyKeys.label(period, anchor, language),
+            FrequencyKeys.label(period, anchor, today, language),
             List.copyOf(series),
             List.copyOf(columns),
             total,
             peak,
-            hasEarlier(period, previous, earliest),
+            steppable && hasEarlier(period, previous, earliest),
             FrequencyKeys.key(period, previous),
-            !next.isAfter(FrequencyKeys.anchorOf(period, today)),
+            steppable && !next.isAfter(FrequencyKeys.anchorOf(period, today)),
             FrequencyKeys.key(period, next));
     }
 
@@ -160,10 +164,13 @@ final class FrequencyCharts {
         return earliest != null && !previous.isBefore(FrequencyKeys.anchorOf(period, earliest));
     }
 
-    private static int slotCount(final FrequencyPeriod period, final LocalDate anchor) {
+    // The all-time window runs from the first year holding an entry to the current one, so it is the one period whose slot count is decided by the
+    // data rather than by the calendar. Both ends are inclusive, and a single-year account draws one column.
+    private static int slotCount(final FrequencyPeriod period, final LocalDate anchor, final LocalDate today) {
         return switch (period) {
             case MONTH -> anchor.lengthOfMonth();
             case YEAR -> MONTHS_PER_YEAR;
+            case ALL -> today.getYear() - anchor.getYear() + 1;
         };
     }
 
@@ -172,6 +179,7 @@ final class FrequencyCharts {
             case MONTH -> String.valueOf(slot);
             // SHORT_STANDALONE: an axis label is a month named on its own, not one inside a date - see DayLabels#weekdayAbbreviations.
             case YEAR -> anchor.withMonth(slot).getMonth().getDisplayName(TextStyle.SHORT_STANDALONE, language.locale());
+            case ALL -> FrequencyKeys.yearLabel(yearOfSlot(anchor, slot), language);
         };
     }
 
@@ -181,7 +189,13 @@ final class FrequencyCharts {
                 .format(language.localizeNumerals(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(language.locale())));
             case YEAR -> anchor.withMonth(slot)
                 .format(language.localizeNumerals(DateTimeFormatter.ofPattern(language.monthYearPattern(), language.locale())));
+            // A year is already spelled out in full by its own caption, so the hover bubble repeats it rather than inventing a longer form.
+            case ALL -> FrequencyKeys.yearLabel(yearOfSlot(anchor, slot), language);
         };
+    }
+
+    private static LocalDate yearOfSlot(final LocalDate anchor, final int slot) {
+        return anchor.plusYears(slot - 1L);
     }
 
 }

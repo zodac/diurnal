@@ -4041,6 +4041,14 @@ public interface AppMessages {
     String year();
 
     /**
+     * The frequency graph's third period: every year the account has logged anything in, drawn as one bar per year.
+     *
+     * @return the default (English) text
+     */
+    @Message("All time")
+    String allTime();
+
+    /**
      * Earlier.
      *
      * @return the default (English) text

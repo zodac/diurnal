@@ -35,6 +35,7 @@ class FrequencyChartsTest {
     private static final StatSubject YOGA = new StatSubject(YOGA_ID, "Yoga", "#6366f1", StatSubjectKind.ACTION);
     private static final LocalDate JULY_2026 = LocalDate.of(2026, 7, 1);
     private static final LocalDate YEAR_2026 = LocalDate.of(2026, 1, 1);
+    private static final LocalDate YEAR_2024 = LocalDate.of(2024, 1, 1);
     private static final LocalDate TODAY = LocalDate.of(2026, 7, 23);
 
     private static FrequencyChart month(final Map<UUID, Map<Integer, Long>> counts, final LocalDate anchor, final @Nullable LocalDate earliest) {
@@ -43,6 +44,11 @@ class FrequencyChartsTest {
 
     private static FrequencyChart year(final Map<UUID, Map<Integer, Long>> counts, final LocalDate anchor, final @Nullable LocalDate earliest) {
         return FrequencyCharts.build(List.of(RUNNING), FrequencyPeriod.YEAR, anchor, counts, TODAY, earliest, Language.ENGLISH_GB);
+    }
+
+    private static FrequencyChart allTime(final Map<UUID, Map<Integer, Long>> counts, final LocalDate anchor,
+        final @Nullable LocalDate earliest) {
+        return FrequencyCharts.build(List.of(RUNNING), FrequencyPeriod.ALL, anchor, counts, TODAY, earliest, Language.ENGLISH_GB);
     }
 
     private static Map<UUID, Map<Integer, Long>> running(final Map<Integer, Long> counts) {
@@ -105,6 +111,51 @@ class FrequencyChartsTest {
         assertThat(chart.slots().get(6).bars().getFirst().count())
             .as("unexpected value")
             .isEqualTo(9L);
+    }
+
+    @Test
+    void build_allTimeWindow_hasOneColumnPerYearFromTheFirstEntryToToday() {
+        final FrequencyChart chart = allTime(running(Map.of(1, 5L, 3, 9L)), YEAR_2024, YEAR_2024);
+        assertThat(chart.slots())
+            .as("2024, 2025 and 2026 are three columns, both ends included")
+            .hasSize(3);
+        assertThat(chart.slots().stream().map(FrequencySlot::label).toList())
+            .as("each column should be captioned with its own year")
+            .containsExactly("2024", "2025", "2026");
+        assertThat(chart.slots().getFirst().fullLabel())
+            .as("a year is already spelled out by its caption, so the hover bubble repeats it")
+            .isEqualTo("2024");
+        assertThat(chart.slots().get(1).bars().getFirst().count())
+            .as("a year with nothing logged should still carry a zero bar")
+            .isZero();
+        assertThat(chart.slots().getLast().bars().getFirst().count())
+            .as("a slot is keyed by its offset from the first year drawn, so slot 3 is 2026")
+            .isEqualTo(9L);
+    }
+
+    @Test
+    void build_allTimeWindowOfOneYear_drawsThatYearAlone() {
+        final FrequencyChart chart = allTime(running(Map.of(1, 4L)), YEAR_2026, YEAR_2026);
+        assertThat(chart.slots())
+            .as("an account that started this year has one year to draw")
+            .hasSize(1);
+        assertThat(chart.periodLabel())
+            .as("a single-year span reads as the year itself, not as a range")
+            .isEqualTo("2026");
+    }
+
+    @Test
+    void build_allTimeWindow_labelsTheSpanAndCarriesItsOwnKey() {
+        final FrequencyChart chart = allTime(Map.of(), YEAR_2024, YEAR_2024);
+        assertThat(chart.periodKey())
+            .as("the all-time window names no calendar unit")
+            .isEqualTo("all");
+        assertThat(chart.periodLabel())
+            .as("the heading should name both ends of the span drawn")
+            .isEqualTo("2024 – 2026");
+        assertThat(chart.period())
+            .as("unexpected value")
+            .isEqualTo(FrequencyPeriod.ALL);
     }
 
     // ── Totals ──────────────────────────────────────────────────────────────
@@ -321,6 +372,19 @@ class FrequencyChartsTest {
         assertThat(year(Map.of(), LocalDate.of(2025, 1, 1), LocalDate.of(2024, 1, 1)).hasNext())
             .as("2026 is not in the future")
             .isTrue();
+    }
+
+    @Test
+    void build_allTimeWindow_isNeverSteppableInEitherDirection() {
+        // It spans everything there is - and it anchors on the earliest logged year, which is exactly the date the
+        // step-back bound compares against, so without the period's own guard it would step to ITSELF.
+        final FrequencyChart chart = allTime(Map.of(), YEAR_2024, YEAR_2024);
+        assertThat(chart.hasPrevious())
+            .as("there is no window earlier than the whole of the history")
+            .isFalse();
+        assertThat(chart.hasNext())
+            .as("there is no window later than the whole of the history")
+            .isFalse();
     }
 
     // ── heightPercent ───────────────────────────────────────────────────────

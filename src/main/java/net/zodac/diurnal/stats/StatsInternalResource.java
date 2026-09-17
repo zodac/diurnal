@@ -164,8 +164,9 @@ public class StatsInternalResource {
      * values on the same code path as every other rendered figure, so the modal needs no client-side charting at all - only the fetch and the swap.
      *
      * @param subjectId the subject to chart
-     * @param period the window's period ({@code month}/{@code year}); defaults to {@link FrequencyPeriod#DEFAULT}
-     * @param at the window key ({@code yyyy-MM}/{@code yyyy}); defaults to the window containing today
+     * @param period the window's period ({@code month}/{@code year}/{@code all}); defaults to {@link FrequencyPeriod#DEFAULT}
+     * @param at the window key ({@code yyyy-MM}/{@code yyyy}/{@code all}); defaults to the window containing today, or to the whole history for the
+     *     all-time period
      * @return {@code 200} with the rendered chart, {@code 400} for an unrecognised period or malformed window, or {@code 404} when the action is not
      *     the user's
      */

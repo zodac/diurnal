@@ -20,3 +20,7 @@
 ### Export User Settings
 
 - The export archive now also includes a user's settings, in addition to actions/notes/attachments
+
+### Graph Over All Time
+
+- Added the option to graph stats over all time, grouping stats by year

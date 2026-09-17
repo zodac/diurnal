@@ -132,8 +132,14 @@ document.addEventListener('keydown', function (event) {
 // lands back on March 2025 — the month last shown for THAT year (`monthsShown`), which is what makes
 // flipping the toggle back and forth a no-op. A year never visited in month view has no remembered
 // month and falls back to its January. A key that is already the right shape is kept as-is.
+//
+// All time is the one period with no window to carry across, in either direction: it draws a single
+// window whatever was on screen, and coming back OFF it there is no dated window it was showing to
+// return to. Both cases send no `at` at all and take the period's own default — the whole history one
+// way, the window containing today the other. Sending its 'all' key to a dated period (or a 'yyyy-MM'
+// to it) would be a 400: a key is validated against the period asked for, never coerced.
 function reanchor(period, shownAt) {
-    if (!shownAt) {return null}
+    if (!shownAt || period === 'all' || shownAt === 'all') {return null}
     if (period === 'year') {return shownAt.slice(0, 4)}
     return shownAt.length === 4 ? monthsShown.get(shownAt) || `${shownAt}-01` : shownAt
 }

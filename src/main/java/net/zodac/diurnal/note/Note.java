@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 import net.zodac.diurnal.http.ChangeSignature;
 import net.zodac.diurnal.log.DailyActionTotal;
 import net.zodac.diurnal.log.MonthlyActionTotal;
+import net.zodac.diurnal.log.YearlyActionTotal;
 import net.zodac.diurnal.persistence.AuditedEntity;
 import net.zodac.diurnal.persistence.JpqlQuery;
 import net.zodac.diurnal.persistence.NoteStatements;
@@ -248,6 +249,26 @@ public class Note extends AuditedEntity {
      */
     public static List<MonthlyActionTotal> monthlyTotals(final UUID userId, final UUID subjectId, final LocalDate from, final LocalDate to) {
         return JpqlQuery.of(NoteQueries.MONTHLY_TOTALS_JPQL, MonthlyActionTotal.class)
+            .bind(NoteQueries.FROM, from)
+            .bind(NoteQueries.TO, to)
+            .bind(NoteQueries.SUBJECT_ID, subjectId)
+            .bind(NoteQueries.USER_ID, userId)
+            .resultList();
+    }
+
+    /**
+     * Returns the user's notes within the inclusive {@code [from, to]} window rolled up per calendar year, projected into the same
+     * {@link YearlyActionTotal} an action produces - so the notes subject flows through the identical chart assembly rather than a parallel code
+     * path. Each year's total is the number of days in it that have a note.
+     *
+     * @param userId the owning user
+     * @param subjectId the id to stamp on each row (the notes subject's fixed id)
+     * @param from the inclusive start of the window
+     * @param to the inclusive end of the window
+     * @return one {@link YearlyActionTotal} per calendar year in the window that has at least one note
+     */
+    public static List<YearlyActionTotal> yearlyTotals(final UUID userId, final UUID subjectId, final LocalDate from, final LocalDate to) {
+        return JpqlQuery.of(NoteQueries.YEARLY_TOTALS_JPQL, YearlyActionTotal.class)
             .bind(NoteQueries.FROM, from)
             .bind(NoteQueries.TO, to)
             .bind(NoteQueries.SUBJECT_ID, subjectId)

@@ -215,7 +215,7 @@ monthly)`, so notes plug straight in with no new aggregation.
   is what lets `/internal/stats/chart/{subjectId}`, `?compare=` and `GET /api/v1/stats/{subjectId}/frequency` carry notes
   with **no route or path-type change**. (The alternative — a `String` subject token — ripples through `compare` and
   both surfaces for no gain.)
-- `Note` projects into the **existing** `MonthlyActionTotal` / `DailyActionTotal` records via
+- `Note` projects into the **existing** `MonthlyActionTotal` / `DailyActionTotal` / `YearlyActionTotal` records via
   `SELECT new …(:notesId, …)` constructor expressions. `note` depending on `log` is a clean one-way dependency, and the
   notes rows then flow through `assemble` and the chart's `countsByAction` maps with zero new plumbing.
 - **`forAllSubjects` prepends the notes subject before pagination**, so "sorted first" means page 1, not "first on
@@ -739,7 +739,7 @@ format guard applies to it as to the stored value, since it is interpolated into
 > over in full. Notes are now encrypted at rest, with nothing asked of the user.
 
 **What made this affordable:** nothing on the server reads a note's content except to hand it back to its author. The
-statistics (`Note.datesFor`/`monthlyTotals`/`dailyTotals`), the calendar's day markers and the ETag validator
+statistics (`Note.datesFor`/`monthlyTotals`/`yearlyTotals`/`dailyTotals`), the calendar's day markers and the ETag validator
 (`Note.rangeVersion`) are all dates and counts. Encrypting the column cost no functionality at all.
 
 #### The design

@@ -237,6 +237,33 @@ class NotesStatsIT extends IntegrationTestBase {
             });
     }
 
+    // And the ALL-TIME period buckets by year through a third rollup, again with its own notes-side query - so the same
+    // reasoning applies once more: charting notes across years exercises neither of the paths above.
+    @Test
+    void notesCanBeChartedAcrossEveryYear() {
+        final LocalDate twoYearsBack = TODAY.minusYears(2L);
+        runInTx(() -> {
+            newNote(userId, TODAY, "This year");
+            newNote(userId, twoYearsBack, "Two years back");
+        });
+
+        final FrequencyResult result = statsService.frequency(userId, StatSubject.NOTES_ID, List.of(), "all", null, Language.ENGLISH_GB);
+        assertThat(result)
+            .as("the notes subject must chart over the whole history exactly as it does over a month")
+            .isInstanceOf(FrequencyResult.Charted.class);
+
+        final FrequencyChart chart = ((FrequencyResult.Charted) result).chart();
+        assertThat(chart.slots())
+            .as("the window should run from the year of the earliest note to the current one, both included")
+            .hasSize(3);
+        assertThat(chart.slots().getFirst().bars().getFirst().count())
+            .as("the earliest note should sit in the first year drawn, not be rolled into a later one")
+            .isEqualTo(1L);
+        assertThat(chart.series().getFirst().total())
+            .as("both notes, two years apart")
+            .isEqualTo(2L);
+    }
+
     @Test
     void notesCanBeComparedAgainstAnAction_onOneGraph() {
         runInTx(() -> {

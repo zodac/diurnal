@@ -41,6 +41,7 @@ import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.log.DailyActionTotal;
 import net.zodac.diurnal.log.DatedActionCount;
 import net.zodac.diurnal.log.MonthlyActionTotal;
+import net.zodac.diurnal.log.YearlyActionTotal;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.persistence.LogStatements;
 import net.zodac.diurnal.stats.cache.SubjectStatsCache;
@@ -342,25 +343,29 @@ public class StatsService {
         final User user = User.findById(userId);
         final LocalDate today = todayFor(user);
         final FrequencyPeriod period = FrequencyPeriod.of(periodValue);
-        final LocalDate anchor = resolveAnchor(period, rawAt, today);
+        final boolean notesCharted = requested.size() != actionIds.size();
+
+        // Read before the window is resolved, not just for the navigation bound: the all-time window STARTS at the earliest logged month, so for
+        // that period this is what anchors it.
+        final LocalDate earliest = earliestLoggedMonth(statements, userId, actionIds, notesCharted);
+        final LocalDate anchor = resolveAnchor(period, rawAt, today, earliest);
         if (anchor == null) {
             return new FrequencyResult.UnknownWindow(Objects.requireNonNull(rawAt));
         }
 
         final List<StatSubject> charted = chartedSubjects(requested, ownedById, user);
-        final boolean notesCharted = requested.size() != actionIds.size();
-        final LocalDate windowEnd = FrequencyKeys.end(period, anchor);
+        final LocalDate windowEnd = FrequencyKeys.end(period, anchor, today);
 
-        // Each arm reads ONLY the window it draws. The year view used to roll up the subjects' whole history and keep the anchor year's twelve
-        // months out of it, which is a read that grows with every year the account survives to draw a chart that never does.
+        // Each arm reads ONLY the window it draws, at the granularity it draws it. The year view used to roll up the subjects' whole history and keep
+        // the anchor year's twelve months out of it, which is a read that grows with every year the account survives to draw a chart that never does;
+        // the all-time view spans that whole history by definition, so it asks the database for the years themselves rather than folding months.
         final Map<UUID, Map<Integer, Long>> countsByAction = switch (period) {
             case MONTH -> dailySlots(dailyTotals(userId, actionIds, notesCharted, anchor, windowEnd));
             case YEAR -> monthlySlots(monthlyRollups(userId, actionIds, notesCharted, anchor, windowEnd));
+            case ALL -> yearlySlots(yearlyRollups(userId, actionIds, notesCharted, anchor, windowEnd), anchor.getYear());
         };
 
-        return new FrequencyResult.Charted(
-            FrequencyCharts.build(charted, period, anchor, countsByAction, today,
-                earliestLoggedMonth(statements, userId, actionIds, notesCharted), language));
+        return new FrequencyResult.Charted(FrequencyCharts.build(charted, period, anchor, countsByAction, today, earliest, language));
     }
 
     /**
@@ -431,11 +436,12 @@ public class StatsService {
 
     // Null means the caller asked for a window this period cannot name - an absent or blank request is the period's own default, not a rejection.
     @Nullable
-    private static LocalDate resolveAnchor(final FrequencyPeriod period, final @Nullable String rawAt, final LocalDate today) {
+    private static LocalDate resolveAnchor(final FrequencyPeriod period, final @Nullable String rawAt, final LocalDate today,
+        final @Nullable LocalDate earliest) {
         if (rawAt == null || rawAt.isBlank()) {
-            return FrequencyKeys.anchorOf(period, today);
+            return FrequencyKeys.defaultAnchor(period, today, earliest);
         }
-        return FrequencyKeys.isValid(period, rawAt) ? FrequencyKeys.anchor(period, rawAt) : null;
+        return FrequencyKeys.isValid(period, rawAt) ? FrequencyKeys.anchor(period, rawAt, today, earliest) : null;
     }
 
     // Ordered by the request, not by the name-ascending order findByUserAndIds returns: the legend and the bar order within each column follow the
@@ -458,6 +464,20 @@ public class StatsService {
         }
         if (notesCharted) {
             totals.addAll(Note.monthlyTotals(userId, StatSubject.NOTES_ID, from, to));
+        }
+        return totals;
+    }
+
+    // The yearly twin of #monthlyRollups, and concatenated for the same reason: both sources project into the one rollup record, so the chart builder
+    // never learns that more than one kind of subject exists.
+    private static List<YearlyActionTotal> yearlyRollups(final UUID userId, final List<UUID> actionIds, final boolean notesCharted,
+        final LocalDate from, final LocalDate to) {
+        final List<YearlyActionTotal> totals = new ArrayList<>();
+        if (!actionIds.isEmpty()) {
+            totals.addAll(ActionLog.yearlyTotalsForActions(userId, actionIds, from, to));
+        }
+        if (notesCharted) {
+            totals.addAll(Note.yearlyTotals(userId, StatSubject.NOTES_ID, from, to));
         }
         return totals;
     }
@@ -496,6 +516,14 @@ public class StatsService {
         return monthlyTotals.stream()
             .collect(Collectors.groupingBy(MonthlyActionTotal::actionId,
                 Collectors.toMap(MonthlyActionTotal::month, MonthlyActionTotal::total, Long::sum)));
+    }
+
+    // The all-time window's slots are years rather than a calendar field, so each row's year is re-keyed to its 1-based offset from the first year
+    // drawn - the same shape the other two periods hand the builder.
+    private static Map<UUID, Map<Integer, Long>> yearlySlots(final List<YearlyActionTotal> yearlyTotals, final int firstYear) {
+        return yearlyTotals.stream()
+            .collect(Collectors.groupingBy(YearlyActionTotal::actionId,
+                Collectors.toMap(total -> total.year() - firstYear + 1, YearlyActionTotal::total, Long::sum)));
     }
 
     // Month precision is enough: every chart window starts on a month boundary, so the earliest LOGGED month is exactly the earliest window worth

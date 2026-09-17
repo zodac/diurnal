@@ -23,14 +23,17 @@
 <div class="chart-wrap" data-chart-shown-period="{chart.period.value}" data-chart-shown-at="{chart.periodKey}"
      data-chart-shown-compare="{chart.compareIds}">
 
-    {! Period toggle (Month/Year) on the left, window stepper on the right. Both post back through
-       stats.js, which re-fetches this fragment with the chosen period/window. !}
+    {! Period toggle (Month/Year/All time) on the left, window stepper on the right. Both post back through
+       stats.js, which re-fetches this fragment with the chosen period/window. The all-time window is the
+       only one of its period, so its stepper arrives with both buttons disabled — no branch needed here. !}
     <div class="chart-controls">
         <div class="chart-periods" role="group" aria-label="{msg:graphPeriodAriaLabel}">
             <button type="button" class="chart-period{#if chart.period.value == 'month'} chart-period-active{/if}"
                     data-chart-period="month"{#if chart.period.value == 'month'} aria-current="true"{/if}>{msg:month}</button>
             <button type="button" class="chart-period{#if chart.period.value == 'year'} chart-period-active{/if}"
                     data-chart-period="year"{#if chart.period.value == 'year'} aria-current="true"{/if}>{msg:year}</button>
+            <button type="button" class="chart-period{#if chart.period.value == 'all'} chart-period-active{/if}"
+                    data-chart-period="all"{#if chart.period.value == 'all'} aria-current="true"{/if}>{msg:allTime}</button>
         </div>
         <div class="chart-nav">
             <button type="button" class="chart-nav-btn group relative" data-chart-at="{chart.previousKey}"

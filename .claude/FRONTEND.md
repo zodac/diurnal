@@ -1,6 +1,6 @@
 # Front-end: Build, Assets, CSS & Calendar
 
-> **This file is ~75 KB. Read only the section you need** - `grep -n '^#' .claude/FRONTEND.md` for its
+> **This file is ~76 KB. Read only the section you need** - `grep -n '^#' .claude/FRONTEND.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **CSS build & colour tokens**
@@ -703,9 +703,9 @@ breakdown and those dates exact and stable rather than shifting as "today" moves
 
 Each Stats card's header carries a chart button (`[data-chart-action]`) opening a page-level dialog
 (`#stats-chart-modal`, one instance in `stats.html`, outside `#stats-list` so paginating the cards never destroys
-it). The dialog draws **one to `FrequencyCharts.MAX_SERIES` (3) actions' logged frequency** over one calendar
-window as a **grouped bar chart**: a `month` window is one column per day, a `year` window one column per month,
-and every charted action contributes one bar to every column.
+it). The dialog draws **one to `FrequencyCharts.MAX_SERIES` (3) actions' logged frequency** over one
+window as a **grouped bar chart**: a `month` window is one column per day, a `year` window one column per month, an
+`all` window one column per year, and every charted action contributes one bar to every column.
 
 **There is no charting library and no client-side chart state.** The whole chart is server-rendered
 (`StatsInternalResource.chart` → `partials/stats-chart.html`), so the bar heights, axis captions and hover wording
@@ -716,6 +716,16 @@ so its delegated `closest(...)` lookups can't mistake the wrapper for a control)
 `innerHTML` write, it re-runs `Diurnal.formatNumbers`/`fitFigures` **and `htmx.process(body)`** by hand — the
 compare picker's search box arrives inside the fragment and would otherwise never be bound.
 
+- **`all` is the one window that is not one of a sequence.** It runs from the earliest year any charted subject has
+  an entry in through the **current** year (an account with nothing logged, or with only future-dated entries, still
+  draws its own year), so it has no neighbour to step to: `FrequencyPeriod.steppable()` is what disables both
+  navigation buttons, and without it the window would step to **itself** — it anchors on exactly the date the
+  step-back bound compares against. Its wire key is the fixed `all` rather than a calendar unit, and its heading is
+  the span it draws (`2024 – 2026`, joined with `Language.dateRangeSeparator()`, or the year alone when it covers
+  one). It is also the one period whose counts come from a **yearly** database rollup (`YearlyActionTotal`) rather
+  than being folded out of the monthly one — the window spans the whole history by definition, so summing months in
+  Java would read twelve rows per column drawn.
+
 - **The period toggle re-anchors the window rather than resetting it** (`stats.js` `reanchor`): March 2025 → `Year`
   lands on 2025, and back on `Month` returns to **March** 2025. That return needs the one piece of state the file
   keeps besides `subjectId` — `monthsShown`, the last month window drawn for each year, recorded off every swap that
@@ -723,11 +733,15 @@ compare picker's search box arrives inside the fragment and would otherwise neve
   from an earlier chart is not where this one was left). It is history, not selection: only windows the user actually
   visited go in, and each is only ever replayed onto its **own** year, so the toggle can never reach a window the
   navigation buttons refuse to step to (a month after today). A year never seen in month view still falls back to its
-  January.
+  January. **`all` carries nothing across in either direction** — it draws one window whatever was showing, and coming
+  back off it there is no dated window to return to — so both cases send no `at` at all and take the period's own
+  default. Carrying its key into a dated period (or a `yyyy-MM` into it) would be a 400: a key is validated against
+  the period asked for, never coerced.
 
 - **Every slot of the window is drawn, including the empty ones**, so the axis stays evenly spaced and a blank run
   reads as a trough. A month's 31 ticks are too many to label, so CSS captions only every fifth
-  (`[data-chart-shown-period="month"] .chart-col:not(:nth-child(5n+1)) .chart-tick`).
+  (`[data-chart-shown-period="month"] .chart-col:not(:nth-child(5n+1)) .chart-tick`); a year's twelve and an
+  all-time window's handful are all captioned.
 - **All bars scale against ONE peak** (`FrequencyCharts.heightPercent`), never per action — that is what makes two
   charted actions comparable. A logged slot is floored at 3% so it can't round away to an invisible sliver.
 - **Hover is per COLUMN, not per bar** (`partials/frequency-slot-tooltip.html`): at 31 days × 3 actions a bar is a
