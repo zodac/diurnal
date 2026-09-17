@@ -303,7 +303,9 @@ document it needs, not so the rule can be applied from this page.
   export holds note content in the CLEAR. **SETTINGS are the one exception to "replaces": `settings.csv` applies the
   preferences it NAMES and leaves the rest alone**, because a preference always has a value and so has no "none" state
   an absent row could mean. Every `@Preference` field on `User` must be carried by the archive, plus the display name -
-  and NOTHING else off that entity: an import must never be a route to changing who an account is. →
+  and NOTHING else off that entity: an import must never be a route to changing who an account is. **Carriage is the
+  DEFAULT**: a bare `@Preference` is in the archive, and staying out takes an explicit `@Preference(archive = ...)`
+  declaration at the field, never an edit to `SettingsAreTransferableTest`. →
   [`TRANSFER.md`](TRANSFER.md)
 - **Every user-chosen colour obeys one shared rule set in `colour/Colours`**, and is stored and rendered exactly as
   picked in both themes — the ONE derived shade in the app is the calendar note marker, derived because it is a

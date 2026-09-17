@@ -1,0 +1,29 @@
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- Adding users.action_order - the order the dashboard's day panel lists actions in
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- One new preference column, holding 'alphabetical' (the default), 'mostLogged' or 'mostRecent'. It decides how the dashboard's day panel - the
+-- logger, the list every count is entered through - breaks ties between actions the selected day holds the same count for.
+--
+-- WHY. The panel's order has never been a choice. It sorts by the day's own count descending and breaks ties on the collated action name, which on
+-- the case that matters - a day nothing has been logged against yet, where every count is 0, which is every day at the moment someone opens it to
+-- log something - is a purely alphabetical list. That is a good default and a poor only option: an account holding thirty actions reaches for the
+-- same handful daily, and the alphabet does nothing to put those within reach. The two added orders answer it from the account's own history, by
+-- total logged count and by how recently each was last logged.
+--
+-- THE DAY'S COUNT STAYS THE PRIMARY KEY of the sort under every option, and this column only replaces the NAME tie-break. An action logged today
+-- floats to the top of the panel whichever order is chosen, which is what keeps the panel a record of the day as well as a way to fill it in; the
+-- setting decides everything below that line, and therefore decides the whole list on a day not yet logged against.
+--
+-- NOT NULL DEFAULT 'alphabetical', so every existing row keeps precisely the order it has today and no backfill is needed - the default IS the
+-- previous behaviour. VARCHAR(16) sizes the longest value ('alphabetical', 12 characters) with room for one more option, which is how week_start
+-- (VARCHAR(9)) and calendar_view (VARCHAR(10)) are sized in V1. No index: the column is read only as part of the row the request already loaded, and
+-- nothing filters or sorts on it.
+--
+-- WHAT GOES WRONG IF THIS IS WRONG: an unrecognised value is REJECTED rather than coerced on both write paths (ProfileService refuses the settings
+-- save, SettingsParser refuses the imported settings.csv row), so nothing outside the three can reach the column through the application. A row
+-- edited to one by hand falls back to the default when the panel renders (ActionOrder.of), so the failure mode is a panel that is silently
+-- alphabetical rather than a dashboard that will not load - deliberate, this being a display preference and not a rule. ActionOrderTest pins the
+-- fallback and the three orderings, LogWebResourceIT pins the panel each option actually renders, and SettingsAreTransferableTest fails if the
+-- column is added without also being carried by the export archive.
+ALTER TABLE users
+    ADD COLUMN action_order VARCHAR(16) NOT NULL DEFAULT 'alphabetical';

@@ -22,7 +22,7 @@ import net.zodac.diurnal.text.TextOutcomeExtensions;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Why a {@link ProfileService} preference update was rejected - ten distinct causes across ten different methods that used to share one opaque,
+ * Why a {@link ProfileService} preference update was rejected - eleven distinct causes across eleven different methods that used to share one opaque,
  * English-only {@code String} on {@code ProfileResult.Invalid}. Carried structured so the API resource can still word it in English (unchanged,
  * {@link ProfileService#message(ProfileRejection)}) while the web resource resolves a translated sentence, the same split every other
  * {@code *Result} in this pass uses.
@@ -35,7 +35,7 @@ import org.jspecify.annotations.Nullable;
 public sealed interface ProfileRejection
     permits ProfileRejection.InvalidTheme, ProfileRejection.InvalidFont, ProfileRejection.InvalidLanguage, ProfileRejection.InvalidCalendarView,
     ProfileRejection.InvalidNoteColour, ProfileRejection.InvalidTimezone, ProfileRejection.InvalidWeekStart, ProfileRejection.InvalidPageSize,
-    ProfileRejection.InvalidDecimalPlaces, ProfileRejection.InvalidTextField {
+    ProfileRejection.InvalidDecimalPlaces, ProfileRejection.InvalidActionOrder, ProfileRejection.InvalidTextField {
 
     /**
      * Returns the English reason this profile update was rejected.
@@ -131,6 +131,24 @@ public sealed interface ProfileRejection
         @Override
         public ProfileRejectionBanner banner() {
             return new ProfileRejectionBanner("calendarView", allowedValues);
+        }
+    }
+
+    /**
+     * An unrecognised action-order value.
+     *
+     * @param allowedValues the action order's own storage values, comma-joined - never translated, see {@link InvalidTheme}
+     */
+    record InvalidActionOrder(String allowedValues) implements ProfileRejection {
+
+        @Override
+        public String rejectionReason() {
+            return "Dashboard action order must be one of: " + allowedValues + ".";
+        }
+
+        @Override
+        public ProfileRejectionBanner banner() {
+            return new ProfileRejectionBanner("actionOrder", allowedValues);
         }
     }
 

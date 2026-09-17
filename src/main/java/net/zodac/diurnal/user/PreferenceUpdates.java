@@ -42,6 +42,7 @@ import org.jspecify.annotations.Nullable;
  * @param font             the UI font family
  * @param language         the UI language
  * @param calendarView     the dashboard calendar layout
+ * @param actionOrder      the order the dashboard's day panel lists actions in
  * @param noteColour       the {@code #rrggbb} colour the user's day notes are shown in
  * @param timezone         the IANA timezone override; blank is the explicit "follow the server default" reset
  * @param weekStart        the day the calendar's week starts on; blank is the explicit "follow the account's language" reset
@@ -58,6 +59,7 @@ public record PreferenceUpdates(
     @Nullable String font,
     @Nullable String language,
     @Nullable String calendarView,
+    @Nullable String actionOrder,
     @Nullable String noteColour,
     @Nullable String timezone,
     @Nullable String weekStart,

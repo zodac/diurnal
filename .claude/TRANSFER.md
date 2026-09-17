@@ -1,6 +1,6 @@
 # Data Export & Import
 
-> **This file is ~39 KB. Read only the section you need** - `grep -n '^#' .claude/TRANSFER.md` for its
+> **This file is ~40 KB. Read only the section you need** - `grep -n '^#' .claude/TRANSFER.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Why**
@@ -112,6 +112,7 @@ blank/length/content rules a typed one does and is stored in the same normalised
 
 ```csv
 setting,value
+actionOrder,alphabetical
 calendarView,full
 decimalPlaces,1
 displayName,Ada Lovelace
@@ -234,6 +235,16 @@ account's LANGUAGE — which then changes every word of the page that tells them
 
 It also matches the contract `PreferenceUpdates` already carries for a partial `PATCH /api/v1/users/me`, and it is why
 `settings.csv` could be made optional without inventing a compatibility rule: an old archive simply names no settings.
+
+**Being in the archive is the DEFAULT for a preference, and staying out of it is a declaration.** A bare
+`@Preference` on `User` means "one `settings.csv` row, keyed by this field's name"; a preference one row cannot hold
+says `@Preference(archive = ROW_FAMILY)` (the two set-valued ones below), and one deliberately left out says
+`EXCLUDED`. This was the other way round until it bit: the guard test held a hand-written list of names to skip, so a
+new setting reached the archive only if someone remembered to wire it, and the way to make the failure go away was to
+add a name to a test — with no reason recorded anywhere a reader of the column would find it. **Never silence
+`SettingsAreTransferableTest` by editing the test; declare the exclusion at the field.** The full chain, and which of
+its four links each case catches, is in the `endpoint` skill's [`preferences`](skills/endpoint/references/preferences.md)
+reference.
 
 **The two exceptions are the two preferences that HAVE a "none" state.** A blank `timezone`/`weekStart` value is the
 explicit "follow the server default"/"follow the account's language" reset, exactly as a blank submission is on both
@@ -448,7 +459,10 @@ rather than the browser's `302 /login` challenge, which for a file download is i
   is a native statement that cannot see rows still sitting in the persistence context.
 - **Settings are written last, straight onto the `User` entity**, and only where the archive named them - nothing is
   deleted first, because a preference is replaced in place rather than removed. See "Settings are named, never
-  wholesale" for why this does not go back through `ProfileService`.
+  wholesale" for why this does not go back through `ProfileService`. `ImportService` does not enumerate the
+  settings: **each `SettingKey` constant carries its own read and write accessors**, so the import is a loop over
+  `setting.applyTo(user, draft)` and the export a call to `setting.valueFor(user)`. Adding a preference is one
+  constant rather than an edit in three files, and a constant cannot be declared without both accessors.
 
 > **The logs and the notes are each written in ONE statement, not one per row** (`ActionLog.setCounts`,
 > `Note.upsertAll`). An import replaces a whole account at once — a 3-year archive is ~33,000 log entries — and

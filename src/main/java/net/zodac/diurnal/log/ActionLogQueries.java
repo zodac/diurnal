@@ -116,6 +116,31 @@ final class ActionLogQueries {
             ORDER BY l.actionId, l.logDate""";
 
     /**
+     * JPQL summarising every action the user has ever logged into one {@link ActionHistory}: the summed {@code count} over all time, and the latest
+     * {@code log_date}. The two orders the dashboard's day panel offers beyond the alphabet - {@code mostLogged} and {@code mostRecent} - are each
+     * one of those columns, so both are read by one statement rather than one apiece; they cost the same scan, and asking twice would read the same
+     * rows twice for a single render.
+     *
+     * <p>
+     * <strong>This reads every log row the user owns, and there is no bound that could avoid it.</strong> A total over all time is defined over all
+     * time, exactly as the Stats page's streaks and gaps are - which is what {@code subject_stats_cache} exists for, and that cache is deliberately
+     * NOT read here: it is only valid for the day it was computed on and is populated by viewing the Stats page, so a dashboard leaning on it would
+     * order the panel one way for an account that had opened Stats today and another for one that had not. The cost is instead kept off the default
+     * path entirely - {@code LogWebResource} runs this only when the account has actually chosen one of the two orders, and then once per request
+     * rather than once per rendered panel, so the month back-fill's thirty panels share a single execution.
+     *
+     * <p>
+     * For scale, the shape is the one {@link #LOGGED_ACTION_IDS_JPQL} documents avoiding: reading the user's whole history to answer one value per
+     * action measured 23.2 ms at 50 actions x 10 years (182,600 rows). That query had an {@code EXISTS} form available because "has this ever been
+     * logged" can stop at the first row; a SUM cannot, so the scan is inherent here rather than a shape to rewrite.
+     */
+    static final String ACTION_HISTORY_JPQL = """
+            SELECT new net.zodac.diurnal.log.ActionHistory(l.actionId, SUM(l.count), MAX(l.logDate))
+            FROM ActionLog l
+            WHERE l.userId = :userId
+            GROUP BY l.actionId""";
+
+    /**
      * JPQL reading the user's log entries within the inclusive {@code [:from, :to]} window as {@link DatedActionCount} projections - the three
      * columns the calendar feeds, the dashboard's month back-fill and the day-panel rollup actually read, rather than the whole entity.
      *

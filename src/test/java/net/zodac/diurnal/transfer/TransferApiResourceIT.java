@@ -79,6 +79,7 @@ class TransferApiResourceIT extends IntegrationTestBase {
     // What settings.csv holds for an account that has changed nothing - every entity default, in SettingKey's own order.
     private static final String DEFAULT_SETTINGS_CSV = """
         ﻿setting,value\r
+        actionOrder,alphabetical\r
         calendarView,full\r
         decimalPlaces,1\r
         displayName,Transfer User\r

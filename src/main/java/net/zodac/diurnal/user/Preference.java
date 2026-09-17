@@ -32,9 +32,24 @@ import java.lang.annotation.Target;
  * This annotation is the single source of truth for "what counts as a preference": adding a new preference column means annotating it here, and
  * {@code UserPreferencesExposureTest} then fails until a matching field (same name) is added to {@link UserDto.Preferences}, so the API can never
  * silently drift out of sync with the entity again.
+ *
+ * <p>
+ * <strong>The same marker is what puts a preference into the export archive</strong>, and it does so by DEFAULT - see {@link #archive()}. A bare
+ * {@code @Preference} means "one {@code settings.csv} row, keyed by this field's name", and {@code SettingsAreTransferableTest} fails until the
+ * three places that row passes through exist. Leaving a preference out of the archive is therefore a deliberate, declared act rather than something
+ * that can happen by forgetting.
  */
 @Documented
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Preference {
+
+    /**
+     * How the export archive's {@code settings.csv} carries this preference. Defaults to {@link ArchiveCarriage#SCALAR_ROW}, so a new preference is
+     * in the archive unless it explicitly says otherwise - an export is a backup, and the cost of forgetting is a restore that silently loses the
+     * setting.
+     *
+     * @return how the archive carries this preference
+     */
+    ArchiveCarriage archive() default ArchiveCarriage.SCALAR_ROW;
 }

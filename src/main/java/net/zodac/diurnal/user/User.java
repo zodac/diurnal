@@ -87,7 +87,7 @@ public class User extends AuditedEntity { // NOPMD: TooManyFields - wide JPA ent
     // the sections the user gave their own value. NULL (and an absent entry) = follow pageSize, so "the
     // default everywhere" has one representation. Resolved by PageSizes.forSection(...), which every
     // paginated list asks for its size.
-    @Preference
+    @Preference(archive = ArchiveCarriage.ROW_FAMILY)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "page_sizes")
     @Nullable
@@ -106,6 +106,13 @@ public class User extends AuditedEntity { // NOPMD: TooManyFields - wide JPA ent
     @Preference
     @Column(name = "calendar_view", nullable = false)
     public String calendarView = CalendarView.DEFAULT.value();
+
+    // The order the dashboard's day panel lists actions in. It replaces only the tie-break between two
+    // actions on the same count for the selected day - that count stays the primary key - so it decides
+    // the whole list exactly on the day nothing has been logged against yet. See log.DayActionOrdering.
+    @Preference
+    @Column(name = "action_order", nullable = false)
+    public String actionOrder = ActionOrder.DEFAULT.value();
 
     // The colour the user's day notes are shown in: the calendar's day-number marker, the Notes
     // card's swatch on the Stats page and its bars on the frequency graph. Stored and rendered
@@ -127,7 +134,7 @@ public class User extends AuditedEntity { // NOPMD: TooManyFields - wide JPA ent
     // whether shown or hidden. NULL = never customised (render every stat in the default order).
     // Display-only; StatsService always computes the full set. Parsed via
     // StatField.displayFields(...) / choices(...).
-    @Preference
+    @Preference(archive = ArchiveCarriage.ROW_FAMILY)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "stats_fields")
     @Nullable

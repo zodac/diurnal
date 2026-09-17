@@ -369,6 +369,41 @@
                         {/options}
                     {/include}
 
+                    {! Dashboard action order. Which order the dashboard's day panel - the logger every count is
+                         entered through - lists actions in. The label names the SCREEN, not just the thing being
+                         ordered: actions are listed on the Actions page and the Stats page too, and a bare "Action
+                         order" read as though it governed all three. The help line then narrows it further, because
+                         the Dashboard itself carries three things that show actions - the calendar, this panel and
+                         the stats-summary strip - and only this one is LOGGED in, which is what the wording keys on. The selected day's own count stays the primary sort under all
+                         three options, so an action already logged that day floats to the top regardless; this
+                         decides the tie-break, and therefore the whole list on a day nothing has been logged
+                         against yet. See log/DayActionOrdering.
+
+                         Three options written out rather than looped: their labels are ordinary UI text with no
+                         data source to resolve them from, so each is a bundle entry picked out by a #switch on the
+                         stored value - the arrangement the "Action stats" rows use. A #switch, not three #ifs, so
+                         the button and the list cannot word the same value differently. !}
+                    {#include partials/combo-field id="actionOrder" label=msg:actionOrderLabel help=msg:actionOrderHelp value=actionOrder endpoint=inject:paths.internalSettings border=true}
+                        {#selected}
+                        {#switch actionOrder}
+                            {#is 'mostLogged'}{msg:actionOrderMostLogged}
+                            {#is 'mostRecent'}{msg:actionOrderMostRecent}
+                            {#else}{msg:actionOrderAlphabetical}
+                        {/switch}
+                        {/selected}
+                        {#options}
+                        {#include partials/combo-option field="actionOrder" value="alphabetical" current=actionOrder}
+                            {#label}{msg:actionOrderAlphabetical}{/label}
+                        {/include}
+                        {#include partials/combo-option field="actionOrder" value="mostLogged" current=actionOrder}
+                            {#label}{msg:actionOrderMostLogged}{/label}
+                        {/include}
+                        {#include partials/combo-option field="actionOrder" value="mostRecent" current=actionOrder}
+                            {#label}{msg:actionOrderMostRecent}{/label}
+                        {/include}
+                        {/options}
+                    {/include}
+
                     {! Show stats summary. A toggle switch: the hidden "false" input always posts, and
                          the checkbox posts an additional "true" only when ticked, so the endpoint reads
                          the setting as on iff the posted values contain "true". hx-include scopes the

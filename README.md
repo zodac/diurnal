@@ -99,16 +99,9 @@ Alongside the daily log, each day can carry a note, a free-text entry of up to 1
 different limit with [`NOTE_MAX_LENGTH`](#note-configuration). Unlike logging an action, a note can be written for any date, including ones in the
 future. The **Notes** page lists everything you have written, (most recent first) with the ability to search your notes.
 
-A note can also carry **attachments**. Drag a file onto the note box (or use the **Attach a file** button beside **Save**) and it is uploaded with a
-progress bar, then embedded in the note's own text as `[[its name]]` - which the box draws as a tinted chip so it reads as a file rather than as
-words. Hovering one offers **Download**, **Rename** and **Remove**, and clicking one keeps that card open until you close it (hovering gives a dashed
-outline, clicking a solid one). Images get a thumbnail that opens full size in a new tab, and sound files - `mp3`, `m4a`, `aac`, `wav`, `flac`,
-`ogg` and `opus` - get a player right in the card. Removing the `[[...]]` text yourself has the same effect the next time you save. Whoever runs
-your Diurnal can restrict which file types are accepted with [`NOTE_ATTACHMENT_EXTENSIONS`](#note-configuration). Renaming changes only what your
-note calls the file: Diurnal keeps the name it was uploaded under as well, so nothing is lost.
-The **Notes** page carries a second table listing every file you have attached, showing both names side by side,
-with a search box of its own that matches on either - so a file is findable without remembering which day it went on, or what you have since called
-it.
+A note can also carry **attachments**. Drag a file onto the note box (or use the `Attach a file` button beside `Save`) and it is uploaded with a
+progress bar, then embedded in the note's own text as `[[its name]]`. Hovering over an attachment shows a pop-up window with options **Download**,
+**Rename** and **Remove**. Images get a thumbnail, and sound files get an audio player.
 
 Notes are encrypted at rest, so a database dump, backup or replica carries only sealed text - see [Note Configuration](#note-configuration). An
 attachment is sealed the same way, **including its filename**: a file called `divorce-papers.pdf` gives away as much as the paragraph beside it.
@@ -586,6 +579,7 @@ Each user can customise Diurnal from the **Settings** page (top-right menu).
 - **Timezone**: The timezone used to decide what "today" is, so day boundaries line up with a user's local time
 - **Language**: The user's [language](#languages)
 - **Week starts on**: The day of the dashboard calendar's first column. **Automatic** follows the [language](#languages)
+- **Dashboard action order**: The order of the action list you log counts in - alphabetical, most commonly logged, or most recently logged
 - **Statistics summary**: Whether to show the selected day's top actions on the dashboard
 - **Decimal places**: Precision of the averages and abbreviated totals shown on the Statistics page and dashboard summary
 - **Items per page**: Page size for lists, like actions, day panel, stats, etc. (`1`-`100`, default `5`)

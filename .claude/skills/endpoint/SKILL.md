@@ -94,10 +94,15 @@ If both surfaces expose the use case, add a same-input/same-DB-outcome case.
 
 ## Adding a user preference
 
-A new setting is **not** done at the entity — it is a six-link chain (column, `@Preference` field, `UserDto`
-component, `/users/me` read+write, the server-rendered Settings page, the message bundle), and
-`UserPreferencesExposureTest` fails until the middle links agree. All six, in order, with the reason each exists:
-[`references/preferences.md`](references/preferences.md).
+A new setting is **not** done at the entity — it is a seven-link chain (column, `@Preference` field, `UserDto`
+component, `/users/me` read+write, the server-rendered Settings page, **the export archive**, the message bundle),
+and `UserPreferencesExposureTest`/`SettingsAreTransferableTest` fail until they agree. All seven, in order, with the
+reason each exists: [`references/preferences.md`](references/preferences.md).
+
+**The archive link is opt-OUT**: a bare `@Preference` is carried by `settings.csv`, and a preference stays out of it
+only by declaring so at the field (`@Preference(archive = ROW_FAMILY)` for a set-valued one, `EXCLUDED` for a
+deliberate omission). An export calls itself a backup, so a preference missing from it is one a restore silently
+loses — **never** silence `SettingsAreTransferableTest` by editing the test.
 
 ## A note on expected 4xx responses in the UI
 

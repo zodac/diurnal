@@ -823,6 +823,57 @@ class SettingsIT extends IntegrationTestBase {
             .isEqualTo("minimal"));
     }
 
+    // ── PATCH /settings/action-order ─────────────────────────────────────────────
+
+    @Test
+    void updateActionOrder_mostLogged_persists() {
+        given().formParam("actionOrder", "mostLogged")
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().actionOrder)
+            .as("unexpected value")
+            .isEqualTo("mostLogged"));
+    }
+
+    @Test
+    void updateActionOrder_mostRecent_persists() {
+        given().formParam("actionOrder", "mostRecent")
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().actionOrder)
+            .as("unexpected value")
+            .isEqualTo("mostRecent"));
+    }
+
+    @Test
+    void updateActionOrder_alphabetical_persists() {
+        given().formParam("actionOrder", "mostRecent").patch("/internal/settings");
+
+        given().formParam("actionOrder", "alphabetical")
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().actionOrder)
+            .as("unexpected value")
+            .isEqualTo("alphabetical"));
+    }
+
+    @Test
+    void updateActionOrder_invalid_isRejectedKeepingCurrentValue() {
+        given().formParam("actionOrder", "mostLogged").patch("/internal/settings");
+
+        given().formParam("actionOrder", "mostRecently")
+                .patch("/internal/settings")
+                .then().statusCode(UNPROCESSABLE_ENTITY)
+                .body(containsString("Dashboard action order must be one of"));
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().actionOrder)
+            .as("an unrecognised action order must be rejected, keeping the previous value")
+            .isEqualTo("mostLogged"));
+    }
+
     // ── PATCH /settings/timezone ──────────────────────────────────────────────────
 
     @Test

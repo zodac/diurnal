@@ -89,6 +89,11 @@ class ActionLogQueriesTest {
     }
 
     @Test
+    void actionHistoryJpql_bindsExpectedParameters() {
+        assertParameters(ActionLogQueries.ACTION_HISTORY_JPQL, List.of(USER_ID));
+    }
+
+    @Test
     void incrementUpsertSql_bindsExpectedParameters() {
         assertParameters(POSTGRES.incrementUpsert(), List.of(USER_ID, ACTION_ID, DATE, DELTA, MAX, NOW));
     }

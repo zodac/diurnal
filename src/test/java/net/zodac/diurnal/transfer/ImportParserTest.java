@@ -554,10 +554,11 @@ class ImportParserTest {
             decimalPlaces,2\r
             showStatsSummary,false\r
             showNoteCounter,true\r
+            actionOrder,mostRecent\r
             """;
 
-        final SettingsDraft expected = new SettingsDraft("minimal", 2, "Ada Lovelace", "dyslexic", "es-ES", "#123456", 25, true, false, "dark",
-            "Europe/London", "sunday", null, null);
+        final SettingsDraft expected = new SettingsDraft("mostRecent", "minimal", 2, "Ada Lovelace", "dyslexic", "es-ES", "#123456", 25, true, false,
+            "dark", "Europe/London", "sunday", null, null);
         assertThat(planned(ImportParser.parse(configured(settings), TODAY, NOTE_FIELD, POLICY)).settings())
             .as("every scalar preference the archive names should read into the value a Settings save would have stored")
             .isEqualTo(expected);
@@ -567,7 +568,7 @@ class ImportParserTest {
     void settings_aKeyTheFileOmitsIsLeftAloneRatherThanCleared() {
         assertThat(planned(ImportParser.parse(configured("setting,value\r\ntheme,dark\r\n"), TODAY, NOTE_FIELD, POLICY)).settings())
             .as("a preference always has a value, so a key the file does not carry is one the file is silent about")
-            .isEqualTo(new SettingsDraft(null, null, null, null, null, null, null, null, null, "dark", null, null, null, null));
+            .isEqualTo(new SettingsDraft(null, null, null, null, null, null, null, null, null, null, "dark", null, null, null, null));
     }
 
     @Test
@@ -576,7 +577,7 @@ class ImportParserTest {
 
         assertThat(planned(ImportParser.parse(configured(blanks), TODAY, NOTE_FIELD, POLICY)).settings())
             .as("a blank timezone/week start is the explicit reset it is on every other surface, and is carried apart from an absent row")
-            .isEqualTo(new SettingsDraft(null, null, null, null, null, null, null, null, null, null, "", "", null, null));
+            .isEqualTo(new SettingsDraft(null, null, null, null, null, null, null, null, null, null, null, "", "", null, null));
 
         assertThat(problems(ImportParser.parse(configured("setting,value\r\ntheme,\r\n"), TODAY, NOTE_FIELD, POLICY)))
             .as("no other preference has a 'none' state, so a blank value for one is simply not a value it accepts")
@@ -654,7 +655,7 @@ class ImportParserTest {
 
         assertThat(planned(ImportParser.parse(configured(overrides), TODAY, NOTE_FIELD, POLICY)).settings())
             .as("the overrides should be stored in PageSection order, however the rows were laid out")
-            .isEqualTo(new SettingsDraft(null, null, null, null, null, null, null, null, null, null, null, null,
+            .isEqualTo(new SettingsDraft(null, null, null, null, null, null, null, null, null, null, null, null, null,
             List.of(new PageSizePref("actions", 25), new PageSizePref("notes", 10)), null));
     }
 

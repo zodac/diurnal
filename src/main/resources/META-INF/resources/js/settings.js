@@ -568,9 +568,11 @@ function wireCombo(id) {
     })
 }
 
+// Every combo-field on the page must be named here - the control is inert until it is, with no error to say so.
 wireCombo('timezone')
 wireCombo('language')
 wireCombo('weekStart')
+wireCombo('actionOrder')
 
 // Unlike theme/font above, the language picker can't be applied live: `<html lang>`/`dir` and
 // every locale-formatted date/number on the page (including this one) are resolved server-side at

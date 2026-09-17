@@ -29,6 +29,7 @@ import net.zodac.diurnal.stats.StatField;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextValidation;
+import net.zodac.diurnal.user.ActionOrder;
 import net.zodac.diurnal.user.CalendarView;
 import net.zodac.diurnal.user.Font;
 import net.zodac.diurnal.user.Language;
@@ -100,6 +101,7 @@ final class SettingsParser {
         bucketRows();
 
         return new SettingsDraft(
+            choice(SettingKey.ACTION_ORDER, ActionOrder::isValid, ActionOrder.allowedValues()),
             choice(SettingKey.CALENDAR_VIEW, CalendarView::isValid, PreviewOption.allowedValues(CalendarView.values())),
             number(SettingKey.DECIMAL_PLACES, UserSettings::parseDecimalPlaces, UserSettings.MIN_DECIMAL_PLACES, UserSettings.MAX_DECIMAL_PLACES),
             displayName(),

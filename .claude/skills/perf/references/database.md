@@ -18,6 +18,18 @@
   0.06 ms, `Action.userVersion` 0.05 ms. All already sub-millisecond.
 - **`INCLUDE (action_id, count)` on `idx_action_logs_user_date`** would make the dashboard's three-month warm-up
   index-only, but measured 0.77 ms -> 0.55 ms for **+11 MB** of index. Rejected on that ratio.
+- **The day panel's two history-based orders read the whole history on purpose, and the cost is kept off the default
+  path rather than optimised away.** `ActionLog.historyByAction` (`SUM(count)`, `MAX(log_date)` grouped by action) is
+  the shape `LOGGED_ACTION_IDS_JPQL` above documents avoiding — every log row the user owns to answer one value per
+  action, 23.2 ms at 50 actions x 10 years. There the `EXISTS` rewrite was available because "has this ever been
+  logged" can stop at the first row; **a SUM cannot**, so the scan is inherent. Three things bound it instead: it runs
+  only when the account has chosen `mostLogged`/`mostRecent` (the default `alphabetical` issues no query at all), once
+  per request rather than once per rendered panel (the month back-fill's thirty panels share one execution), and both
+  figures come from the one statement rather than one apiece. **`subject_stats_cache` was considered and rejected as
+  the source**: it already holds `total_count` and `last_performed`, but it is only valid for the day it was computed
+  on and is populated by viewing the Stats page — so the dashboard would order the panel one way for an account that
+  had opened Stats today and another for one that had not. A sort order that depends on where the user has been is
+  worse than a query.
 - **The query layer has no N+1.** `StatsService` (both the day/month summaries and the frequency chart), the admin
   user list via `SessionActivityService.recentActivityByUser` and both calendar feeds all batch already. The app has
   essentially no JPA relations, which is what keeps it that way.

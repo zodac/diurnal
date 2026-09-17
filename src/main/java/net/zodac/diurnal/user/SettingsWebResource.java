@@ -207,6 +207,7 @@ public class SettingsWebResource {
         @FormParam("font") @Nullable final String font,
         @FormParam("language") @Nullable final String language,
         @FormParam("calendarView") @Nullable final String calendarView,
+        @FormParam("actionOrder") @Nullable final String actionOrder,
         @FormParam("noteColour") @Nullable final String noteColour,
         @FormParam("timezone") @Nullable final String timezone,
         @FormParam("weekStart") @Nullable final String weekStart,
@@ -226,7 +227,7 @@ public class SettingsWebResource {
         // post a hidden "false" plus, when ticked, "true", so presence = any value and the setting is on iff the values contain "true"; each row
         // hx-includes only itself, so an absent parameter means "unchanged", never "off". Past this, the shared walk owns every rule and the order.
         final PreferenceUpdates updates = new PreferenceUpdates(
-            displayName, theme, font, language, calendarView, noteColour, timezone, weekStart, pageSize,
+            displayName, theme, font, language, calendarView, actionOrder, noteColour, timezone, weekStart, pageSize,
             pageSizeSection == null || pageSizeSection.isEmpty() ? null : new PreferenceUpdates.PageSizeSubmission(pageSizeSection, pageSizeValue),
             decimalPlaces,
             showStatsSummary == null || showStatsSummary.isEmpty() ? null : showStatsSummary.contains("true"),
@@ -420,6 +421,9 @@ public class SettingsWebResource {
                 .data("fontOptions", Font.values())
                 .data("calendarView", user.calendarView)
                 .data("calendarViewOptions", CalendarView.values())
+                // Resolved rather than passed through, so a hand-edited column reads as the default here exactly as it sorts as the default on the
+                // dashboard - the picker cannot show a value it would not accept back.
+                .data("actionOrder", ActionOrder.of(user.actionOrder).value())
                 .data("noteColour", user.noteColour)
                 // Rendered onto the "Default colour" button so the constant is written down once, in Java.
                 .data("noteColourDefault", UserSettings.DEFAULT_NOTE_COLOUR)

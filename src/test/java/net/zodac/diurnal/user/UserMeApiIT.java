@@ -211,6 +211,35 @@ class UserMeApiIT extends IntegrationTestBase {
     }
 
     @Test
+    void patchMe_actionOrder_isReadableAndWritable() {
+        given().header("Authorization", "Bearer " + token())
+                .get("/api/v1/users/me")
+                .then().statusCode(OK)
+                .body("preferences.actionOrder", equalTo("alphabetical"));
+
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"actionOrder":"mostRecent"}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(OK)
+                .body("preferences.actionOrder", equalTo("mostRecent"));
+    }
+
+    @Test
+    void patchMe_unrecognisedActionOrder_isRejected() {
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"actionOrder":"mostRecently"}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(BAD_REQUEST)
+                .body("message", containsString("Dashboard action order must be one of"));
+    }
+
+    @Test
     void patchMe_outOfRangePageSize_isRejected() {
         given().header("Authorization", "Bearer " + token())
                 .contentType(ContentType.JSON)

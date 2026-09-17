@@ -227,7 +227,7 @@ public class UserResource {
         final List<StatFieldPref> statsFields = preferences.statsFields();
         return profileService.applyAll(user, new PreferenceUpdates(
             request.displayName(), preferences.theme(), preferences.font(), preferences.language(), preferences.calendarView(),
-            preferences.noteColour(), preferences.timezone(), preferences.weekStart(), asText(preferences.pageSize()),
+            preferences.actionOrder(), preferences.noteColour(), preferences.timezone(), preferences.weekStart(), asText(preferences.pageSize()),
             pageSizes == null ? null : new PreferenceUpdates.PageSizeSubmission(
                 pageSizes.stream().map(PageSizePref::section).toList(),
                 pageSizes.stream().map(pref -> Integer.toString(pref.pageSize())).toList()),
@@ -236,7 +236,7 @@ public class UserResource {
     }
 
     private static PreferenceUpdates displayNameOnly(final @Nullable String displayName) {
-        return new PreferenceUpdates(displayName, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        return new PreferenceUpdates(displayName, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private static PreferenceUpdates.StatsFieldSubmission statsFieldSubmission(final List<StatFieldPref> statsFields) {
@@ -283,6 +283,7 @@ public class UserResource {
      * @param font             the UI font family; unrecognised values are rejected
      * @param language         the UI language; unrecognised values are rejected
      * @param calendarView     the dashboard calendar layout; unrecognised values are rejected
+     * @param actionOrder      the order the dashboard's day panel lists actions in; unrecognised values are rejected
      * @param noteColour       the {@code #rrggbb} colour the user's day notes are shown in; anything else is rejected
      * @param showNoteCounter  whether the dashboard note box shows its character counter
      * @param timezone         the IANA timezone override; blank resets to the server default, unrecognised values are rejected
@@ -304,6 +305,9 @@ public class UserResource {
         @Nullable String language,
         @Schema(examples = "full", description = "Dashboard calendar layout: 'full', 'minimal' or 'stacked'; anything else is rejected.")
         @Nullable String calendarView,
+        @Schema(examples = "alphabetical", description = "The order the dashboard's day panel lists actions in: 'alphabetical', 'mostLogged' or "
+        + "'mostRecent'; anything else is rejected. The selected day's own count is the primary sort under all three.")
+        @Nullable String actionOrder,
         @Schema(examples = UserSettings.DEFAULT_NOTE_COLOUR,
         description = "The colour the user's day notes are shown in, as a '#rrggbb' hex value; anything else is rejected.")
         @Nullable String noteColour,

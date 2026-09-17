@@ -1,6 +1,6 @@
 # Front-end: Build, Assets, CSS & Calendar
 
-> **This file is ~77 KB. Read only the section you need** - `grep -n '^#' .claude/FRONTEND.md` for its
+> **This file is ~78 KB. Read only the section you need** - `grep -n '^#' .claude/FRONTEND.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **CSS build & colour tokens**
@@ -227,6 +227,16 @@ note, summary — exactly the order wanted once the grid collapses to one column
 > Two arrangements were tried and rejected: a full-width summary below the grid (not "alongside" the note at all), and
 > nesting the logger+note in a flex column spanning both rows (which made the note hug the logger but left it floating
 > well above the summary whenever the logger was short). See [`NOTES.md`](NOTES.md).
+
+**The day logger's list order is a user preference** (`user/ActionOrder`, the Settings "Dashboard action order" row): by name
+collated for the viewer's language (the default, and what the panel always did), by the total an action has ever been
+logged, or by how recently it last was. **The selected day's own count stays the primary sort key under all three** —
+an action already logged that day floats to the top regardless — so the setting decides the tie-break, and therefore
+the whole list exactly when every count is 0, which is the state the panel is in at the moment it is opened to log
+something. The comparator is `log/DayActionOrdering`; the two history-based orders need a query
+(`ActionLog.historyByAction`, every log row the user owns), so it runs **only when one of them is chosen** and **once
+per request**, which is what keeps the month back-fill's thirty panels on a single execution. Every order ends in the
+collated name, so two actions on the same figure cannot be left in whatever order the database returned.
 
 The **note box** (`#note-panel`) is server-rendered ONCE with the page and is **never a swap target**: changing the
 selected day only rewrites the textarea's value from `dashboard.js`'s cache. That is what makes its drag-resized

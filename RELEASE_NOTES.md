@@ -27,3 +27,7 @@
 
 - Added the option to graph stats over all time, grouping stats by year
 - Hiding the `Compare to...` option when there are no more stats available to compare with
+
+### Settings
+
+- Giving the user the option to decide the default order of actions for logging on the Dashboard. By default, it's alphabetical, but a user may choose for their most commonly used action to be top, or their most recently logged one.

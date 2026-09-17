@@ -445,6 +445,51 @@ test.describe("Settings page", () => {
         await expect(page.locator('input[name="calendarView"][value="full"]')).toBeChecked()
     })
 
+    // The action-order preference itself: that all three options are offered, that picking one persists, and that
+    // the dashboard is actually rendered under it. What each option ORDERS BY is pinned against a real database by
+    // LogWebResourceIT — this account's action list is shared with every other spec in the suite, so an exact
+    // expected order here would be a test of what those specs happen to have created.
+    test("action order: the three options are offered, and the pick survives a reload", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+
+        // The label names the SCREEN it orders, because actions are listed on three of them, and the row carries a
+        // help line saying which list it governs - a bare "Action order" with no subtitle said neither.
+        await expect(page.locator("#actionOrder-label")).toHaveText("Dashboard action order")
+        await expect(page.locator("#actionOrder-row .help-text"))
+            .toHaveText("Order of the action list you log counts in")
+
+        // Untouched: the default, and the button words it rather than showing a bare value.
+        await expect(page.locator("#actionOrder")).toHaveValue("alphabetical")
+        await expect(page.locator("#actionOrder-button")).toHaveText("Alphabetical")
+
+        // Read off the closed list: `hidden` is on the PANEL, so the options are in the DOM either way and there is
+        // nothing to open first.
+        await expect(page.locator("#actionOrder-list .combo-option")).toHaveText([
+            "Alphabetical",
+            "Most commonly logged",
+            "Most recently logged",
+        ])
+
+        await pickComboOption(page, "actionOrder", "mostRecent")
+        await page.reload()
+        await expect(page.locator("#actionOrder")).toHaveValue("mostRecent")
+        await expect(page.locator("#actionOrder-button")).toHaveText("Most recently logged")
+
+        // The panel still renders under a non-default order - the setting reaches a query, so a broken one is a 500
+        // rather than a wrong order. Asserted on the PANEL rather than on a logged action: this account is shared
+        // with every other spec, so whether it owns an action at this moment is not this test's to assume. What each
+        // order sorts by is LogWebResourceIT's job.
+        await page.goto("/")
+        const panel = page.locator("#day-logger-panel")
+        await expect(panel, "the day-logger panel should render under a non-default action order").toBeVisible()
+        await expect(panel, "the day-logger panel should have loaded a day, not its placeholder")
+            .not.toContainText("Click a day to log actions")
+
+        // Back to the default, so the shared account leaves this test as it found it.
+        await page.goto("/settings")
+        await pickComboOption(page, "actionOrder", "alphabetical")
+    })
+
     // The week-start preference moves BOTH halves of the calendar: the column header (rendered server-side by
     // DayLabels.weekdayAbbreviations) and the grid's own leading-cell offset (dashboard.js, off data-week-start).
     // Asserting the first cell's actual date is what catches the two drifting apart — a header alone would still

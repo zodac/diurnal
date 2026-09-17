@@ -51,10 +51,11 @@ Flyway scripts live in `src/main/resources/db/migration/postgresql/`, sequential
 migrations can never disagree, and a second vendor adds a **sibling directory** rather than branching inside these.
 Flyway records a script by its name relative to the location root and matches on version + checksum, **not** on path.
 
-**There is currently one script: `V1__initial_schema.sql`, the whole schema in a single pass.** It is a COLLAPSE, done
-once, for the 1.0.0 release: the 44 incremental migrations that had built the schema were replaced by the state they
-produced, and the rationale their headers carried was moved into this one's section comments. That was free at exactly
-that moment and only then — every database those 44 scripts had built belonged to a pre-1.0.0 version whose image was
+**`V1__initial_schema.sql` is the whole schema in a single pass**, and every script after it is an ordinary
+incremental change (`V2`-`V4` for note attachments, `V5` for the day panel's action-order preference). V1 is a
+COLLAPSE, done once, for the 1.0.0 release: the 44 incremental migrations that had built the schema were replaced by
+the state they produced, and the rationale their headers carried was moved into this one's section comments. That was
+free at exactly that moment and only then — every database those 44 scripts had built belonged to a pre-1.0.0 version whose image was
 never published (the publish workflow gated the push on `major >= 1`), so the set of deployments needing an upgrade
 path was empty. **It does not set a precedent.** From 1.0.0 the set is never empty again, the rule below applies
 unchanged, and there will be no second collapse.
@@ -140,6 +141,7 @@ from scratch:
 | `sessions`                  | Why only the token's SHA-256 hash is stored, and why the table holds no role state                                                      |
 | `ip_lockouts`               | Why enforcement stays in memory and this table is audit-only; why `ip_address` is unindexed                                             |
 | `subject_stats_cache`       | Why `computed_for_date` is a column, not part of the key; why nothing rendered is stored; why no second index                           |
+| `users.action_order` (V5)   | Why the day panel's order is a preference; why the day's own count still outranks it; why no index                                      |
 
 The pre-1.0.0 migrations that originally recorded these are gone (see [Migrations](#migrations)); their measurements
 were carried across verbatim, at the sizes they were taken.

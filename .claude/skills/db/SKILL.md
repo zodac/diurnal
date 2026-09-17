@@ -56,7 +56,10 @@ stamps `updated_at` on `@PreUpdate`) rather than restating them; everything else
 on you**, and an `*IT` is what proves it.
 
 If the column is a **user preference**, it is not finished at the entity — see the `endpoint` skill for the rest of
-the chain (`@Preference` → `UserDto.Preferences` → Settings row → message bundle → `UserPreferencesExposureTest`).
+the chain (`@Preference` → `UserDto.Preferences` → Settings row → **the export archive** → message bundle →
+`UserPreferencesExposureTest`/`SettingsAreTransferableTest`). **A bare `@Preference` is carried by the export archive
+by default**; a preference stays out of it only by saying so at the field (`@Preference(archive = ROW_FAMILY)` or
+`EXCLUDED`), never by editing the guard test.
 
 ## Step 4 — Write the query
 

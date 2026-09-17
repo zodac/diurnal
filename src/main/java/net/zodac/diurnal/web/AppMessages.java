@@ -608,6 +608,15 @@ public interface AppMessages {
     String profileInvalidCalendarView(String allowedValues);
 
     /**
+     * An unrecognised action-order value.
+     *
+     * @param allowedValues the action order's own storage values, comma-joined, never translated
+     * @return the default (English) text
+     */
+    @Message("Dashboard action order must be one of: {allowedValues}.")
+    String profileInvalidActionOrder(String allowedValues);
+
+    /**
      * A note colour that is not a {@code #rrggbb} hex value.
      *
      * @return the default (English) text
@@ -1580,6 +1589,48 @@ public interface AppMessages {
      */
     @Message("Calendar style")
     String calendarStyleLabel();
+
+    /**
+     * Action order label - the dashboard day panel's list order. Named for the SCREEN it orders, not just for what it orders: actions are listed on
+     * the Actions page and the Stats page too, and neither is affected by this.
+     *
+     * @return the default (English) text
+     */
+    @Message("Dashboard action order")
+    String actionOrderLabel();
+
+    /**
+     * Action order help line. Names the list by what is DONE with it: the Dashboard also carries the calendar and the stats-summary strip, both of
+     * which show actions, and neither of which logs anything - so "the list you log counts in" is the one phrase that can only mean this panel.
+     *
+     * @return the default (English) text
+     */
+    @Message("Order of the action list you log counts in")
+    String actionOrderHelp();
+
+    /**
+     * The action-order option listing actions by name.
+     *
+     * @return the default (English) text
+     */
+    @Message("Alphabetical")
+    String actionOrderAlphabetical();
+
+    /**
+     * The action-order option listing actions by how much they have ever been logged.
+     *
+     * @return the default (English) text
+     */
+    @Message("Most commonly logged")
+    String actionOrderMostLogged();
+
+    /**
+     * The action-order option listing actions by how recently they were last logged.
+     *
+     * @return the default (English) text
+     */
+    @Message("Most recently logged")
+    String actionOrderMostRecent();
 
     /**
      * Font label.

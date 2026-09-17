@@ -100,6 +100,13 @@ public class ProfileService {
         return applySetting(user, "Calendar view", calendarView, () -> user.calendarView = calendarView);
     }
 
+    private static ProfileResult updateActionOrder(final User user, final @Nullable String actionOrder) {
+        if (actionOrder == null || !ActionOrder.isValid(actionOrder)) {
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidActionOrder(ActionOrder.allowedValues()));
+        }
+        return applySetting(user, "Dashboard action order", actionOrder, () -> user.actionOrder = actionOrder);
+    }
+
     // Held to the same Colours.isInvalidHex rule as an action's colour, and stored exactly as picked: the app renders it unchanged in
     // both themes, and derives a lightened variant only where the marker sits on the calendar's brand fill (Colours.readableOn).
     private static ProfileResult updateNoteColour(final User user, final @Nullable String noteColour) {
@@ -209,6 +216,7 @@ public class ProfileService {
         result = step(result, updates.font(), () -> updateFont(user, updates.font()));
         result = step(result, updates.language(), () -> updateLanguage(user, updates.language()));
         result = step(result, updates.calendarView(), () -> updateCalendarView(user, updates.calendarView()));
+        result = step(result, updates.actionOrder(), () -> updateActionOrder(user, updates.actionOrder()));
         result = step(result, updates.noteColour(), () -> updateNoteColour(user, updates.noteColour()));
         result = step(result, updates.timezone(), () -> updateTimezone(user, updates.timezone()));
         result = step(result, updates.weekStart(), () -> updateWeekStart(user, updates.weekStart()));

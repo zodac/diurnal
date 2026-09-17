@@ -249,6 +249,29 @@ public class ActionLog extends AuditedEntity {
     }
 
     /**
+     * Returns the whole-history summary of each action the user has ever logged, keyed by action id - the total logged and the day it was last
+     * logged, which are the two orders the dashboard's day panel offers beyond the alphabet.
+     *
+     * <p>
+     * An action with no logs at all has no entry in the returned map: the query aggregates log rows, and there are none. Callers treat an absent
+     * entry as the bottom of the order rather than substituting a zero, which is where a never-logged action belongs under either order.
+     *
+     * <p>
+     * This reads every log row the user owns - see {@code ActionLogQueries.ACTION_HISTORY_JPQL} for why that is inherent, and for the cost. Call it
+     * ONCE per request and share the result across every panel rendered by it.
+     *
+     * @param userId the owning user
+     * @return each logged action's history, keyed by action id
+     */
+    public static Map<UUID, ActionHistory> historyByAction(final UUID userId) {
+        return JpqlQuery.of(ActionLogQueries.ACTION_HISTORY_JPQL, ActionHistory.class)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .resultList()
+            .stream()
+            .collect(Collectors.toMap(ActionHistory::actionId, history -> history));
+    }
+
+    /**
      * Returns a map of actionId → count for all logged actions on a given day.
      */
     public static Map<UUID, Integer> countsByAction(final UUID userId, final LocalDate date) {

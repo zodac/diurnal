@@ -43,6 +43,7 @@ import org.jspecify.annotations.Nullable;
  * representation those states already have in the column. An override set's emptiness is a state a file can only express by carrying no rows for it,
  * where a scalar's absence can only mean the file is silent.
  *
+ * @param actionOrder      the order the dashboard's day panel lists actions in
  * @param calendarView     the dashboard calendar layout
  * @param decimalPlaces    the decimal places for fractional stats
  * @param displayName      the name the account is shown under
@@ -59,6 +60,7 @@ import org.jspecify.annotations.Nullable;
  * @param statsFields      the complete "Action stats" arrangement, or {@code null} when the archive names none
  */
 public record SettingsDraft(
+    @Nullable String actionOrder,
     @Nullable String calendarView,
     @Nullable Integer decimalPlaces,
     @Nullable String displayName,

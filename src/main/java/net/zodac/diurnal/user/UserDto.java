@@ -57,6 +57,7 @@ public record UserDto(
      * @param statsFields the ordered "Action stats" arrangement (key + enabled + optional custom name per stat), or {@code null} if never customised
      * @param timezone the user's IANA timezone override, or {@code null} to follow the server default
      * @param weekStart the day the dashboard calendar's week starts on, or {@code null} to follow the account's language
+     * @param actionOrder the order the dashboard's day panel lists actions in: {@code alphabetical}, {@code mostLogged} or {@code mostRecent}
      */
     @Schema(description = "A user's display and behaviour preferences.")
     public record Preferences(
@@ -83,7 +84,11 @@ public record UserDto(
         @Nullable String timezone,
         @Schema(examples = "monday", description = "The day the dashboard calendar's week starts on ('monday' through 'sunday'); null means the "
         + "account's language decides it.")
-        @Nullable String weekStart) {
+        @Nullable String weekStart,
+        @Schema(examples = "alphabetical", description = "The order the dashboard's day panel lists actions in: 'alphabetical', 'mostLogged' or "
+        + "'mostRecent'. The selected day's own count is the primary sort under all three; this decides the tie-break, and so the whole list on a "
+        + "day nothing has been logged against yet.")
+        String actionOrder) {
     }
 
     /**
@@ -109,6 +114,7 @@ public record UserDto(
                         user.showNoteCounter,
                         user.statsFields,
                         user.timezone,
-                        user.weekStart));
+                        user.weekStart,
+                        user.actionOrder));
     }
 }

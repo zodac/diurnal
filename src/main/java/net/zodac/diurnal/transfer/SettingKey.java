@@ -18,7 +18,12 @@
 package net.zodac.diurnal.transfer;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import net.zodac.diurnal.user.User;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -41,73 +46,102 @@ import org.jspecify.annotations.Nullable;
  * values rather than one, so they are carried as their own families of rows under {@link TransferFiles#PAGE_SIZE_PREFIX} and
  * {@link TransferFiles#STAT_PREFIX}; {@link #fromKey(String)} is exact-match only, so {@code pageSize} and {@code pageSize.actions} can never be
  * confused for one another.
+ *
+ * <p>
+ * <strong>Each constant carries how it is READ out of the account and how it is WRITTEN back into one</strong>, rather than leaving the export and
+ * the import to enumerate the catalogue in a {@code switch} apiece. Everything about one setting is then in one place, and adding a preference is
+ * one constant rather than an edit in three files. The compile-time guarantee the two switches gave is not lost but tightened: a constant cannot be
+ * DECLARED without both accessors, where before it could be declared and the switch updated later.
+ *
+ * <p>
+ * What this does move out of the compiler's reach is mis-WIRING - a constant whose accessor reads or writes a different field, which copy-pasting
+ * the constant above it produces easily and which no exhaustive switch would have caught either. That is what
+ * {@code SettingsAreTransferableTest.everyScalarPreferenceIsAppliedToItsOwnField} exists for: it writes a sentinel through every constant and checks
+ * the field of that constant's own name is the one that changed.
  */
 enum SettingKey {
 
     /**
+     * The order the dashboard's day panel lists actions in.
+     */
+    ACTION_ORDER("actionOrder", user -> user.actionOrder, (user, draft) -> assignIfNamed(draft.actionOrder(), value -> user.actionOrder = value)),
+
+    /**
      * The dashboard calendar layout.
      */
-    CALENDAR_VIEW("calendarView"),
+    CALENDAR_VIEW("calendarView", user -> user.calendarView,
+        (user, draft) -> assignIfNamed(draft.calendarView(), value -> user.calendarView = value)),
 
     /**
      * The number of decimal places fractional stats render to.
      */
-    DECIMAL_PLACES("decimalPlaces"),
+    DECIMAL_PLACES("decimalPlaces", user -> String.valueOf(user.decimalPlaces),
+        (user, draft) -> assignIfNamed(draft.decimalPlaces(), value -> user.decimalPlaces = value)),
 
     /**
      * The name the account is shown under.
      */
-    DISPLAY_NAME("displayName"),
+    DISPLAY_NAME("displayName", user -> user.displayName, (user, draft) -> assignIfNamed(draft.displayName(), value -> user.displayName = value)),
 
     /**
      * The UI font family.
      */
-    FONT("font"),
+    FONT("font", user -> user.font, (user, draft) -> assignIfNamed(draft.font(), value -> user.font = value)),
 
     /**
      * The UI language, as a BCP-47 tag.
      */
-    LANGUAGE("language"),
+    LANGUAGE("language", user -> user.language, (user, draft) -> assignIfNamed(draft.language(), value -> user.language = value)),
 
     /**
      * The colour the user's day notes are shown in.
      */
-    NOTE_COLOUR("noteColour"),
+    NOTE_COLOUR("noteColour", user -> user.noteColour, (user, draft) -> assignIfNamed(draft.noteColour(), value -> user.noteColour = value)),
 
     /**
      * The general "items per page" preference every section without its own override follows.
      */
-    PAGE_SIZE("pageSize"),
+    PAGE_SIZE("pageSize", user -> String.valueOf(user.pageSize), (user, draft) -> assignIfNamed(draft.pageSize(), value -> user.pageSize = value)),
 
     /**
      * Whether the dashboard note box shows its character counter.
      */
-    SHOW_NOTE_COUNTER("showNoteCounter"),
+    SHOW_NOTE_COUNTER("showNoteCounter", user -> String.valueOf(user.showNoteCounter),
+        (user, draft) -> assignIfNamed(draft.showNoteCounter(), value -> user.showNoteCounter = value)),
 
     /**
      * Whether the dashboard renders the per-action stats-summary strip.
      */
-    SHOW_STATS_SUMMARY("showStatsSummary"),
+    SHOW_STATS_SUMMARY("showStatsSummary", user -> String.valueOf(user.showStatsSummary),
+        (user, draft) -> assignIfNamed(draft.showStatsSummary(), value -> user.showStatsSummary = value)),
 
     /**
      * The UI colour scheme.
      */
-    THEME("theme"),
+    THEME("theme", user -> user.theme, (user, draft) -> assignIfNamed(draft.theme(), value -> user.theme = value)),
 
     /**
      * The IANA timezone override, whose blank value is the explicit "follow the server default" reset.
      */
-    TIMEZONE("timezone"),
+    TIMEZONE("timezone", user -> Objects.requireNonNullElse(user.timezone, ""),
+        // Blank is the explicit reset this and WEEK_START alone have, stored as the NULL that "follow the server default"/"follow the account's
+        // language" already has exactly one representation as.
+        (user, draft) -> assignIfNamed(draft.timezone(), value -> user.timezone = value.isEmpty() ? null : value)), // NOPMD: NullAssignment
 
     /**
      * The day the dashboard calendar's week starts on, whose blank value is the explicit "follow the account's language" reset.
      */
-    WEEK_START("weekStart");
+    WEEK_START("weekStart", user -> Objects.requireNonNullElse(user.weekStart, ""),
+        (user, draft) -> assignIfNamed(draft.weekStart(), value -> user.weekStart = value.isEmpty() ? null : value)); // NOPMD: NullAssignment
 
     private final String key;
+    private final Function<User, String> reader;
+    private final BiConsumer<User, SettingsDraft> writer;
 
-    SettingKey(final String key) {
+    SettingKey(final String key, final Function<User, String> reader, final BiConsumer<User, SettingsDraft> writer) {
         this.key = key;
+        this.reader = reader;
+        this.writer = writer;
     }
 
     /**
@@ -117,6 +151,42 @@ enum SettingKey {
      */
     String key() {
         return key;
+    }
+
+    /**
+     * This setting's value as the archive writes it, read off the account.
+     *
+     * <p>
+     * A resettable preference that has not been set is written as an EMPTY value rather than being left out: the row then says "this account
+     * follows the default", which is a fact worth carrying, and reads back as the same blank reset a cleared picker submits.
+     *
+     * @param user the account to read
+     * @return the value for this setting's {@code settings.csv} row
+     */
+    String valueFor(final User user) {
+        return reader.apply(user);
+    }
+
+    /**
+     * Applies this setting to the account, where - and only where - the archive named it.
+     *
+     * <p>
+     * Nothing is deleted first: a preference is replaced in place rather than removed, so a key the file did not carry is one the file was silent
+     * about and is left exactly as it was. See {@link SettingsDraft}.
+     *
+     * @param user  the account to write
+     * @param draft the settings the archive described
+     */
+    void applyTo(final User user, final SettingsDraft draft) {
+        writer.accept(user, draft);
+    }
+
+    // Written as one helper rather than a null check per constant: the shape states the draft's contract (null is "the file did not describe this")
+    // once instead of thirteen times, and keeps each constant's writer to a single expression.
+    private static <T> void assignIfNamed(final @Nullable T value, final Consumer<T> setter) {
+        if (value != null) {
+            setter.accept(value);
+        }
     }
 
     /**

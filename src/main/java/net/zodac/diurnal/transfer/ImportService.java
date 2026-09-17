@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.function.Consumer;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.http.NotUiFacing;
 import net.zodac.diurnal.log.ActionLog;
@@ -259,34 +258,17 @@ public class ImportService {
     // importer's, exactly as an imported action is written with Action.persist rather than through ActionService. Routing an already-validated value
     // back through a validator that reports by RETURNING a rejection would also add an outcome this path has no way to reach and no way to test.
     private static void writeSettings(final User user, final SettingsDraft settings) {
-        assignIfNamed(settings.calendarView(), value -> user.calendarView = value);
-        assignIfNamed(settings.decimalPlaces(), value -> user.decimalPlaces = value);
-        assignIfNamed(settings.displayName(), value -> user.displayName = value);
-        assignIfNamed(settings.font(), value -> user.font = value);
-        assignIfNamed(settings.language(), value -> user.language = value);
-        assignIfNamed(settings.noteColour(), value -> user.noteColour = value);
-        assignIfNamed(settings.pageSize(), value -> user.pageSize = value);
-        assignIfNamed(settings.showNoteCounter(), value -> user.showNoteCounter = value);
-        assignIfNamed(settings.showStatsSummary(), value -> user.showStatsSummary = value);
-        assignIfNamed(settings.theme(), value -> user.theme = value);
-        // Blank is the explicit reset these two alone have, and is stored as the NULL that "follow the server default"/"follow the account's
-        // language" already has exactly one representation as.
-        assignIfNamed(settings.timezone(), value -> user.timezone = value.isEmpty() ? null : value); // NOPMD: NullAssignment
-        assignIfNamed(settings.weekStart(), value -> user.weekStart = value.isEmpty() ? null : value); // NOPMD: NullAssignment
+        // Every scalar setting, applied through its own SettingKey rather than enumerated here: what a setting is read from and written to is
+        // one fact, and it lives on the constant. See SettingKey.
+        for (final SettingKey setting : SettingKey.values()) {
+            setting.applyTo(user, settings);
+        }
 
         // Assigned unconditionally where the values above are not: whenever the member is present these two are the COMPLETE set, so null is "no
         // overrides"/"never customised" rather than "the file did not say". See SettingsDraft.
         user.pageSizes = settings.pageSizes();
         user.statsFields = settings.statsFields();
         user.persist();
-    }
-
-    // Written as one helper rather than a run of `if (x != null)` statements: a dozen of those in a row is an NPath the linters refuse, and the
-    // shape states the draft's contract (null is "the file did not describe this") once instead of a dozen times.
-    private static <T> void assignIfNamed(final @Nullable T value, final Consumer<T> setter) {
-        if (value != null) {
-            setter.accept(value);
-        }
     }
 
     /**
