@@ -1,6 +1,6 @@
 # Notes (free text per date)
 
-> **This file is ~119 KB. Read only the section you need** - `grep -n '^#' .claude/NOTES.md` for its
+> **This file is ~121 KB. Read only the section you need** - `grep -n '^#' .claude/NOTES.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Requirements (as agreed)**
@@ -313,6 +313,24 @@ the resize dimensions durable with no re-application.
     - **Clear** empties the box but does **not** write: the emptied note becomes an ordinary unsaved edit that the user
     then Saves (which deletes it) or Undoes, so a single click is never destructive and costs no request. It is hidden
     unless the STORED note is non-empty, and disabled once the box is already empty.
+- **Ctrl+S saves too** (Cmd+S on a Mac), as an ADDITION to the Save button rather than a replacement for it - the button
+  stays exactly as it was, and the shortcut is a second way to press it. It answers while focus is anywhere inside the
+  box (the textarea or any of its buttons), because the listener sits on `#note-panel` rather than on the textarea, and
+  it goes through the same `saveNote` the button's own click handler calls - so a clean, an unselected or an over-long
+  box sends nothing, exactly as a click on the inert button would.
+    - The browser's own "save this page" dialog is suppressed for the whole box, *including* on the occasions the save
+    is inert: a copy of the dashboard written to disk is never what the keystroke meant here, and a shortcut that does
+    something else entirely on precisely the days it cannot save is worse than one that quietly does nothing.
+    - **It is advertised by a tooltip on the Save button itself** (`partials/tooltip`, `text=msg:noteSaveShortcut`),
+    which is why that button carries `group relative`. The bubble opens only while Save is LIVE and needs no rule of
+    its own to manage that: `.note-btn-primary:disabled` already sets `pointer-events: none`, so `:hover` cannot match
+    on an inert button - and a hint offering a keystroke that would currently do nothing is worse than no hint at all.
+    `align='right'` because Save is the row's trailing button, so the bubble anchors to that edge and grows inward
+    rather than widening the card.
+    - **The hint's wording is a bundle key, not a literal**, even though all five bundles carry the same `CTRL+S` today
+    (the pseudolocale's is mechanically disguised like every other value): which legend a locale's own keyboards print
+    on that key is a translator's call. It went in through the usual chain - `AppMessages`, the four hand-written
+    bundles, then `scripts/generate-source-messages.sh` followed by `scripts/generate-pseudo-messages.sh`.
 - **Never write when nothing changed.** Save and Undo are inert unless the box is dirty (its value differs from the
   stored one), and the save handler re-checks before firing — so a stale enabled button cannot slip a no-op through
   either. Editing away and back again therefore sends nothing.

@@ -2067,6 +2067,10 @@
   color: var(--color-on-brand);
 }
 .note-btn-primary:hover { background-color: var(--color-brand-strong); }
+/* `pointer-events: none` here is load-bearing beyond the cursor: Save hosts the Ctrl+S tooltip
+   (dashboard.html), and this is what stops `:hover` matching - and so the bubble opening - while the button
+   is inert, with no rule of its own needed. Drop it and the hint starts offering a keystroke that would do
+   nothing. notes.spec.ts pins both halves. */
 .note-btn-primary:disabled, .note-btn-secondary:disabled {
   opacity: 0.5;
   cursor: not-allowed;

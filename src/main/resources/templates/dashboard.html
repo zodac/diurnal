@@ -192,7 +192,17 @@
                         </button>
                         <button type="button" id="note-clear" class="note-btn-secondary" hidden>{msg:clear}</button>
                         <button type="button" id="note-undo" class="note-btn-secondary">{msg:undo}</button>
-                        <button type="button" id="note-save" class="note-btn-primary">{msg:save}</button>
+                        {! Ctrl+S saves the note (note.js), and a shortcut nothing on screen mentions is a shortcut
+                             nobody finds - so the button doing the same thing carries the hint. `group relative` is
+                             what the shared bubble anchors to, exactly as on the Attach button above.
+                             It opens only while Save is LIVE, and needs no rule of its own to do so:
+                             `.note-btn-primary:disabled` already sets `pointer-events: none`, so `:hover` cannot match
+                             on an inert button - and a bubble offering a keystroke that would do nothing is worse than
+                             no bubble. `align='right'` because this is the row's trailing button: the bubble anchors to
+                             that edge and grows inward, so it can never widen the card. !}
+                        <button type="button" id="note-save" class="group relative note-btn-primary">{msg:save}
+                            {#include partials/tooltip text=msg:noteSaveShortcut pos='top' align='right' /}
+                        </button>
                     </div>
                 </div>
 

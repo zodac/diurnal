@@ -2543,6 +2543,16 @@ public interface AppMessages {
     @Message("Undo")
     String undo();
 
+    /**
+     * The note box's Save button carries this as a hover tooltip, naming the keyboard shortcut that does the same thing. It is a bundle key rather
+     * than a literal even though every offered language repeats the English value today: which legend a locale's own keyboards print on that key is
+     * a translator's call, not this file's.
+     *
+     * @return the default (English) text
+     */
+    @Message("CTRL+S")
+    String noteSaveShortcut();
+
     // ── Actions (actions.html) ───────────────────────────────────────────────
 
     /**

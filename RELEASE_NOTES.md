@@ -12,3 +12,7 @@
    - `MAX_ARCHIVE_SIZE` and `MAX_UPLOAD_SIZE` are used for the export archive
    - If you're trying to support large files, you should also increase:
        - `UPLOAD_READ_TIMEOUT`/`MAX_MEMORY_SIZE` and `deploy.resources.limits.memory`/`memswap_limit` in your compose file
+
+### CTRL+S to Save Note
+
+- When the note box is selected, entering **CTRL+S** on the keyboard will now save the note content

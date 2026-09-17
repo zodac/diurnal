@@ -382,55 +382,75 @@ window.Diurnal = window.Diurnal || {};
         })
     }
 
-    if (noteSaveBtn) {
-        noteSaveBtn.addEventListener('click', function () {
-            // Re-checked here and not only on the button: a save that would store exactly what is already
-            // stored is a request with no effect, and the backend would answer with the same value it holds.
-            if (noteDate === null || !noteIsDirty() || noteIsOverLimit()) {return}
-            const dateStr = noteDate
-            const content = noteInput.value
-            noteSaveBtn.disabled = true
-            setNoteStatus(window.Diurnal.i18n.saving)
-            // JSON, not a form body: a note runs to thousands of characters and Quarkus caps a form
-            // attribute at 2KB (413, before the request reaches the resource). fetch rather than htmx
-            // keeps an expected 422 off the console. See NotesInternalResource.
-            fetch(window.Diurnal.url(`/internal/notes/${  dateStr}`), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: content })
-            }).then(function (resp) {
-                requireSession(resp)
-                if (!resp.ok) {
-                    return resp.json().then(function (body) { throw new Error(body && body.message) })
-                }
-                return resp.json()
-            }).then(function (stored) {
-                noteSaved[dateStr] = stored.content
-                delete noteDrafts[dateStr]
-                persistDraft()
-                if (noteDate === dateStr) {
-                    noteInput.value = stored.content // the STORED (normalised) form, not what was typed
-                    // A save is also what collects the files the note no longer names (NoteService), so the day's
-                    // attachment cache is no longer authoritative - it is dropped and re-read.
-                    delete noteAttachments[dateStr]
-                    ensureAttachments(dateStr).then(function () {}).catch(function () {})
-                }
-                refreshNoteState()
-                renderHighlights()
-                if (noteDate === dateStr) { flashNoteStatus(window.Diurnal.i18n.saved, 'success') }
-                // The cache was just updated in place, so the grid only needs repainting — writing the first
-                // note on a day turns its number green, clearing the last one turns it back.
-                cal.noteChanged()
-            }).catch(function (err) {
-                if (noteDate !== dateStr) {return}
-                setNoteStatus('')
-                if (noteError) {
-                    noteError.innerHTML = window.Diurnal.bannerHtml(err && err.message ? err.message : window.Diurnal.i18n.couldNotSaveNote)
-                }
-                refreshNoteState()
-            })
+    // The one place a note is written, reached from the Save button and from Ctrl+S alike - so the
+    // "never save when nothing changed" re-check below is made once, however the save was asked for.
+    function saveNote() {
+        // Re-checked here and not only on the button: a save that would store exactly what is already
+        // stored is a request with no effect, and the backend would answer with the same value it holds.
+        if (noteDate === null || !noteIsDirty() || noteIsOverLimit()) {return}
+        const dateStr = noteDate
+        const content = noteInput.value
+        // Guarded like every other touch of the button in this module: Ctrl+S can reach a save with no button rendered.
+        if (noteSaveBtn) { noteSaveBtn.disabled = true }
+        setNoteStatus(window.Diurnal.i18n.saving)
+        // JSON, not a form body: a note runs to thousands of characters and Quarkus caps a form
+        // attribute at 2KB (413, before the request reaches the resource). fetch rather than htmx
+        // keeps an expected 422 off the console. See NotesInternalResource.
+        fetch(window.Diurnal.url(`/internal/notes/${  dateStr}`), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content })
+        }).then(function (resp) {
+            requireSession(resp)
+            if (!resp.ok) {
+                return resp.json().then(function (body) { throw new Error(body && body.message) })
+            }
+            return resp.json()
+        }).then(function (stored) {
+            noteSaved[dateStr] = stored.content
+            delete noteDrafts[dateStr]
+            persistDraft()
+            if (noteDate === dateStr) {
+                noteInput.value = stored.content // the STORED (normalised) form, not what was typed
+                // A save is also what collects the files the note no longer names (NoteService), so the day's
+                // attachment cache is no longer authoritative - it is dropped and re-read.
+                delete noteAttachments[dateStr]
+                ensureAttachments(dateStr).then(function () {}).catch(function () {})
+            }
+            refreshNoteState()
+            renderHighlights()
+            if (noteDate === dateStr) { flashNoteStatus(window.Diurnal.i18n.saved, 'success') }
+            // The cache was just updated in place, so the grid only needs repainting — writing the first
+            // note on a day turns its number green, clearing the last one turns it back.
+            cal.noteChanged()
+        }).catch(function (err) {
+            if (noteDate !== dateStr) {return}
+            setNoteStatus('')
+            if (noteError) {
+                noteError.innerHTML = window.Diurnal.bannerHtml(err && err.message ? err.message : window.Diurnal.i18n.couldNotSaveNote)
+            }
+            refreshNoteState()
         })
     }
+
+    if (noteSaveBtn) {
+        noteSaveBtn.addEventListener('click', saveNote)
+    }
+
+    // Ctrl+S (Cmd+S on a Mac) saves while the box has focus - the shortcut every text editor answers to, and
+    // the note is the one field in the app holding writing long enough to want one. Bound to the PANEL rather
+    // than the textarea so it works wherever focus sits inside the box: the textarea, Save, Undo or Clear.
+    //
+    // The browser's own "save this page" dialog is suppressed for the whole box, including when saveNote is
+    // inert (nothing selected, nothing changed, or over the bound): a copy of the dashboard on disk is never
+    // what the keystroke meant here, and a shortcut that does something else entirely on exactly the days it
+    // cannot save is worse than one that quietly does nothing.
+    notePanel.addEventListener('keydown', function (ev) {
+        if (ev.key !== 's' && ev.key !== 'S') {return}
+        if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) {return}
+        ev.preventDefault()
+        saveNote()
+    })
 
     // Undo throws the unsaved edit away and repaints from what the server holds.
     if (noteUndoBtn) {
