@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.stats;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_COLOUR;
 import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static net.zodac.diurnal.DummyValues.OTHER_DUMMY_UUID;
 import static net.zodac.diurnal.DummyValues.THIRD_DUMMY_UUID;
@@ -29,6 +30,8 @@ import org.junit.jupiter.api.Test;
 
 class FrequencyChartExtensionsTest {
 
+    private static final List<StatSubject> SOMETHING_LEFT_TO_ADD = List.of(StatSubject.notes(DUMMY_COLOUR));
+
     private static FrequencyChart chartOf(final UUID... actionIds) {
         final List<FrequencySeries> series = Stream.of(actionIds)
             .map(id -> new FrequencySeries(id, "Action", "#64748b", 1L, !id.equals(actionIds[0])))
@@ -38,18 +41,25 @@ class FrequencyChartExtensionsTest {
 
     @Test
     void canCompare_belowTheLimit_offersThePicker() {
-        assertThat(FrequencyChartExtensions.canCompare(chartOf(DUMMY_UUID)))
+        assertThat(FrequencyChartExtensions.canCompare(chartOf(DUMMY_UUID), SOMETHING_LEFT_TO_ADD))
             .as("one charted action leaves room for two more")
             .isTrue();
-        assertThat(FrequencyChartExtensions.canCompare(chartOf(DUMMY_UUID, OTHER_DUMMY_UUID)))
+        assertThat(FrequencyChartExtensions.canCompare(chartOf(DUMMY_UUID, OTHER_DUMMY_UUID), SOMETHING_LEFT_TO_ADD))
             .as("two charted actions leave room for one more")
             .isTrue();
     }
 
     @Test
     void canCompare_atTheLimit_hidesThePicker() {
-        assertThat(FrequencyChartExtensions.canCompare(chartOf(DUMMY_UUID, OTHER_DUMMY_UUID, THIRD_DUMMY_UUID)))
+        assertThat(FrequencyChartExtensions.canCompare(chartOf(DUMMY_UUID, OTHER_DUMMY_UUID, THIRD_DUMMY_UUID), SOMETHING_LEFT_TO_ADD))
             .as("a full chart must not offer to add a fourth action")
+            .isFalse();
+    }
+
+    @Test
+    void canCompare_nothingLeftToOffer_hidesThePicker() {
+        assertThat(FrequencyChartExtensions.canCompare(chartOf(DUMMY_UUID), List.of()))
+            .as("with everything logged already charted, the picker could only ever say 'nothing else to compare'")
             .isFalse();
     }
 

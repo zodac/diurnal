@@ -18,6 +18,7 @@
 package net.zodac.diurnal.stats;
 
 import io.quarkus.qute.TemplateExtension;
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -32,15 +33,17 @@ public final class FrequencyChartExtensions {
     }
 
     /**
-     * Whether the chart has room for another action, i.e. whether the "Compare to..." control should be offered at all. Note this only says the chart
-     * is not full; the picker itself reports when there is nothing left to add.
+     * Whether the "Compare to..." control should be offered at all: the chart must have room for another subject, AND there must be a subject left to
+     * offer. Both halves are needed - a chart can be under the limit and still have nothing to add, when everything the user has logged is already on
+     * it (a brand-new account with one action is the common case), and a control whose only possible answer is "nothing else to compare" is noise.
      *
      * @param chart the chart
-     * @return {@code true} when fewer than {@link FrequencyCharts#MAX_SERIES} actions are charted
+     * @param candidates the subjects the picker could still offer, unfiltered
+     * @return {@code true} when fewer than {@link FrequencyCharts#MAX_SERIES} subjects are charted and at least one candidate remains
      */
     @TemplateExtension
-    public static boolean canCompare(final FrequencyChart chart) {
-        return chart.series().size() < FrequencyCharts.MAX_SERIES;
+    public static boolean canCompare(final FrequencyChart chart, final List<StatSubject> candidates) {
+        return chart.series().size() < FrequencyCharts.MAX_SERIES && !candidates.isEmpty();
     }
 
     /**

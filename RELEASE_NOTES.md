@@ -21,6 +21,7 @@
 
 - The export archive now also includes a user's settings, in addition to actions/notes/attachments
 
-### Graph Over All Time
+### Statistics Graphing
 
 - Added the option to graph stats over all time, grouping stats by year
+- Hiding the `Compare to...` option when there are no more stats available to compare with

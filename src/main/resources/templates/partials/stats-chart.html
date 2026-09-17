@@ -15,7 +15,7 @@
 
   Params:
     chart      — the FrequencyChart to draw (required)
-    candidates — the actions the compare picker may offer (required; may be empty)
+    candidates — the subjects the compare picker may offer (required; empty hides the picker entirely)
 !}
 {! The shown period/window/comparisons are echoed onto the wrapper under DISTINCT attribute names from
      the buttons' own data-chart-period/data-chart-at, so stats.js's delegated `closest(...)` lookups can
@@ -72,7 +72,8 @@
         {/let}
         {/for}
 
-        {#if chart.canCompare}
+        {! Offered only when the chart has room AND something is left to add — see FrequencyChartExtensions.canCompare. !}
+        {#if chart.canCompare(candidates)}
         <button type="button" class="chart-compare-btn" data-chart-compare-open aria-expanded="false"
                 aria-controls="chart-compare-panel">
             {#include partials/icon name='plus' cls='chart-compare-glyph' /}
@@ -81,7 +82,7 @@
         {/if}
     </div>
 
-    {#if chart.canCompare}
+    {#if chart.canCompare(candidates)}
     {! The picker starts collapsed and is revealed by stats.js; only the LIST inside it is swapped as the
          user types, so the search box keeps focus and its caret across a keystroke. The hx-get URL
          already carries the currently-charted comparisons, so an action on the graph is never offered. !}

@@ -1,6 +1,6 @@
 # Front-end: Build, Assets, CSS & Calendar
 
-> **This file is ~76 KB. Read only the section you need** - `grep -n '^#' .claude/FRONTEND.md` for its
+> **This file is ~77 KB. Read only the section you need** - `grep -n '^#' .claude/FRONTEND.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **CSS build & colour tokens**
@@ -756,8 +756,13 @@ compare picker's search box arrives inside the fragment and would otherwise neve
 - **Compare picker**: `Compare to...` reveals `#chart-compare-panel`, whose search box reuses
   `partials/search-input.html` to HTMX-swap **only** `#chart-candidate-list` (so the box keeps focus/caret across a
   keystroke). It offers the user's actions that have **≥1 logged entry**, are not already charted, and match the
-  term; `FrequencyChartExtensions.candidatesUrl` bakes the current comparisons into its `hx-get` so a charted action
-  is never re-offered.
+  term; `FrequencyChartExtensions.candidatesQuery` bakes the current comparisons into its `hx-get` so a charted
+  action is never re-offered.
+- **The control itself is drawn only when it could do something** (`FrequencyChartExtensions.canCompare`): the chart
+  must be under `MAX_SERIES` **and** at least one candidate must remain. An account whose only logged subject is the
+  one being charted gets no "Compare to..." button and no panel at all, rather than a control that can only answer
+  "Nothing else to compare." That empty state still exists, but is now reachable only through the SEARCH swap — a
+  term matching nothing — since the copy embedded with the chart is never rendered empty.
 - **Validation is in the service, not the surfaces** (`StatsService.frequency` → sealed `FrequencyResult`), so the
   page and `GET /api/v1/stats/{subjectId}/frequency?compare=…` accept exactly the same selections. Nothing is
   coerced: an unrecognised `period`, a malformed `at` key, >3 actions, a repeated action, and a never-logged

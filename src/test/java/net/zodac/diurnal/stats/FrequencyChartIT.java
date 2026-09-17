@@ -420,6 +420,8 @@ class FrequencyChartIT extends IntegrationTestBase {
         runInTx(() -> {
             newLog(primaryId, second.id, TODAY, 1);
             newLog(primaryId, third.id, TODAY, 1);
+            // Logged but not charted, so the picker still has something to offer: the series limit is the ONLY reason it is withheld here.
+            newLog(primaryId, fourth.id, TODAY, 1);
         });
 
         given().queryParam("compare", second.id.toString()).queryParam("compare", third.id.toString())
@@ -436,6 +438,18 @@ class FrequencyChartIT extends IntegrationTestBase {
                 .then().statusCode(OK)
                 .body(containsString("Compare to..."))
                 .body(containsString("chart-compare-panel"));
+    }
+
+    @Test
+    void chartFragment_nothingLeftToCompare_hidesThePicker() {
+        // The graph's own action is the only subject with an entry - the other actions have never been logged and the user has no notes - so the
+        // picker could only ever answer "nothing else to compare", and is withheld rather than offered empty.
+        runInTx(() -> newLog(primaryId, action.id, TODAY, 4));
+
+        given().get("/internal/stats/chart/" + action.id)
+                .then().statusCode(OK)
+                .body(not(containsString("Compare to...")))
+                .body(not(containsString("chart-compare-panel")));
     }
 
     // ── Compare picker ──────────────────────────────────────────────────────
