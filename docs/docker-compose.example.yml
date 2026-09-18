@@ -11,7 +11,7 @@ networks:
 services:
 
   diurnal:
-    image: zodac/diurnal:1.0.6
+    image: zodac/diurnal:1.1.0
     container_name: diurnal
     hostname: diurnal
     cap_drop:
