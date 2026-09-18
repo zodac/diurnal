@@ -1068,7 +1068,9 @@ function resolveChromiumExecutable() {
   if (wantDocs) {fs.mkdirSync(SHOTS, { recursive: true })}
   // Extra Chromium flags via PW_CHROMIUM_ARGS (space-separated). Used by the in-image build
   // (Dockerfile screenshots stage) to pass `--no-sandbox`, since Chromium refuses to run as root
-  // without it; a normal local run leaves it empty (sandbox on).
+  // without it, and `--disable-gpu`, since a crash-looping GPU process inside a container hangs
+  // `newPage()` indefinitely (see run-screenshot-build.sh for the release it stalled). A normal local
+  // run leaves it empty (sandbox on, and a desktop Chromium has a GPU worth using).
   const launchArgs = (process.env.PW_CHROMIUM_ARGS || '').split(' ').filter(Boolean)
 
   const resolved = resolveChromiumExecutable()

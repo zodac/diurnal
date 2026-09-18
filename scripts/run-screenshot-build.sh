@@ -217,8 +217,17 @@ cd "${GEN_DIR}"
 # ending mid-capture and nothing saying why. 900s is roughly 6x the observed `all` runtime on a CI
 # runner, so it only ever fires on a genuine hang. The app log is dumped either way, since a stall is
 # usually visible there (an OIDC discovery retry loop, a connection that never completes).
+#
+# --no-sandbox: Chromium refuses to run as root without it, and this stage is root.
+# --disable-gpu: a Chromium GPU process that crash-loops inside a container takes `newPage()` down with
+# it, and THAT call carries no Playwright timeout - so the run hangs until the cap above fires. Release
+# 1.1.0's first attempt stalled exactly there (run 102, `browserContext.newPage` in shotLanguageDropdown,
+# 800s of silence for a 121s capture), while the same commit built green locally; the flag is the
+# documented mitigation (playwright#4761). Nothing here wants a GPU - every shot is software-rastered
+# either way, and the captured set is byte-identical with the flag but for the two shots that carry a
+# wall-clock value and so differ between any two runs.
 gen_status=0
-TEST_DB_HOST=127.0.0.1 PW_CHROMIUM_ARGS="--no-sandbox" BASE_URL="http://127.0.0.1:8080" \
+TEST_DB_HOST=127.0.0.1 PW_CHROMIUM_ARGS="--no-sandbox --disable-gpu" BASE_URL="http://127.0.0.1:8080" \
   timeout --kill-after=30s 900 node scripts/generate-screenshots.cjs "${gen_mode}" || gen_status=$?
 
 if [[ "${gen_status}" -ne 0 ]]; then
