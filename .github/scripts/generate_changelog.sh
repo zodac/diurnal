@@ -30,8 +30,13 @@ git log "${log_range}" --pretty=format:"%h %s" | while read -r commit_hash subje
 
     case "${subject}" in
         \[*\]\ *)
-            # "[Category] message" — extract both halves.
-            category=$(printf '%s' "${subject}" | sed -n 's/^\[\([A-Za-z0-9_.-]*\)\] .*/\1/p')
+            # "[Category] message" — extract both halves, both with the same [^]] rule the `case` above
+            # and .hooks/commit-msg.sh use ("^\[[^]]+\] .+"). A spelled-out allow-list here instead is what
+            # sent every "[Export/Import]" commit to Uncategorised in the 1.1.0 notes: the `case` accepted
+            # the subject, the class had no '/', the sed printed nothing, and the empty category fell
+            # through to the fallback below with nothing saying why. Any category the commit hook lets
+            # through must land in its own section.
+            category=$(printf '%s' "${subject}" | sed -n 's/^\[\([^]]*\)\] .*/\1/p')
             message=$(printf '%s' "${subject}" | sed -n 's/^\[[^]]*\] \(.*\)/\1/p')
             ;;
         *)
@@ -63,7 +68,10 @@ if [ -z "${categories_sorted}" ]; then
     printf -- '- No notable changes\n' >"${tmp_output}"
 else
     {
-        for category in ${categories_sorted}; do
+        # Read line by line rather than `for category in ${categories_sorted}`: that form splits on IFS,
+        # so a category carrying a space - which commit-msg.sh accepts just as readily as a slash - would
+        # become two section headings, each matching no commit, and the commit under it would vanish.
+        printf '%s\n' "${categories_sorted}" | while IFS= read -r category; do
             printf '**[%s]**\n' "${category}"
             awk -F"${US}" -v cat="${category}" -v repo="${GIT_REPO_URL}" '
                 $1 == cat {
