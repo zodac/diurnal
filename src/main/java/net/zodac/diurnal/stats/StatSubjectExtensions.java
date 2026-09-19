@@ -37,10 +37,10 @@ public final class StatSubjectExtensions {
      * word in the second.
      *
      * <p>
-     * The asymmetry is the point, and is the reason this is not simply {@code StatSubject#name()}: an action's name is the user's own text, which is
-     * never translated, while the notes subject's name is app chrome, which always is. Only a template can resolve the translated half (a Java-side
-     * {@code AppMessages} call is always English - see that interface's own class Javadoc), so the Java half's job is limited to saying which of the
-     * two a given subject is. {@code StatSubject#name()} keeps the English word for the public API, whose JSON stays English throughout.
+     * The asymmetry is the point, and is why this is not simply {@code StatSubject#name()}: an action's name is the user's own text, never
+     * translated, while the notes subject's name is app chrome, always translated. Only a template can resolve the translated half (a Java-side
+     * {@code AppMessages} call is always English - see that interface's own class Javadoc), so the Java half's job is limited to saying which of
+     * the two a given subject is. {@code StatSubject#name()} keeps the English word for the public API, whose JSON stays English throughout.
      *
      * @param subject the subject to inspect
      * @return the action's name, or {@code null} when the subject is the notes subject

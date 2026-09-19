@@ -23,12 +23,12 @@ package net.zodac.diurnal.persistence;
  * than editing the entity.
  *
  * <p>
- * Only genuinely vendor-specific statements live here, and the set is deliberately as small as it can be made: two upserts and a bulk write, whose
- * {@code ON CONFLICT} spelling differs per vendor, plus one probe whose {@code LATERAL} shape exists to force a particular plan. Everything JPQL can
- * express stays in {@code ActionLogQueries} beside the entity, because Hibernate already renders it for whichever dialect is configured and
- * duplicating it per vendor would be a portability cost rather than a portability gain. The decrement's row lock is JPQL's too, through
- * {@link jakarta.persistence.LockModeType#PESSIMISTIC_WRITE} - Hibernate knows each dialect's locking clause, so a statement for it here would be a
- * vendor spelling the ORM already owns.
+ * Only genuinely vendor-specific statements live here, kept deliberately small: two upserts and a bulk write, whose {@code ON CONFLICT} spelling
+ * differs per vendor, plus one probe whose {@code LATERAL} shape exists to force a particular plan. Everything JPQL can express stays in
+ * {@code ActionLogQueries} beside the entity, since Hibernate already renders it for whichever dialect is configured and duplicating it per vendor
+ * would cost portability rather than gain it. The decrement's row lock is JPQL's too, through
+ * {@link jakarta.persistence.LockModeType#PESSIMISTIC_WRITE} - Hibernate knows each dialect's locking clause, so a statement for it here would only
+ * duplicate a vendor spelling the ORM already owns.
  *
  * <p>
  * <strong>Every implementation must use the same {@code :named} placeholders</strong>, which are declared once as typed
@@ -79,9 +79,9 @@ public interface LogStatements {
      * The bulk arm of {@link #assignCountUpsert()}, writing many days' counts for one user in a single statement for the data import.
      *
      * <p>
-     * The rows arrive as three parallel arrays rather than as a generated {@code VALUES} list, which is what keeps the statement text - and so its
-     * parameter set - fixed however many rows are written; a generated list would put the placeholder names beyond both the typed
-     * {@link QueryParameter} tokens and the test that pins them. Empty arrays must be a clean no-op rather than a malformed statement.
+     * The rows arrive as three parallel arrays rather than as a generated {@code VALUES} list, keeping the statement text - and so its parameter
+     * set - fixed regardless of row count; a generated list would put the placeholder names beyond both the typed {@link QueryParameter} tokens
+     * and the test that pins them. Empty arrays must be a clean no-op rather than a malformed statement.
      *
      * <p>
      * Declares {@code :userId}, {@code :actionIdArray}, {@code :dateArray}, {@code :countArray} and {@code :now}.

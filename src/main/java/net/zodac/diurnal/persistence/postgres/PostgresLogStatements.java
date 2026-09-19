@@ -66,8 +66,8 @@ public class PostgresLogStatements implements LogStatements {
      * {@code MIN} into each branch of the nested loop, so it reads every row the actions own - measured 32.3 ms at 182,600 rows. Asked once per
      * action, each branch becomes PostgreSQL's {@code MIN}/{@code MAX} index optimisation - an {@code Index Only Scan} taking the FIRST entry of
      * that action's range in {@code action_logs_pkey} and stopping - so the whole statement is one index probe per action: 0.33 ms for 50 of them,
-     * and a chart may hold at most {@code FrequencyCharts.MAX_SERIES} subjects. The cost is the number of actions charted and does not grow with
-     * history at all, which is the property the previous approach lacked.
+     * and a chart may hold at most {@code FrequencyCharts.MAX_SERIES} subjects. The cost tracks the number of actions charted, not history size -
+     * the property the previous approach lacked.
      *
      * @return the statement text
      */
@@ -98,9 +98,9 @@ public class PostgresLogStatements implements LogStatements {
      *
      * <p>
      * {@code unnest} zips the three arrays into rows, and an empty set of arrays is a clean no-op rather than a malformed statement. A 3-year
-     * archive is ~33,000 entries, which as one statement per row was ~33,000 round trips; measured on a real connection at that size, 3,628 ms
-     * became 812 ms. The {@code ON CONFLICT} arm is the same last-write-wins rule the single-row form uses, and cannot be reached twice for one key
-     * here because {@code ImportParser} has already refused the archive over {@code DuplicateLog}.
+     * archive is ~33,000 entries - one statement per row would be ~33,000 round trips; measured on a real connection at that size, 3,628 ms became
+     * 812 ms. The {@code ON CONFLICT} arm is the same last-write-wins rule the single-row form uses, and cannot be reached twice for one key here
+     * because {@code ImportParser} has already refused the archive over {@code DuplicateLog}.
      *
      * @return the statement text
      */

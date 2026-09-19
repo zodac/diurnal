@@ -51,22 +51,21 @@ import org.jspecify.annotations.Nullable;
  * members of one ZIP, plus one entry per attached file.
  *
  * <p>
- * <strong>The archive holds notes in the clear.</strong> They are encrypted at rest and are opened here to be written out, which is the entire
- * point of an export - a file the user cannot read is not their data. What follows from that is a rule rather than a caveat: the downloaded file
- * has none of the protection the database column has, so the UI says so plainly beside the button, and nothing on this path may log a note's
- * content (see {@code SecretsStayOutOfLogsTest}, which guards this package for exactly that reason).
+ * <strong>The archive holds notes in the clear.</strong> They are encrypted at rest and opened here to be written out - the entire point of an
+ * export, since a file the user cannot read is not their data. What follows is a rule, not a caveat: the downloaded file has none of the protection
+ * the database column has, so the UI says so plainly beside the button, and nothing on this path may log a note's content (see
+ * {@code SecretsStayOutOfLogsTest}, which guards this package for exactly that reason).
  *
  * <p>
  * A note that cannot be opened is <strong>omitted</strong> rather than failing the export, which is
  * {@link NoteService#readContents(UUID, List)}'s own rule: one damaged row must not deny someone the other ten years of their journal.
  *
  * <p>
- * <strong>The archive is built whole, in memory</strong>, which is what bounds how big an account's export can usefully be. Both free-form members
- * size it: {@code notes.csv} at (notes held) x {@code NOTE_MAX_LENGTH}, and the attachments at (files held) x {@code MAX_ATTACHMENT_SIZE}. An
- * account
- * whose export exceeds the deployment's {@code MAX_ARCHIVE_SIZE} still downloads, but cannot be re-imported - the same accepted limit
+ * <strong>The archive is built whole, in memory</strong>, which bounds how big an account's export can usefully be. Both free-form members size it:
+ * {@code notes.csv} at (notes held) x {@code NOTE_MAX_LENGTH}, and the attachments at (files held) x {@code MAX_ATTACHMENT_SIZE}. An account whose
+ * export exceeds the deployment's {@code MAX_ARCHIVE_SIZE} still downloads, but cannot be re-imported - the same accepted limit
  * {@code TransferArchive.MAX_MEMBER_BYTES} already documents for the notes member, now reachable by a second route. That is also why the Settings
- * card offers to leave attachments OUT: an account whose files are what push it over the line can still take a text-only backup that imports. See
+ * card offers to leave attachments OUT: an account whose files push it over the line can still take a text-only backup that imports. See
  * {@code TRANSFER.md}.
  *
  * <p>

@@ -33,7 +33,7 @@ import net.zodac.diurnal.web.HtmxResponses;
 /**
  * The two things every admin-console surface needs and neither owns: the banner wording shared by the users list and the IP-lockout table, and the
  * timestamp format both of their date cells render in. Both were previously written out once per resource — identically, with the second copy's
- * comment pointing at the first — which is exactly the shape that lets an admin read two tables on the same page formatted two different ways.
+ * comment pointing at the first — the shape that lets an admin read two tables on the same page formatted two different ways.
  */
 @ApplicationScoped
 public class AdminConsole {
@@ -78,7 +78,7 @@ public class AdminConsole {
     /**
      * The format every admin-console timestamp is rendered in, localised for the viewing administrator like every other date the app renders: a fixed
      * {@code "yyyy-MM-dd HH:mm"} in {@code Locale.ROOT} pinned the field order, forced 24-hour regardless of the language's own hour cycle, and
-     * emitted ASCII digits on a page whose every other number was in the language's own glyphs. MEDIUM (not SHORT) for the date, because SHORT
+     * emitted ASCII digits where every other number on the page uses the language's own glyphs. MEDIUM (not SHORT) for the date, since SHORT
      * abbreviates the year to two digits and "9/5/26" reads as two different days in en-GB and en-US - an admin comparing this against a log needs it
      * unambiguous.
      *

@@ -37,28 +37,26 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * Each entry maps a stable {@link #key()} (persisted in {@code users.stats_fields} and posted by the settings form) to its display {@link #label()}.
- * Declaration order is the default display order: the two dates first, then the streak/gap pairs, the totals, the multiples pair, the bests, the
- * averages, and finally the period-on-period comparisons. It only applies to users who have never customised their arrangement - a stored
- * arrangement always wins, and a field missing from one is appended at the end. {@link #LAST_PERFORMED} is {@link #mandatory()}: a user may reorder
- * it but never remove it.
+ * Declaration order is the default display order: two dates first, then the streak/gap pairs, totals, the multiples pair, bests, averages, and
+ * finally period-on-period comparisons - it applies only to users who have never customised their arrangement, since a stored arrangement always
+ * wins and a field missing from one is appended at the end. {@link #LAST_PERFORMED} is {@link #mandatory()}: reorderable but never removable.
  *
  * <p>
- * <strong>A key is permanent; a label is not.</strong> Keys are stored per user, so renaming a stat only ever changes its {@code label} - which is
- * why {@link #LONGEST_GAP} still keys on {@code biggest-gap} and {@link #WEEKLY_DAY_AVERAGE} on {@code weekly-average}. Changing a key instead would
+ * <strong>A key is permanent; a label is not.</strong> Keys are stored per user, so renaming a stat only changes its {@code label} - why
+ * {@link #LONGEST_GAP} still keys on {@code biggest-gap} and {@link #WEEKLY_DAY_AVERAGE} on {@code weekly-average}. Changing a key instead would
  * drop that stat from every stored arrangement (it re-appears appended at the end, enabled), silently reshuffling everyone's page.
  *
  * <p>
- * The label declared here is only the DEFAULT caption: a user may rename any stat, which stores their wording against the key (see
- * {@link net.zodac.diurnal.user.StatFieldPref}) and is resolved back into the caption by {@link #displayFields(List)} / {@link #choices(List)}. A
- * rename is display-only and per user, so relabelling a constant here still re-captions the stat for everyone who has NOT renamed it.
+ * The label declared here is only the DEFAULT caption: a user may rename any stat, storing their wording against the key (see
+ * {@link net.zodac.diurnal.user.StatFieldPref}), resolved back into the caption by {@link #displayFields(List)} / {@link #choices(List)}. A rename
+ * is display-only and per user, so relabelling a constant here still re-captions the stat for everyone who has NOT renamed it.
  *
  * <p>
- * <strong>Adding a new stat:</strong> any newly-computed statistic that should be user-visible on the Stats page MUST be registered here as a new
- * constant AND given a tile mapping in {@link SubjectStatsExtensions#tiles(SubjectStats, List, int, String)} — otherwise it will never appear in
- * the picker or on the page. Two template arms are needed on top of that, keyed on the new {@link #key()}: one in
- * {@code partials/stat-tile-row.html} for the tile's own translated caption, and one in {@code settings.html} for its picker row. A Qute
- * {@code {#switch}} with no matching arm renders NOTHING and fails no build, so a missing arm ships a silently blank stat — pin both with a
- * rendering assertion, the way {@code StatsResourceIT} does.
+ * <strong>Adding a new stat:</strong> any newly-computed statistic that should be user-visible MUST be registered here as a new constant AND given
+ * a tile mapping in {@link SubjectStatsExtensions#tiles(SubjectStats, List, int, String)}, or it never appears in the picker or on the page. Two
+ * template arms are also needed, keyed on the new {@link #key()}: one in {@code partials/stat-tile-row.html} for the tile's translated caption, one
+ * in {@code settings.html} for its picker row. A Qute {@code {#switch}} with no matching arm renders NOTHING and fails no build, so a missing arm
+ * ships a silently blank stat - pin both with a rendering assertion, as {@code StatsResourceIT} does.
  */
 public enum StatField {
 

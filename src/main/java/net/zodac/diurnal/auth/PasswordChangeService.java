@@ -35,20 +35,20 @@ import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The single owner of a user changing their own password — the local-account guard, the current-password proof, the new-password rules, the Argon2id
- * re-hash and the "sign out every other device" revocation — shared by the Settings page ({@code SettingsWebResource}) and the REST API's
- * {@code PUT /api/v1/users/me/password} ({@code UserResource}), so a rule added or changed here applies to both surfaces by construction (the
- * {@link AuthenticationService} pattern). The resources only translate the returned {@link PasswordChangeResult} into their medium.
+ * The single owner of a user changing their own password — the local-account guard, current-password proof, new-password rules, Argon2id re-hash
+ * and "sign out every other device" revocation — shared by the Settings page ({@code SettingsWebResource}) and {@code PUT /api/v1/users/me/password}
+ * ({@code UserResource}), so a rule change here applies to both by construction (the {@link AuthenticationService} pattern); each resource only
+ * translates the returned {@link PasswordChangeResult} into its medium.
  *
  * <p>
- * The caller must prove knowledge of the existing password — this is what stops a hijacked session from silently taking over the account. There is
+ * The caller must prove knowledge of the existing password — this stops a hijacked session from silently taking over the account. There is
  * deliberately <b>no</b> lockout on failures here: an already-authenticated user changing their OWN password gets unlimited attempts, wholly separate
  * from the per-IP login/registration lockout ({@link IpThrottle}) — a mismatch never consults nor feeds that shared counter, so failed password
  * changes can never lock the IP out of logging in or registering, and vice versa. The {@code WARN} on a mismatch is an audit trail only.
  *
  * <p>
  * Transaction discipline: the deliberately expensive Argon2id work (the current-password proof and the new hash) runs OUTSIDE any database
- * transaction, so no pooled connection sits idle for the duration of a hash. The hash write and the other-session revocation share the one short
+ * transaction, so no pooled connection sits idle for a hash's duration. The hash write and other-session revocation share the one short
  * service-owned transaction of {@link #applyChange(java.util.UUID, String, String)} — callers must NOT be {@code @Transactional}, or the hashing
  * would run inside their transaction again.
  */

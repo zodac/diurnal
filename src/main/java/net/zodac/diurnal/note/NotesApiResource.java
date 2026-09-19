@@ -43,6 +43,7 @@ import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.log.DateRanges;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.openapi.ApiPages;
+import net.zodac.diurnal.openapi.responses.UnauthenticatedApiResponse;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
@@ -148,7 +149,7 @@ public class NotesApiResource {
     @APIResponse(responseCode = "400", description = "Only one of 'start' and 'end' was given, or one of them is not a valid ISO-8601 date, or "
         + "the requested page is out of range.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     public Response notes(
         @Parameter(name = "start", in = ParameterIn.QUERY,
         description = "Inclusive start of the range, as an ISO-8601 date (yyyy-MM-dd); only the date part is used. Omit together with 'end' "
@@ -271,7 +272,7 @@ public class NotesApiResource {
     @APIResponse(responseCode = "304", description = "Not modified: the day is unchanged since the ETag in the 'If-None-Match' request header, "
         + "so no body is returned.")
     @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date.")
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     @APIResponse(responseCode = "404", description = "The day has no note.")
     public Response note(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to read, as yyyy-MM-dd.",
@@ -322,7 +323,7 @@ public class NotesApiResource {
     @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date, or the content is too long or holds invisible or "
         + "text-direction characters.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     public Response writeNote(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to write, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -359,7 +360,7 @@ public class NotesApiResource {
     @APIResponse(responseCode = "204", description = "The note was removed (or did not exist).")
     @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     public Response deleteNote(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to clear, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))

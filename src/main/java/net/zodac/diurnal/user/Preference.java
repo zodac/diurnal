@@ -34,10 +34,9 @@ import java.lang.annotation.Target;
  * silently drift out of sync with the entity again.
  *
  * <p>
- * <strong>The same marker is what puts a preference into the export archive</strong>, and it does so by DEFAULT - see {@link #archive()}. A bare
- * {@code @Preference} means "one {@code settings.csv} row, keyed by this field's name", and {@code SettingsAreTransferableTest} fails until the
- * three places that row passes through exist. Leaving a preference out of the archive is therefore a deliberate, declared act rather than something
- * that can happen by forgetting.
+ * <strong>The same marker puts a preference into the export archive</strong>, by DEFAULT - see {@link #archive()}. A bare {@code @Preference} means
+ * "one {@code settings.csv} row, keyed by this field's name", and {@code SettingsAreTransferableTest} fails until the three places that row passes
+ * through exist - leaving a preference out of the archive is a deliberate, declared act, never something that happens by forgetting.
  */
 @Documented
 @Target(ElementType.FIELD)

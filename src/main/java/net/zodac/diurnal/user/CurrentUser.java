@@ -34,8 +34,8 @@ import java.util.UUID;
  * <p>
  * On a read-only endpoint this normally issues no statement at all: session authentication has already loaded the account into the request-scoped
  * persistence context (see {@code PostgresSessionStore.resolve}), so the by-primary-key lookup here — and every later one in the same request — is
- * answered from Hibernate's first-level cache. A {@code @Transactional} endpoint runs in its own persistence context, so there the first call does
- * read the row and the ones after it are the cache hits.
+ * answered from Hibernate's first-level cache. A {@code @Transactional} endpoint runs in its own persistence context, so there the first call reads
+ * the row and the rest are cache hits.
  */
 @ApplicationScoped
 public class CurrentUser {

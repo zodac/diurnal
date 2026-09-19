@@ -73,22 +73,21 @@ public final class TextRules { // NOPMD: DataClass - a catalogue of rule constan
      * </ul>
      *
      * <p>
-     * The reason is that two different values must never render identically: {@code ad<ZWSP>min} is stored as a different name from {@code admin} but
-     * is indistinguishable from it on screen, so it defeats the duplicate-name check and can be used to impersonate. A bidirectional override goes
-     * further and reverses the text after it, so a name can be made to display as something other than what it is. A name made ONLY of these would
-     * pass every length check while showing nothing at all.
+     * Two different values must never render identically: {@code ad<ZWSP>min} is stored as a different name from {@code admin} but looks the same
+     * on screen, defeating the duplicate-name check and enabling impersonation. A bidirectional override goes further, reversing the text after it
+     * so a name displays as something it is not. A name made ONLY of these would pass every length check while showing nothing at all.
      *
      * <p>
-     * The two JOINERS - zero-width joiner (U+200D) and zero-width non-joiner (U+200C) - are the deliberate exception, because both are real
-     * orthography rather than a trick: the joiner binds the parts of a multi-person emoji, and the non-joiner is a MANDATORY letter in Persian, Urdu
-     * and Pashto (the everyday word {@code piyade-ravi} is misspelled without it). They are accepted only where they do that job - BETWEEN two other
-     * characters, neither of which is a space or itself invisible - so a leading, trailing, doubled or space-adjacent joiner is still rejected as the
-     * invisible padding it is.
+     * The two JOINERS - zero-width joiner (U+200D) and zero-width non-joiner (U+200C) - are the deliberate exception: both are real orthography,
+     * not a trick. The joiner binds the parts of a multi-person emoji; the non-joiner is a MANDATORY letter in Persian, Urdu and Pashto (the
+     * everyday word {@code piyade-ravi} is misspelled without it). Both are accepted only where they do that job - BETWEEN two other characters,
+     * neither a space nor itself invisible - so a leading, trailing, doubled or space-adjacent joiner is still rejected as the invisible padding
+     * it is.
      *
      * <p>
-     * The residual cost is accepted knowingly: a joiner between two Latin letters renders as nothing, so {@code ad<ZWNJ>min} and {@code admin} look
-     * alike. That collision is already reachable through homoglyphs (which this app deliberately allows), an action name is scoped to one account and
-     * never authenticates, and the alternative is refusing to store a Persian speaker's own language.
+     * This residual cost is accepted knowingly: a joiner between two Latin letters renders as nothing, so {@code ad<ZWNJ>min} and {@code admin}
+     * look alike. That collision is already reachable through homoglyphs (which this app deliberately allows); an action name is scoped to one
+     * account and never authenticates; and the alternative is refusing to store a Persian speaker's own language.
      *
      * <p>
      * Unassigned code points are also deliberately NOT rejected (beyond the noncharacters, which can never become assigned) - the JDK's Unicode
@@ -102,15 +101,14 @@ public final class TextRules { // NOPMD: DataClass - a catalogue of rule constan
      *
      * <p>
      * A line feed is a {@code Cc} control character, so the rule above rejects it. Every other field never meets one: {@link Normalisation#CLEANED}
-     * turns every control character into a space long before the rules run, which is exactly why this exemption has not been needed until now. A
-     * multi-line field deliberately keeps its line feeds through normalisation, so without this variant the shared invisible-character policy would
-     * reject every note that has a second line.
+     * turns every control character into a space before the rules run, which is why this exemption was not needed until now. A multi-line field
+     * deliberately keeps its line feeds through normalisation, so without this variant the shared policy would reject every note with a second
+     * line.
      *
      * <p>
-     * The exemption is the line feed and nothing else: a carriage return has already been folded away by normalisation, and every other invisible
-     * character - the zero-width space, the bidirectional overrides, the blank letters, the noncharacters - is still rejected here exactly as it is
-     * everywhere else. The wording is deliberately identical, because a newline is simply allowed rather than being a special case a user needs
-     * explaining.
+     * The exemption is the line feed and nothing else: a carriage return is already folded away by normalisation, and every other invisible
+     * character - the zero-width space, the bidirectional overrides, the blank letters, the noncharacters - is still rejected here exactly as
+     * elsewhere. The wording is deliberately identical, since a newline is simply allowed rather than a special case needing explanation.
      */
     public static final TextRule NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE = new TextRule("noInvisibleCharactersAllowingNewline",
         value -> hasNoInvisibleCharacters(value, true), "cannot contain invisible or text-direction characters.");
@@ -119,15 +117,15 @@ public final class TextRules { // NOPMD: DataClass - a catalogue of rule constan
      * A value may not carry a square bracket — the one field-specific rule that exists for a STORAGE format rather than for the reader.
      *
      * <p>
-     * An attachment is embedded in a note by writing {@code [[its name]]} into the note's own text ({@code note.NoteTokens}), so a name holding a
-     * bracket would break the token that addresses it: {@code [[a]b]]} has no single reading, and the attachment would become unreachable from the
-     * writing that embeds it. Forbidding the two characters is what lets the token need no escaping at all, which in turn is what keeps a note's raw
-     * text — the thing the note box actually shows — readable.
+     * An attachment is embedded in a note by writing {@code [[its name]]} into the note's own text ({@code note.NoteTokens}), so a bracket in the
+     * name would break the token that addresses it: {@code [[a]b]]} has no single reading, making the attachment unreachable from the writing that
+     * embeds it. Forbidding the two characters lets the token need no escaping at all, which keeps a note's raw text — what the note box actually
+     * shows — readable.
      *
      * <p>
      * It binds a TYPED name only. A name derived from an uploaded file's own name has its brackets replaced instead
-     * ({@code note.AttachmentNames#sanitise}), because the user chose a file rather than typing its name, and refusing {@code photo[1].png} would be
-     * refusing the file for something nobody wrote.
+     * ({@code note.AttachmentNames#sanitise}), since the user chose a file rather than typing its name, and refusing {@code photo[1].png} would
+     * refuse the file for something nobody wrote.
      */
     public static final TextRule NO_SQUARE_BRACKETS = new TextRule("noSquareBrackets",
         value -> value.indexOf('[') < 0 && value.indexOf(']') < 0, "cannot contain square brackets.");

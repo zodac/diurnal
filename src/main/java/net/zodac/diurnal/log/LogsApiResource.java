@@ -45,6 +45,8 @@ import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.openapi.responses.NoSuchOwnedActionApiResponse;
+import net.zodac.diurnal.openapi.responses.UnauthenticatedApiResponse;
 import net.zodac.diurnal.text.TextOrdering;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
@@ -63,21 +65,21 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The public REST API for a user's logged actions: {@code GET /api/v1/logs/events} returns one calendar event per logged entry in a date range,
- * {@code GET /api/v1/logs/{date}} returns one day's counts, and the {@code PUT}/{@code POST}/{@code DELETE} endpoints write a day's count for an
- * action (set, atomic increment/decrement, and remove). External integrations call these with a Bearer session token (see
- * {@code POST /api/v1/auth/login}); the dashboard's {@code full} calendar view reads the events feed with its session cookie. The write endpoints
- * share one implementation with the web UI ({@link LogWebResource}) — both surfaces call the same {@link LogService}, so the write rules (logging
- * blocked for future dates in the user's timezone, the {@link ActionLog#MAX_DAILY_COUNT} ceiling, a count of zero removing the day's entry) cannot
- * diverge; this resource only translates {@link LogResult} outcomes into JSON. Where the surfaces deliberately differ is their <em>input</em>
- * contract at that ceiling: the web form saturates an over-cap write to the cap, whereas this API rejects it with a {@code 400} (see the per-endpoint
- * notes) rather than silently changing the caller's value.
+ * {@code GET /api/v1/logs/{date}} returns one day's counts, and the {@code PUT}/{@code POST}/{@code DELETE} endpoints write a day's count (set,
+ * atomic increment/decrement, remove). External integrations call these with a Bearer session token (see {@code POST /api/v1/auth/login}); the
+ * dashboard's {@code full} calendar view reads the events feed with its session cookie. The write endpoints share one implementation with the web
+ * UI ({@link LogWebResource}) — both call the same {@link LogService}, so the write rules (logging blocked for future dates in the user's
+ * timezone, the {@link ActionLog#MAX_DAILY_COUNT} ceiling, a count of zero removing the day's entry) cannot diverge; this resource only translates
+ * {@link LogResult} outcomes into JSON. The surfaces deliberately differ on their <em>input</em> contract at that ceiling: the web form saturates
+ * an over-cap write to the cap, this API rejects it with a {@code 400} (see the per-endpoint notes) rather than silently changing the caller's
+ * value.
  *
  * <p>
- * The feed is {@link Compressed} — with the dashboard's month back-fill it forms the calendar's hot loading path ({@code cal.refresh()} re-pulls the
- * visible month's feed after every log mutation), and a month of events is repetitive JSON that gzips heavily. This is a targeted exception to the
+ * The feed is {@link Compressed} — with the dashboard's month back-fill it forms the calendar's hot loading path ({@code cal.refresh()} re-pulls
+ * the visible month's feed after every log mutation), and a month of events is repetitive JSON that gzips heavily. A targeted exception to the
  * deliberately narrow global {@code quarkus.http.compress-media-types} (see the BREACH note in {@code application.properties}), safe for the same
- * reason as {@code LogWebResource.monthPanels}: the body carries no secret (no CSRF token — protection is origin-based — and the session token never
- * appears in a body), and the only request-controlled inputs, {@code start}/{@code end}, must parse as ISO-8601 dates before anything is returned.
+ * reason as {@code LogWebResource.monthPanels}: the body carries no secret (no CSRF token — protection is origin-based — and the session token
+ * never appears in a body), and the only request-controlled inputs, {@code start}/{@code end}, must parse as ISO-8601 dates before anything returns.
  */
 @Tag(name = "Logs", description = "Read and write a user's logged actions.")
 @Path("/api/v1/logs")
@@ -126,7 +128,7 @@ public class LogsApiResource {
         + "header, so no body is returned.")
     @APIResponse(responseCode = "400",
         description = "The 'start' or 'end' query parameter is missing or not a valid ISO-8601 date.")
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     public Response events(
         @Parameter(name = "start", in = ParameterIn.QUERY, required = true,
         description = "Inclusive start of the range, as an ISO-8601 date (yyyy-MM-dd); only the date part is used.",
@@ -184,7 +186,7 @@ public class LogsApiResource {
     @APIResponse(responseCode = "304", description = "Not modified: the day is unchanged since the ETag in the 'If-None-Match' request header, "
         + "so no body is returned.")
     @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date.")
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     public Response dayLogs(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to read, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -238,8 +240,8 @@ public class LogsApiResource {
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = LogEntryDto.class)))
     @APIResponse(responseCode = "400", description = "The date is invalid or in the future, or the count is missing, negative or above 999.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
+    @UnauthenticatedApiResponse
+    @NoSuchOwnedActionApiResponse
     public Response updateCount(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to write, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -287,8 +289,8 @@ public class LogsApiResource {
     @APIResponse(responseCode = "400", description = "The date is invalid or in the future, the amount is below 1, or the increment would "
         + "exceed 999.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
+    @UnauthenticatedApiResponse
+    @NoSuchOwnedActionApiResponse
     public Response increment(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to write, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -321,8 +323,8 @@ public class LogsApiResource {
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = LogEntryDto.class)))
     @APIResponse(responseCode = "400", description = "The date is invalid or in the future, or the amount is below 1.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
+    @UnauthenticatedApiResponse
+    @NoSuchOwnedActionApiResponse
     public Response decrement(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to write, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -351,8 +353,8 @@ public class LogsApiResource {
     @APIResponse(responseCode = "204", description = "The entry was removed (or did not exist).")
     @APIResponse(responseCode = "400", description = "The date is invalid or in the future.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
+    @UnauthenticatedApiResponse
+    @NoSuchOwnedActionApiResponse
     public Response deleteEntry(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to clear, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -382,10 +384,10 @@ public class LogsApiResource {
         final User user = currentUser.get();
         final LocalDate day = DateRanges.requireDate("date", date);
 
-        // The API's input contract: an increment that would push the count above the cap is an error (the
-        // web form instead saturates it to the cap) — a per-surface translation of intent, not a different
-        // write rule. Applying the shared guards first (future date → ownership) keeps the failure order
-        // identical to a write; a decrement can never exceed the cap, so it needs no such check.
+        // The API's input contract: an increment pushing the count above the cap is an error (the web form
+        // instead saturates it to the cap) — a per-surface translation of intent, not a different write rule.
+        // Applying the shared guards first (future date → ownership) keeps the failure order identical to a
+        // write; a decrement can never exceed the cap, so needs no such check.
         if (increment) {
             final LogResult current = logService.readCount(user, day, actionId);
             if (!(current instanceof final LogResult.Updated existing)) {

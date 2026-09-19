@@ -105,12 +105,12 @@ public class AuthResource {
 
     /**
      * Registers a new password-based user, returning {@code 201} with a session token, or {@code 409} if the email exists. Returns {@code 404} when
-     * password auth is disabled and {@code 403} when either registration is disabled or the initial account has not yet been created. The very first
+     * password auth is disabled and {@code 403} when either registration is disabled or the initial account has not yet been created. The first
      * (administrator) account can never be created through this endpoint — it must be created locally via the web setup flow ({@code /welcome} →
-     * {@code POST /register}), so an unauthenticated caller can never seize the initial admin account. Validation and account creation are the shared
-     * {@link RegistrationService} the web form also calls, so the rules cannot diverge; the
-     * {@code PASSWORD_AUTH_ENABLED}/{@code ENABLE_LOCAL_REGISTRATION} guards are enforced here too, so the API can never bypass them. Only LOCAL
-     * accounts are created here - an OIDC account is provisioned by its own sign-in flow, which neither endpoint nor switch governs.
+     * {@code POST /register}), so an unauthenticated caller can never seize it. Validation and account creation go through the shared
+     * {@link RegistrationService} the web form also calls, so the rules cannot diverge; the {@code PASSWORD_AUTH_ENABLED}/
+     * {@code ENABLE_LOCAL_REGISTRATION} guards are enforced here too, so the API can never bypass them. Only LOCAL accounts are created here - an
+     * OIDC account is provisioned by its own sign-in flow, which neither endpoint nor switch governs.
      */
     @POST
     @Path("/register")
@@ -132,9 +132,9 @@ public class AuthResource {
         description = "Too many failed attempts; retry after the period in the Retry-After header.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     public Response register(final @Nullable RegisterRequest request, @Context @Nullable final RoutingContext routingContext) {
-        // Surface policy (deliberately different from the web form): the API can never create the very
-        // first (administrator) account — that must be done locally through the web setup flow
-        // (/welcome → POST /register), so an unauthenticated caller cannot claim it. The shared
+        // Surface policy (deliberately different from the web form): the API can never create the first
+        // (administrator) account — that must be done locally through the web setup flow
+        // (/welcome → POST /register), so an unauthenticated caller cannot claim it. Shared
         // validation/creation rules live in RegistrationService.
         if (!passwordAuthConfig.enabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();

@@ -23,10 +23,10 @@ import java.util.regex.Pattern;
  * The two note-attachment UPLOAD endpoints, named here so {@link RequestBodyLimitFilter} can hold them to a body ceiling of their own.
  *
  * <p>
- * They are the one ordinary capability whose request body is a file the USER chose rather than a form this application designed, which is why they
- * need a bigger cap than everything else — and why everything else can keep a small one. The set is deliberately narrow: the {@code POST} that
- * carries bytes, on each surface, and nothing beside it. A rename or a delete on the same resource carries a few dozen bytes of JSON and stays under
- * the ordinary cap, and the listing endpoints carry no body at all.
+ * They are the one ordinary capability whose request body is a file the USER chose rather than a form this application designed - why they need a
+ * bigger cap, and why everything else can keep a small one. The set is deliberately narrow: the {@code POST} that carries bytes, on each surface,
+ * and nothing beside it. A rename or a delete on the same resource carries a few dozen bytes of JSON and stays under the ordinary cap, and the
+ * listing endpoints carry no body at all.
  *
  * <p>
  * This is the {@link ImportPaths} pattern for the same reason: a path that drifts out of the set silently regains the small cap, and the symptom is
@@ -34,8 +34,8 @@ import java.util.regex.Pattern;
  */
 final class AttachmentUploadPaths {
 
-    // POST /api/v1/notes/{date}/attachments - the public upload. The date segment is matched as "anything but a slash" rather than as a date: this
-    // runs before the resource parses it, and a malformed date is the resource's 400 to give, not a reason to apply the wrong limit here.
+    // POST /api/v1/notes/{date}/attachments - the public upload. The date segment matches "anything but a slash" rather than a date: this runs
+    // before the resource parses it, so a malformed date is the resource's 400 to give, not a reason to apply the wrong limit here.
     private static final Pattern API_UPLOAD = Pattern.compile("api/v1/notes/[^/]+/attachments");
 
     // POST /internal/note-attachments/{date} - the note box's upload. Two segments exactly, so the rename and delete endpoints beneath it

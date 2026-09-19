@@ -27,9 +27,8 @@ import io.smallrye.config.WithName;
  *
  * <p>
  * The switch is deliberately scoped to local accounts: OIDC sign-in provisions an account on first login through a separate path ({@code auth.oidc})
- * that never consults it, so turning this off does not close account creation in an OIDC-enabled deployment. Restricting WHO the identity provider
- * may bring in is {@code oidc.user.group}/{@code oidc.admin.group} (a non-member is refused before any account is provisioned), or the provider's
- * own access rules.
+ * that never consults it, so disabling this does not close account creation in an OIDC-enabled deployment. Restricting WHO the identity provider may
+ * bring in is {@code oidc.user.group}/{@code oidc.admin.group} (a non-member is refused before provisioning), or the provider's own access rules.
  */
 @FunctionalInterface
 @ConfigMapping(prefix = "registration")

@@ -62,10 +62,10 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * <strong>An upload is a RAW body, not a multipart form</strong>, with the file's own name in a query parameter. The archive import already works
- * this way ({@code TransferInternalResource}), it keeps the application off a multipart extension it otherwise has no use for, and it is what lets
- * the note box report progress: {@code XMLHttpRequest.upload.onprogress} measures the body it is sending, whatever shape that body has. The size
- * ceiling is the one every other endpoint already has — {@code app.http.max-request-body}, refused as a {@code 413} by
- * {@code http.RequestBodyLimitFilter} before the body is read — so there is no second limit to keep in step with the first.
+ * this way ({@code TransferInternalResource}); it keeps the application off a multipart extension it has no other use for, and lets the note box
+ * report progress: {@code XMLHttpRequest.upload.onprogress} measures the body it is sending, whatever shape that body has. The size ceiling is the
+ * one every other endpoint already has - {@code app.http.max-request-body}, refused as a {@code 413} by {@code http.RequestBodyLimitFilter} before
+ * the body is read - so there is no second limit to keep in step with the first.
  *
  * <p>
  * <strong>Uploading does not write the note.</strong> It stores the file and answers with the token to embed; the token goes into the box at the

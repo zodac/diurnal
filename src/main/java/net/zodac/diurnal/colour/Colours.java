@@ -27,9 +27,9 @@ import java.util.regex.Pattern;
  *
  * <p>
  * A user-chosen colour is stored and rendered EXACTLY as picked, in both themes - the app never second-guesses it. The one exception is a colour
- * drawn on top of the brand fill ({@link #BRAND_FILL}, the calendar's solid "today" cell): the notes marker's own green sits at about 1.4:1 there and
- * is simply unreadable, so a lightened variant is derived by {@link #readableOn(String, String)}. That is a legibility floor rather than a
- * preference, which is why it is computed instead of being a second thing to pick.
+ * drawn on top of the brand fill ({@link #BRAND_FILL}, the calendar's solid "today" cell): the notes marker's own green sits at about 1.4:1 there
+ * and is unreadable, so a lightened variant is derived by {@link #readableOn(String, String)}. That is a legibility floor rather than a preference,
+ * so it is computed rather than being a second thing to pick.
  */
 public final class Colours {
 
@@ -40,8 +40,8 @@ public final class Colours {
 
     // WCAG 2.x sets 3:1 as the floor for large-scale and non-body text; a calendar day number is exactly that, and the shade the notes marker used
     // before it became a preference (green-300 on the brand fill) clears the same bar at about 3.2:1. Compared as the ratio TRUNCATED to tenths
-    // rather than as the raw double: `floor(ratio * 10) >= 30` is exactly `ratio >= 3.0`, but its boundary is a value a real pair of colours can
-    // actually land on - where no two colours produce a ratio of exactly 3.0, so the double form has a boundary nothing can ever test.
+    // rather than as the raw double: `floor(ratio * 10) >= 30` is exactly `ratio >= 3.0`, but with a boundary a real pair of colours can actually
+    // land on - no two colours produce a ratio of exactly 3.0, so the double form's boundary is untestable.
     private static final int MIN_CONTRAST_TENTHS = 30;
     private static final int TENTHS_PER_UNIT = 10;
 

@@ -30,19 +30,18 @@ import net.zodac.diurnal.http.HttpHeader;
  * documentation surface, which gets a relaxed variant (see {@link CspPolicy}) — plus a set of static, content-independent hardening headers.
  *
  * <p>
- * The strict policy's {@code frame-ancestors 'self'} directive prevents any other origin from embedding this application in a frame
- * (anti-clickjacking), while still allowing the app to frame its own same-origin pages — notably the in-app Swagger UI iframe
- * ({@code <iframe src="/api">}), which is always same-origin and so covered by {@code 'self'} in every deployment (dev, direct, or behind a reverse
- * proxy). {@code base-uri 'self'} and {@code form-action 'self'} stop a base-tag or form-target injection from redirecting the page/submissions
- * off-origin; {@code object-src 'none'} blocks legacy {@code <object>}/{@code <embed>} plugin content, which this app never serves.
- * {@code script-src 'self' 'sha256-…'} allows only same-origin scripts plus the one pinned inline block (the FOUC theme bootstrap in
- * {@code layout.html}), and {@code script-src-attr 'none'} blocks every inline {@code on*=} event-handler attribute — the app has none left.
- * {@code style-src 'self' 'sha256-…'} mirrors the same pattern for the one inline {@code <style>} that bootstrap conditionally injects (the dark-mode
- * FOUC background override); {@code style-src-attr 'unsafe-inline'} is the one deliberate laxity left in the policy — the app renders per-user swatch
- * colours as inline {@code style="…"} attributes, which can't be a static class or a pinned hash, and that directive can't execute script.
- * {@code default-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'} close the remaining fetch-destination directives — an audit found
- * no {@code data:} URI, cross-origin font, or cross-origin fetch/HTMX target anywhere in the app, so all four stay at {@code 'self'} with no
- * relaxation. No configuration is required.
+ * The strict policy's {@code frame-ancestors 'self'} directive blocks any other origin from framing this app (anti-clickjacking) while still
+ * allowing same-origin framing — notably the in-app Swagger UI iframe ({@code <iframe src="/api">}), always same-origin and so covered by {@code
+ * 'self'} in every deployment (dev, direct, or behind a reverse proxy). {@code base-uri 'self'} and {@code form-action 'self'} stop a base-tag or
+ * form-target injection from redirecting the page/submissions off-origin; {@code object-src 'none'} blocks legacy {@code <object>}/{@code <embed>}
+ * plugin content, which this app never serves. {@code script-src 'self' 'sha256-…'} allows only same-origin scripts plus the one pinned inline block
+ * (the FOUC theme bootstrap in {@code layout.html}), and {@code script-src-attr 'none'} blocks every inline {@code on*=} event-handler attribute —
+ * the app has none left. {@code style-src 'self' 'sha256-…'} mirrors the same pattern for the one inline {@code <style>} that bootstrap
+ * conditionally injects (the dark-mode FOUC background override); {@code style-src-attr 'unsafe-inline'} is the one deliberate laxity left in the
+ * policy — the app renders per-user swatch colours as inline {@code style="…"} attributes, which can't be a static class or a pinned hash, and that
+ * directive can't execute script. {@code default-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'} close the remaining
+ * fetch-destination directives — an audit found no {@code data:} URI, cross-origin font, or cross-origin fetch/HTMX target anywhere in the app, so
+ * all four stay at {@code 'self'} with no relaxation. No configuration is required.
  *
  * <p>
  * {@code X-Frame-Options: SAMEORIGIN} is a legacy backstop for {@code frame-ancestors 'self'} in browsers that predate CSP frame-ancestors support —

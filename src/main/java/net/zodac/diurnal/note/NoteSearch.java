@@ -35,30 +35,30 @@ import java.util.regex.Pattern;
  *
  * <p>
  * <strong>Searching happens on the opened text, in this application, never in the database.</strong> A note is stored sealed (see {@code NOTES.md}),
- * so there is nothing in the {@code notes} table a {@code LIKE} could be run against - the owner's key opens the whole history once and the match is
- * made here. The alternative, a table of per-word blind-index tokens, was rejected: deterministic tokens over natural-language prose are the textbook
- * frequency-analysis target, so a stolen dump would start giving up its contents again - which is the exact thing encrypting the column bought.
+ * so there is nothing in the {@code notes} table a {@code LIKE} could run against - the owner's key opens the whole history once and the match
+ * happens here. A table of per-word blind-index tokens was rejected: deterministic tokens over natural-language prose are the textbook
+ * frequency-analysis target, so a stolen dump would start giving up its contents again - the exact thing encrypting the column bought.
  *
  * <p>
- * Matching is a plain case-insensitive substring test, deliberately - the same rule the actions and day-panel filters use, so "search" means one
+ * Matching is deliberately a plain case-insensitive substring test - the same rule the actions and day-panel filters use, so "search" means one
  * thing across the app. There is no tokenising, stemming or word-boundary logic, so a search for {@code run} finds {@code running} (which a
  * word-based index could not) and finds it inside {@code brunch} too (which it would not). No language is assumed, which matters for a field that
  * accepts every script.
  *
  * <p>
- * The scan runs over the ORIGINAL text, via a {@link Pattern#quote(String) quoted} case-insensitive {@link Pattern}, rather than by lower-casing
- * both sides first. Lower-casing can change a string's LENGTH ({@code U+0130} becomes two characters), which would slide every index afterwards and
- * cut the snippet in the wrong place - a bug that would only appear for some users' text. Quoting is what keeps the term a literal, so a note is
- * searched for the characters typed rather than for a regular expression the user did not mean to write.
+ * The scan runs over the ORIGINAL text, via a {@link Pattern#quote(String) quoted} case-insensitive {@link Pattern}, rather than lower-casing both
+ * sides first: lower-casing can change a string's LENGTH ({@code U+0130} becomes two characters), which would slide every index afterwards and cut
+ * the snippet in the wrong place - a bug that would only appear for some users' text. Quoting keeps the term a literal, so a note is searched for
+ * the characters typed rather than a regular expression the user did not mean to write.
  *
  * <p>
- * A pattern is compiled per note rather than once per search, which is a few microseconds against the AES pass that opened the note in the first
- * place - and it keeps the rule a plain two-argument function that both surfaces can call identically.
+ * A pattern is compiled per note rather than once per search - a few microseconds against the AES pass that opened the note in the first place -
+ * keeping the rule a plain two-argument function both surfaces can call identically.
  *
  * <p>
  * <strong>A term that matched nothing gets a suggestion instead of a fuzzy match.</strong> {@link #suggest(Collection, String)} finds the closest
- * word the journal actually contains and offers it, leaving {@link #matches(String, String)} exact. That split is deliberate - see the class's
- * "did you mean" Javadoc and {@code NOTES.md} for the measurements behind it.
+ * word the journal actually contains and offers it, leaving {@link #matches(String, String)} exact - the split is deliberate; see
+ * {@link #suggest(Collection, String)}'s Javadoc and {@code NOTES.md} for the measurements behind it.
  *
  * <p>
  * Kept free of persistence and request state so every rule here is deterministically unit-testable.

@@ -24,17 +24,17 @@ import java.util.UUID;
 import net.zodac.diurnal.persistence.QueryParameter;
 
 /**
- * The handwritten JPQL queries backing {@link ActionLog}'s static finder methods, held here as named constants to keep the entity itself readable,
- * together with the typed {@link QueryParameter} tokens every action-log query binds through. Each query binds its parameters by name
- * ({@code :name} placeholders), and {@code ActionLogQueriesTest} pins every constant's parameter surface (via {@code SqlParameters}) to the exact
- * set the corresponding {@link ActionLog} method binds. So a mistyped or orphaned placeholder fails at unit speed rather than only surfacing when
- * the query is first executed against the database.
+ * The handwritten JPQL queries backing {@link ActionLog}'s static finder methods, held here as named constants to keep the entity readable,
+ * together with the typed {@link QueryParameter} tokens every action-log query binds through. Each query binds parameters by name ({@code :name}
+ * placeholders), and {@code ActionLogQueriesTest} pins every constant's parameter surface (via {@code SqlParameters}) to the exact set the
+ * corresponding {@link ActionLog} method binds - so a mistyped or orphaned placeholder fails at unit speed rather than only surfacing when the
+ * query first runs against the database.
  *
  * <p>
- * These are JPQL only, and deliberately so: Hibernate renders them for whichever dialect is configured, so they are portable as written and stay
- * beside the entity. The action-log statements that JPQL cannot express - the upserts, the bulk write and the earliest-logged probe - are
- * vendor-specific and live behind {@link net.zodac.diurnal.persistence.LogStatements} instead. The tokens below serve both, because a placeholder
- * name is part of the contract every implementation of that interface honours.
+ * Deliberately JPQL only: Hibernate renders it for whichever dialect is configured, so these stay portable and beside the entity. Statements JPQL
+ * cannot express - the upserts, the bulk write, the earliest-logged probe - are vendor-specific and live behind
+ * {@link net.zodac.diurnal.persistence.LogStatements} instead. The tokens below serve both, since a placeholder name is part of the contract every
+ * implementation of that interface honours.
  */
 final class ActionLogQueries {
 

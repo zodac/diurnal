@@ -31,8 +31,8 @@ import jakarta.inject.Inject;
  *
  * <p>
  * <strong>The static-asset cache headers are applied by PATH, not by status.</strong> {@code quarkus.http.filter.app-static} stamps
- * {@code public, max-age=604800} onto anything under {@code /fonts/}, {@code /img/*.png}, {@code favicon.ico} and {@code manifest.json} — and a
- * {@code 403} or {@code 404} on one of those paths matches the filter exactly as a {@code 200} does. The failure then goes out looking like a
+ * {@code public, max-age=604800} onto anything under {@code /fonts/}, {@code /img/*.png}, {@code favicon.ico} and {@code manifest.json} — a
+ * {@code 403} or {@code 404} on one of those paths matches the filter exactly as a {@code 200} does, so the failure goes out looking like a
  * week-long cacheable asset.
  *
  * <p>
@@ -42,9 +42,9 @@ import jakarta.inject.Inject;
  * broken, with nothing in the application's own logs because the requests were no longer reaching it. An error must not outlive its cause.
  *
  * <p>
- * <strong>This sits at the Vert.x layer rather than in JAX-RS</strong>, which is what makes it able to help: a static asset is served by the HTTP
- * layer and never reaches a {@code ContainerResponseFilter}, and a request the CORS filter rejects is finished before routing happens at all. That is
- * why {@link ApiCacheHeadersFilter}, a JAX-RS provider scoped to {@code /api/v1}, cannot cover this and is a separate thing.
+ * <strong>This sits at the Vert.x layer rather than in JAX-RS</strong>, which is what lets it help: a static asset is served by the HTTP layer and
+ * never reaches a {@code ContainerResponseFilter}, and a request the CORS filter rejects finishes before routing happens at all — why
+ * {@link ApiCacheHeadersFilter}, a JAX-RS provider scoped to {@code /api/v1}, cannot cover this and is a separate thing.
  *
  * <p>
  * <strong>{@code 3xx} is deliberately left alone.</strong> A {@code 304} has to keep the directive that earned it, or every conditional GET
@@ -81,8 +81,8 @@ public class ErrorCacheHeadersFilter {
     }
 
     private static void stripCacheControlFromFailures(final RoutingContext ctx) {
-        // Decided at headers-end rather than here, because the status is not known until the response is about to be written - which is the whole
-        // difficulty: the path-keyed header has been attached long before anything knows the request failed.
+        // Decided at headers-end rather than here: the status is not known until the response is about to be written, and by then the
+        // path-keyed header has already been attached, long before anything knows the request failed.
         ctx.addHeadersEndHandler(unused -> {
             if (mustNotBeStored(ctx.response().getStatusCode())) {
                 ctx.response().headers().set(HttpHeaders.CACHE_CONTROL, NO_STORE);

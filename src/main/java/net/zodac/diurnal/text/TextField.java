@@ -72,8 +72,8 @@ public record TextField(
     /**
      * A field holding a block of prose rather than a label: {@link Normalisation#MULTILINE}, carrying the same shared content rules as
      * {@link #of(String, String, int, int)} but with the invisible-character rule in its newline-tolerant form. Everything else is identical to an
-     * ordinary cleaned field - the length is measured in code points, a blank submission is rejected unless the minimum is {@code 0}, and every
-     * invisible or text-direction character other than the line feed is still refused.
+     * ordinary cleaned field: length measured in code points, a blank submission rejected unless the minimum is {@code 0}, and every invisible or
+     * text-direction character other than the line feed still refused.
      *
      * <p>
      * A field must use this ONLY when its value is genuinely multi-line; a label that gains a newline has almost certainly been pasted by accident,
@@ -91,9 +91,9 @@ public record TextField(
 
     /**
      * A field holding a secret: {@link Normalisation#VERBATIM}, with no rules at all - not even the shared ones. Only a password should use this:
-     * every other input is read back by a human and wants cleaning, whereas a secret is never rendered, never compared against another user's value
-     * and is stored only as a hash, so the reasons the shared rules exist do not apply to it. Constraining which characters a password may hold would
-     * also shrink the keyspace, and would lock out anyone whose existing password holds one.
+     * every other input is read back by a human and wants cleaning, whereas a secret is never rendered or compared against another user's value
+     * and is stored only as a hash, so the reasons the shared rules exist don't apply. Constraining which characters a password may hold would also
+     * shrink the keyspace and lock out anyone whose existing password holds one.
      *
      * @param key       the field's stable identifier, never translated
      * @param label     the human name of the field

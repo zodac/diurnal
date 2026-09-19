@@ -30,34 +30,34 @@ import org.jspecify.annotations.Nullable;
  * Every single-valued setting {@link TransferFiles#SETTINGS_FILE} carries, one constant per row of that member.
  *
  * <p>
- * <strong>A key is the {@code User} field's own name</strong>, which is also the name the public API exposes it under
- * ({@code UserDto.Preferences}) and the name its form control posts. Inventing a third spelling for the same preference would give a user editing
- * the archive one vocabulary and a user reading {@code GET /api/v1/users/me} another, and would leave nothing to check the two against - whereas
- * {@code SettingsAreTransferableTest} can, and does, fail the moment a {@code @Preference} field has no key here.
+ * <strong>A key is the {@code User} field's own name</strong> - also the name the public API exposes it under ({@code UserDto.Preferences}) and
+ * the name its form control posts. A third spelling for the same preference would give a user editing the archive one vocabulary and a user
+ * reading {@code GET /api/v1/users/me} another, with nothing to check the two against - whereas {@code SettingsAreTransferableTest} does fail the
+ * moment a {@code @Preference} field has no key here.
  *
  * <p>
  * <strong>{@link #DISPLAY_NAME} is the one key that is not a {@code @Preference} field.</strong> It is profile rather than preference (see that
- * annotation's own Javadoc), and it is carried because a restore that brings back ten years of journal but not what the account calls itself is not
- * a restore. It is the only identity column the archive touches: the email, the password hash, the OIDC link and the role are not here and must not
- * be, since an import must never be a route to changing WHO an account is.
+ * annotation's own Javadoc), carried because a restore that brings back ten years of journal but not what the account calls itself is not a
+ * restore. It is the only identity column the archive touches - the email, password hash, OIDC link and role are not here and must not be, since
+ * an import must never be a route to changing WHO an account is.
  *
  * <p>
- * The two <em>set</em>-valued preferences are deliberately NOT here. A page-size override set and the "Action stats" arrangement are each many
- * values rather than one, so they are carried as their own families of rows under {@link TransferFiles#PAGE_SIZE_PREFIX} and
+ * The two <em>set</em>-valued preferences are deliberately NOT here: a page-size override set and the "Action stats" arrangement are each many
+ * values rather than one, so they're carried as their own families of rows under {@link TransferFiles#PAGE_SIZE_PREFIX} and
  * {@link TransferFiles#STAT_PREFIX}; {@link #fromKey(String)} is exact-match only, so {@code pageSize} and {@code pageSize.actions} can never be
- * confused for one another.
+ * confused.
  *
  * <p>
- * <strong>Each constant carries how it is READ out of the account and how it is WRITTEN back into one</strong>, rather than leaving the export and
- * the import to enumerate the catalogue in a {@code switch} apiece. Everything about one setting is then in one place, and adding a preference is
- * one constant rather than an edit in three files. The compile-time guarantee the two switches gave is not lost but tightened: a constant cannot be
+ * <strong>Each constant carries how it is READ out of the account and how it is WRITTEN back into one</strong>, rather than leaving export and
+ * import to enumerate the catalogue in a {@code switch} apiece: everything about one setting is then in one place, and adding a preference is one
+ * constant rather than an edit in three files. The compile-time guarantee the two switches gave is tightened, not lost: a constant cannot be
  * DECLARED without both accessors, where before it could be declared and the switch updated later.
  *
  * <p>
  * What this does move out of the compiler's reach is mis-WIRING - a constant whose accessor reads or writes a different field, which copy-pasting
  * the constant above it produces easily and which no exhaustive switch would have caught either. That is what
- * {@code SettingsAreTransferableTest.everyScalarPreferenceIsAppliedToItsOwnField} exists for: it writes a sentinel through every constant and checks
- * the field of that constant's own name is the one that changed.
+ * {@code SettingsAreTransferableTest.everyScalarPreferenceIsAppliedToItsOwnField} exists for: it writes a sentinel through every constant and
+ * checks that constant's own field is the one that changed.
  */
 enum SettingKey {
 

@@ -29,7 +29,9 @@ import java.util.Optional;
  * {@code web.AssetsConfig}, {@code app.update-check} in {@code update.UpdateCheckConfig}).
  */
 @ConfigMapping(prefix = "app")
-public interface AppConfig {    /**
+public interface AppConfig {
+
+    /**
      * Base URL of the public source repository, linked from the page footer.
      *
      * @return the repository URL
@@ -47,18 +49,18 @@ public interface AppConfig {    /**
     String timezone();
 
     /**
-     * The URL prefix this deployment is reached at, when it is mounted somewhere other than the origin root (e.g. {@code /diurnal} for
+     * The URL prefix this deployment is reached at, when mounted somewhere other than the origin root (e.g. {@code /diurnal} for
      * {@code https://diurnal.example.com/diurnal}). Empty - the default - means the origin root.
      *
      * <p>
      * The application always ROUTES at the root; this key only tells it what prefix to put on the URLs it EMITS, and the reverse proxy is expected
-     * to strip that same prefix before forwarding. Read through {@code net.zodac.diurnal.http.AppPaths}, which normalises it and is the single
-     * place any application URL is built - never read this key directly.
+     * to strip that same prefix before forwarding. Read through {@code net.zodac.diurnal.http.AppPaths}, the single place any application URL is
+     * built - never read this key directly.
      *
      * <p>
      * Typed {@link Optional} rather than a plain {@link String} because the default IS the empty value: {@code app.base-path=${BASE_PATH:}} leaves
      * the property defined-but-empty for every deployment that does not set it, and SmallRye's built-in converter reads an empty string as
-     * {@code null} - which a non-optional mapping method rejects at startup with {@code SRCFG00040}, failing the container's boot rather than
+     * {@code null} - which a non-optional mapping method rejects at startup with {@code SRCFG00040}, failing the container's boot instead of
      * defaulting.
      *
      * @return the configured base path, or empty when the deployment sits at the origin root
@@ -86,10 +88,10 @@ public interface AppConfig {    /**
      *
      * <p>
      * A SEPARATE key from {@link #trustForwardedHeaders()} because the two name different proxies: a deployment can sit behind Traefik without
-     * sitting behind Cloudflare, and the header each one sets is only trustworthy from the proxy that sets it. Defaulting to {@code false} is what
-     * makes the throttle safe on a directly-exposed deployment - Cloudflare OVERWRITES whatever the caller sent, but nothing else does, so believing
-     * the header anywhere else lets a client nominate its own throttle key and guess passwords without limit. Only enable it when the origin's
-     * ingress is restricted to Cloudflare's ranges; a request that reached the origin any other way can carry a forged value.
+     * sitting behind Cloudflare, and each header is only trustworthy from the proxy that sets it. Defaulting to {@code false} keeps the throttle
+     * safe on a directly-exposed deployment - Cloudflare OVERWRITES whatever the caller sent, but nothing else does, so trusting the header
+     * elsewhere lets a client nominate its own throttle key and guess passwords without limit. Only enable it when the origin's ingress is
+     * restricted to Cloudflare's ranges; a request reaching the origin any other way can carry a forged value.
      *
      * @return {@code true} when the Cloudflare client-IP header is trusted, defaulting to {@code false}
      */
@@ -134,16 +136,15 @@ public interface AppConfig {    /**
      * disables the cap, leaving those endpoints bounded only by {@code quarkus.http.limits.max-body-size}.
      *
      * <p>
-     * <strong>It is a separate setting rather than a raised {@link #maxRequestBody()} for a reason.</strong> That cap is what stops an
-     * unauthenticated caller making the server buffer a large body on a hot path - a login, say, which then runs an Argon2id hash - and raising it
-     * to fit a video would hand that lever to every endpoint in the application. This one applies to two authenticated {@code POST}s and nothing
-     * else.
+     * <strong>It is a separate setting rather than a raised {@link #maxRequestBody()} for a reason.</strong> That cap stops an unauthenticated
+     * caller making the server buffer a large body on a hot path - a login, say, which then runs an Argon2id hash - and raising it to fit a video
+     * would hand that lever to every endpoint in the application. This one applies to two authenticated {@code POST}s and nothing else.
      *
      * <p>
      * <strong>What it costs.</strong> An attachment is sealed and stored as a single row, so an upload at this size is held in memory more than
      * once on the way in (the body, then its sealed form, then the driver's bind) and again in full on the way out, since a sealed blob has no
-     * ranges to serve from. Raising it far beyond the default wants heap raised with it - and see {@code transfer.max-archive-size}, which bounds
-     * what an import of the resulting export may decompress to.
+     * ranges to serve from. Raising it far beyond the default wants heap raised with it - see {@code transfer.max-archive-size}, which bounds what
+     * an import of the resulting export may decompress to.
      *
      * @return the maximum accepted request body for a note-attachment upload
      */
@@ -166,9 +167,9 @@ public interface AppConfig {    /**
      * request past the bound.
      *
      * <p>
-     * The import endpoints are the ones {@link #maxRequestBody()} exempts, so each one holds a whole uploaded archive, its decompressed members and
-     * its parsed rows in memory at once - and the preview endpoint writes nothing, so it is freely repeatable. This is the only thing bounding the
-     * SUM of that; every other limit in the import path bounds ONE request. Keep it low: two concurrent imports is generous for a deployment whose
+     * The import endpoints are the ones {@link #maxRequestBody()} exempts, so each holds a whole uploaded archive, its decompressed members and its
+     * parsed rows in memory at once - and the preview endpoint writes nothing, so it is freely repeatable. This is the only thing bounding the SUM
+     * of that; every other limit in the import path bounds ONE request. Keep it low: two concurrent imports is generous for a deployment whose
      * users each import a backup a handful of times a year, and each further permit is another whole archive's worth of heap.
      *
      * @return the maximum number of concurrent data imports

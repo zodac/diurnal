@@ -20,24 +20,21 @@ package net.zodac.diurnal.web;
 import io.quarkus.qute.TemplateExtension;
 
 /**
- * The CLDR plural category for Arabic, which distinguishes six grammatical forms rather than the English/Spanish
- * two-way singular/plural split {@link AppMessages}' other pluralised entries otherwise use — see the
- * {@code msg_ar-SA.properties} notes in {@code .claude/I18N.md}'s Phase 5 for why this exists and which entries use
- * it. A {@code {msg:...}} value cannot compute this itself (Qute's expression language has no modulo/range
- * operators), and a Java-side caller of {@link AppMessages} can never be locale-aware (see that interface's own
- * class Javadoc) — so this is resolved as a {@link TemplateExtension}, callable directly on a count argument inside
- * an {@code @Message} value (e.g. {@code {count.arabicPluralCategory}}), the same "derive in Java, branch in the
- * template" split every other per-locale grammar decision in this codebase uses.
+ * The CLDR plural category for Arabic, which distinguishes six grammatical forms rather than the English/Spanish singular/plural split
+ * {@link AppMessages}'s other pluralised entries use — see the {@code msg_ar-SA.properties} notes in {@code .claude/I18N.md}'s Phase 5 for why
+ * this exists and which entries use it. A {@code {msg:...}} value cannot compute this itself (Qute's expression language has no modulo/range
+ * operators), and a Java-side caller of {@link AppMessages} can never be locale-aware (see that interface's own class Javadoc) — so this is
+ * resolved as a {@link TemplateExtension}, callable on a count argument inside an {@code @Message} value (e.g.
+ * {@code {count.arabicPluralCategory}}), the same "derive in Java, branch in the template" split every other per-locale grammar decision here uses.
  *
  * <p>
- * The rule itself is the official CLDR "ar" plural rule set (unchanged since CLDR's own definition, not a project
- * invention): {@code zero} for exactly 0, {@code one} for exactly 1, {@code two} for exactly 2, {@code few} for a
- * count whose last two digits fall in {@code 3..10}, {@code many} for {@code 11..99}, and {@code other} for
- * everything else (e.g. round hundreds, or any count ending {@code 00}/{@code 01}/{@code 02}).
+ * This is the official CLDR "ar" plural rule set, unchanged from CLDR's own definition: {@code zero} for exactly 0, {@code one} for exactly 1,
+ * {@code two} for exactly 2, {@code few} for a count whose last two digits fall in {@code 3..10}, {@code many} for {@code 11..99}, and
+ * {@code other} for everything else (e.g. round hundreds, or any count ending {@code 00}/{@code 01}/{@code 02}).
  */
-// The int/long overloads below share a name and parameter count by necessity, not oversight: Qute resolves
-// `{count.arabicPluralCategory}` by the STATIC type of `count` in the @Message parameter list it came from, so
-// each numeric type an entry might declare needs its own exactly-named overload.
+// The int/long overloads below share a name and parameter count by necessity, not oversight: Qute resolves `{count.arabicPluralCategory}` by the
+// STATIC type of `count` in the @Message parameter list it came from, so each numeric type an entry might declare needs its own exactly-named
+// overload.
 @SuppressWarnings("OverloadedMethodsWithSameNumberOfParameters")
 public final class ArabicPlural {
 

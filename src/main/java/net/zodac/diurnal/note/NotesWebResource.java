@@ -41,39 +41,37 @@ import net.zodac.diurnal.web.PageShell;
  * The {@code /notes} page: every note the user has written, most recent first, over a search box that filters them by content.
  *
  * <p>
- * The page exists because a journal kept per-date is otherwise only reachable one day at a time through the calendar - there was no way to re-read
- * what was written last spring, or to find the day something was mentioned, without knowing the date already. Search and browse are the same view
- * here: with an empty box it lists everything, and typing narrows it.
+ * The page exists because a per-date journal is otherwise reachable only one day at a time through the calendar - there was no way to re-read what
+ * was written last spring, or find the day something was mentioned, without knowing the date already. Search and browse share one view: an empty
+ * box lists everything, typing narrows it.
  *
  * <p>
- * The box is <strong>disabled</strong> for an account that has written no note at all. The page is nothing but a view over the journal, so there is
- * nothing a term could match, and an inert box says that up front rather than answering every keystroke with "no matches". Nothing on this page
- * writes a note, so the state is settled once at render time. Browsing already knows the answer - the page's own total is the journal's total when
- * nothing is filtering it - so only a render that IS searching pays a {@code COUNT} for it, and it must: a term that matched nothing has to leave
- * the box live enough to clear.
+ * The box is <strong>disabled</strong> for an account with no notes at all: the page is nothing but a view over the journal, so there is nothing a
+ * term could match, and an inert box says so up front rather than answering every keystroke with "no matches". Nothing here writes a note, so the
+ * state is settled once at render time. Browsing already knows its total (the journal's total when nothing is filtering it), so only a searching
+ * render pays a {@code COUNT} - and it must, since a term matching nothing still has to leave the box live enough to clear.
  *
  * <p>
- * A result links to {@code /?date=…} rather than expanding in place. The day is the unit the whole application is built around, and the dashboard
- * already shows a note in full beside the actions logged against that day and the calendar around it - so following a result lands somewhere richer
- * than any amount of expansion here could be, and needs no second way of rendering a note.
+ * A result links to {@code /?date=…} rather than expanding in place: the day is the unit the app is built around, and the dashboard already shows
+ * a note in full beside that day's logged actions and calendar - richer than any expansion here could be, and it needs no second way of rendering
+ * a note.
  *
  * <p>
- * The search term rides the URL as {@code ?q=}, exactly as the actions list does, so the browser's back button and a bookmarked search both behave.
- * The trade-off is that a term does enter the browser's history; that is accepted for consistency with every other search in the app, but it is why
- * nothing ever writes one to the server's log (see {@link NoteService}).
+ * The search term rides the URL as {@code ?q=}, like the actions list, so the back button and a bookmarked search both behave - at the cost of the
+ * term entering browser history, accepted for consistency with every other search here, which is why nothing ever writes one to the server's log
+ * (see {@link NoteService}).
  *
  * <p>
- * <strong>A second table below lists the account's ATTACHMENTS</strong>, with a search box of its own that matches on the file's name and on nothing
- * else. The two tables answer questions that only look alike: "which day did I write about the tickets" is a search of prose, while "where did that
- * PDF go" is a search of filenames, and a single box folding one into the other would answer neither well - a note mentioning "invoice" is not the
- * file {@code invoice.pdf}, and a file's name is not written in the note's own language. Keeping them apart also keeps each result list honest about
- * what its rows ARE: a day, or a file.
+ * <strong>A second table below lists the account's ATTACHMENTS</strong>, with its own search box matching only the file's name. The two tables
+ * answer questions that only look alike: "which day did I write about the tickets" is a search of prose, "where did that PDF go" is a search of
+ * filenames - a single box folding one into the other would answer neither well, since a note mentioning "invoice" is not the file
+ * {@code invoice.pdf}. Keeping them apart also keeps each result list honest about what its rows ARE: a day, or a file.
  *
  * <p>
- * Unlike the notes table, the attachments table's state is <strong>not</strong> in the URL: it swaps over HTMX and starts each page load on its first
- * page with an empty box. A page carries one {@code ?q=}/{@code ?page=} pair at most, and giving the second table a second pair would make every
- * bookmark, back-navigation and "did you mean" link on this page carry four parameters to restore a list that is a scroll away from being re-typed.
- * It is the same trade the dashboard's day panel makes.
+ * Unlike the notes table, the attachments table's state is <strong>not</strong> in the URL: it swaps over HTMX and starts each page load empty, on
+ * its first page. A page carries at most one {@code ?q=}/{@code ?page=} pair, and a second pair would make every bookmark, back-navigation and "did
+ * you mean" link here carry four parameters to restore a list that's a scroll away from being re-typed - the same trade the dashboard's day panel
+ * makes.
  */
 @Path("/notes")
 @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)

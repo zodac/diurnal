@@ -27,8 +27,8 @@ import io.quarkus.qute.TemplateExtension;
  * an entry whose wording carries markup (the bold CSV filenames in the import-refusal sentences, {@code .claude/I18N.md}) shows its tags as literal
  * angle brackets unless the arm rendering it asks for {@code .raw}. That switches the escaping off for everything the entry rendered, and a message
  * bundle's own template carries no content type, so Qute never escaped the parameters substituted into it either: {@code .raw} on an entry that
- * embeds text out of an upload would put that text on the page as markup. Escaping such a parameter on the way in -
- * {@code {actionName.escapeHtml}} - is what this exists for.
+ * embeds text out of an upload would put that text on the page as markup. This exists to escape such a parameter on the way in -
+ * {@code {actionName.escapeHtml}}.
  *
  * <p>
  * <strong>Only ever use it beside a {@code .raw}.</strong> Everywhere else Qute has already escaped the value, and a second pass shows the entities

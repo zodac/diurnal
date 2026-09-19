@@ -35,20 +35,18 @@ import org.jspecify.annotations.Nullable;
 /**
  * The single owner of every profile and preference update — display name, theme, font, calendar view, note colour, timezone, week start, page size,
  * decimal places, stats-summary toggle and the "Action stats" arrangement — shared by the Settings page's HTMX endpoints
- * ({@code SettingsWebResource}) and the REST API's {@code PATCH /api/v1/users/me} ({@code UserResource}), so a rule added or changed here applies to
- * both surfaces by construction (the
- * {@code AuthenticationService} pattern). The resources only translate the returned {@link ProfileResult} into their medium.
+ * ({@code SettingsWebResource}) and the API's {@code PATCH /api/v1/users/me} ({@code UserResource}), so a rule change here applies to both by
+ * construction (the {@code AuthenticationService} pattern); each resource only translates the returned {@link ProfileResult} into its medium.
  *
  * <p>
  * Every submitted value is validated and an unrecognised one is <em>rejected</em> (never silently coerced) so the client keeps the previous value;
- * the two deliberate special cases are a blank timezone and a blank week start, the explicit "follow the server default"/"follow the account's
- * language" resets. Every rule delegates to the single validators
- * on {@link UserSettings}, the picker enums and {@link StatField}. Free-text values (the display name) go through the shared
- * {@link TextValidation} pipeline, so they obey the same blank/length/content rules as every other text input in the app.
+ * the two deliberate exceptions are a blank timezone and a blank week start, the explicit "follow the server default"/"follow the account's
+ * language" resets. Every rule delegates to the single validators on {@link UserSettings}, the picker enums and {@link StatField}. Free-text values
+ * (the display name) go through the shared {@link TextValidation} pipeline, obeying the same blank/length/content rules as every other text input.
  *
  * <p>
  * <strong>{@link #applyAll(User, PreferenceUpdates)} is the entry point</strong> — the per-field rules below are its steps, private because the
- * order they run in and the stop-at-the-first-rejection behaviour are part of the same decision and must not be reachable piecemeal.
+ * order they run in and the stop-at-the-first-rejection behaviour are one decision and must not be reachable piecemeal.
  *
  * <p>
  * Callers own the transaction (each endpoint is {@code @Transactional}); this bean only assumes one is active.

@@ -36,11 +36,11 @@ public final class StatTileExtensions {
      * name in the first case and the translated catalogue word in the second.
      *
      * <p>
-     * The asymmetry is the point, and it is the same one {@link StatSubjectExtensions#actionName(StatSubject)} draws: a rename is the user's own
-     * text, which is never translated, while the catalogue's default caption is app chrome, which always is. Only a template can resolve the
-     * translated half (a Java-side {@code AppMessages} call is always English - see that interface's own class Javadoc), so the Java half's job is
-     * limited to saying which of the two a given tile carries. Without it, the template has to branch on {@code labelIsCustom} at every arm of its
-     * per-key {@code {#switch}} and repeat that arm's whole render twice.
+     * The asymmetry is the point, and is the same one {@link StatSubjectExtensions#actionName(StatSubject)} draws: a rename is the user's own text,
+     * never translated, while the catalogue's default caption is app chrome, always translated. Only a template can resolve the translated half (a
+     * Java-side {@code AppMessages} call is always English - see that interface's own class Javadoc), so the Java half's job is limited to saying
+     * which of the two a given tile carries. Without it, the template would have to branch on {@code labelIsCustom} at every arm of its per-key
+     * {@code {#switch}} and repeat that arm's whole render twice.
      *
      * @param tile the tile to inspect
      * @return the user's renamed caption, or {@code null} when the tile still carries the catalogue's default

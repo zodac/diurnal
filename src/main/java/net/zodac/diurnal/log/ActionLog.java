@@ -42,13 +42,13 @@ import org.jspecify.annotations.Nullable;
  * A per-day tally of how many times an {@link net.zodac.diurnal.action.Action} was performed.
  *
  * <p>
- * The row is identified by its own natural key - the {@code (user, action, day)} it tallies, carried in an {@link ActionLogId} - and holds no
- * surrogate id. It is the one table here with no use for one: nothing ever looks a log entry up by id, so a column would be 16 bytes of every row
- * plus a never-read index to maintain on each increment. See the {@code action_logs} section of {@code V1__initial_schema.sql} for the measurements.
+ * Identified by its natural key - the {@code (user, action, day)} it tallies, carried in an {@link ActionLogId} - with no surrogate id, the one
+ * table here with no use for one: nothing ever looks a log entry up by id, so a column would cost 16 bytes per row plus a never-read index to
+ * maintain on each increment. See the {@code action_logs} section of {@code V1__initial_schema.sql} for the measurements.
  *
  * <p>
- * {@link IdClass} rather than an {@code @EmbeddedId} so the three key columns stay flat fields on the entity, which is what lets every query keep
- * addressing them directly ({@code l.userId}, {@code l.logDate}) instead of through a nested {@code l.id.userId}.
+ * {@link IdClass} rather than an {@code @EmbeddedId} so the three key columns stay flat fields on the entity, letting every query address them
+ * directly ({@code l.userId}, {@code l.logDate}) instead of through a nested {@code l.id.userId}.
  */
 @Entity
 @Table(name = "action_logs")
@@ -79,8 +79,8 @@ public class ActionLog extends AuditedEntity {
      *
      * <p>
      * Projected rather than hydrated because every caller - both calendar feeds, the dashboard's month back-fill and the day-panel rollup - reduces
-     * each row to its {@code (day, action, count)} immediately and reads none of the other columns. A three-month dashboard warm-up is ~2,700 rows,
-     * so returning entities meant 2,700 managed instances and persistence-context entries for data that is read once and discarded.
+     * each row to its {@code (day, action, count)} and reads nothing else. A three-month warm-up is ~2,700 rows, so returning entities meant 2,700
+     * managed instances for data read once and discarded.
      *
      * @param userId the owning user
      * @param start  the inclusive start of the date window
@@ -188,9 +188,9 @@ public class ActionLog extends AuditedEntity {
             .bind(ActionLogQueries.USER_ID, userId)
             .bind(ActionLogQueries.ACTION_IDS, actionIds)
             .singleResult();
-        // A native scalar is untyped by construction (see SqlQuery), and MIN over no rows is a legitimate SQL NULL rather than an error. The driver
-        // hands back a java.time.LocalDate for a `date` column, so this is the one cast CODE_STYLE.md still allows - a native projection the type
-        // system cannot describe, where a wrong type would be a programming error rather than a case to handle.
+        // A native scalar is untyped by construction (see SqlQuery), and MIN over no rows is a legitimate SQL NULL, not an error. The driver hands
+        // back a java.time.LocalDate for a `date` column, so this is the one cast CODE_STYLE.md still allows - a native projection the type system
+        // can't describe, where a wrong type would be a programming error, not a case to handle.
         return earliest == null ? null : (LocalDate) earliest;
     }
 
@@ -235,9 +235,8 @@ public class ActionLog extends AuditedEntity {
      * actions with at least one logged entry.
      *
      * <p>
-     * Answered by probing each of the user's actions for a log rather than by collecting the distinct ids out of the logs themselves, so the cost is
-     * the action count instead of the whole history; see {@code ActionLogQueries.LOGGED_ACTION_IDS_JPQL} for the measurements and for why the two
-     * cannot return different sets.
+     * Answered by probing each action for a log rather than collecting distinct ids from the logs themselves, so the cost is the action count, not
+     * the whole history; see {@code ActionLogQueries.LOGGED_ACTION_IDS_JPQL} for the measurements and why the two can't return different sets.
      *
      * @param userId the owning user
      * @return the logged action ids, in no particular order
@@ -253,8 +252,8 @@ public class ActionLog extends AuditedEntity {
      * logged, which are the two orders the dashboard's day panel offers beyond the alphabet.
      *
      * <p>
-     * An action with no logs at all has no entry in the returned map: the query aggregates log rows, and there are none. Callers treat an absent
-     * entry as the bottom of the order rather than substituting a zero, which is where a never-logged action belongs under either order.
+     * An action with no logs has no entry in the returned map: the query aggregates log rows, and there are none. Callers treat an absent entry as
+     * the bottom of the order rather than substituting a zero - where a never-logged action belongs under either order.
      *
      * <p>
      * This reads every log row the user owns - see {@code ActionLogQueries.ACTION_HISTORY_JPQL} for why that is inherent, and for the cost. Call it
@@ -370,11 +369,10 @@ public class ActionLog extends AuditedEntity {
      * three lists are parallel: index {@code i} of each describes one entry. Passing empty lists is a no-op.
      *
      * <p>
-     * The whole set goes in one round trip rather than one per entry. A 3-year archive is ~33,000 entries, which measured 3,628 ms as individual
+     * The whole set goes in one round trip rather than one per entry: a 3-year archive is ~33,000 entries, measured at 3,628 ms as individual
      * statements against 812 ms as this one. Each entry follows the same last-write-wins rule
-     * {@link #setCount(LogStatements, UUID, UUID, LocalDate, int)} uses;
-     * a key repeated within one call would be rejected by the database rather than silently overwritten, which no caller can reach because
-     * {@code ImportParser} refuses a duplicated {@code (action, day)} before the plan is ever written.
+     * {@link #setCount(LogStatements, UUID, UUID, LocalDate, int)} uses; a key repeated within one call would be rejected by the database rather
+     * than silently overwritten - unreachable, since {@code ImportParser} refuses a duplicated {@code (action, day)} before the plan is written.
      *
      * @param statements the database's native statements
      * @param userId the owning user
@@ -382,9 +380,9 @@ public class ActionLog extends AuditedEntity {
      * @param dates the day of each entry
      * @param counts the exact count of each entry (each must be in {@code [1, MAX_DAILY_COUNT]})
      */
-    // Qodana's ZeroLengthArrayInitialization and PMD's OptimizableToArrayCall disagree outright on the `new T[0]` below, and PMD is the one that is
-    // right: an empty prototype lets the JVM allocate the array of the right size itself, which is measurably faster than pre-sizing it here. Qodana
-    // is scoped out of this file in code-quality-config-overrides/qodana.yaml - a @SuppressWarnings naming that inspection does not bind (measured).
+    // Qodana's ZeroLengthArrayInitialization and PMD's OptimizableToArrayCall disagree on the `new T[0]` below, and PMD is right: an empty prototype
+    // lets the JVM allocate the array at the right size itself, measurably faster than pre-sizing it here. Qodana is scoped out of this file in
+    // code-quality-config-overrides/qodana.yaml - a @SuppressWarnings naming that inspection does not bind (measured).
     public static void setCounts(final LogStatements statements, final UUID userId, final List<UUID> actionIds, final List<LocalDate> dates,
         final List<Integer> counts) {
         if (actionIds.isEmpty()) {
@@ -415,7 +413,7 @@ public class ActionLog extends AuditedEntity {
      * must be at least {@code 1}: callers treat a non-positive amount as a no-op rather than calling this.
      *
      * <p>
-     * The lock, the decrement and the delete are all expressed through the ORM rather than as native SQL, which is why this method takes no
+     * The lock, decrement and delete are all expressed through the ORM rather than native SQL, which is why this method takes no
      * {@link net.zodac.diurnal.persistence.LogStatements}. Hibernate renders the locking clause for whichever dialect is configured
      * ({@code SELECT ... FOR UPDATE} on PostgreSQL, {@code WITH (UPDLOCK, ROWLOCK)} on SQL Server), so this is the one part of the write path that
      * needs no per-vendor spelling. Writing back through the loaded entity - rather than through a bulk update or delete - also keeps the
@@ -423,10 +421,10 @@ public class ActionLog extends AuditedEntity {
      *
      * <p>
      * <strong>This relies on no caller hydrating an {@link ActionLog} for the same key earlier in the transaction</strong>: a pessimistic load of an
-     * already-managed instance takes the lock but does not re-read the row, so the count decided on would be the stale one. The only caller reaches
-     * here through {@code LogService.adjust}, whose guards load {@code Action} and nothing else. A row written past the persistence context by the
-     * native increment IS seen, because nothing has hydrated it - {@code DecrementLockIT} pins that direction, and the reverse one where an increment
-     * follows a decrement's queued delete inside the same transaction.
+     * already-managed instance takes the lock but does not re-read the row, so the decision would use a stale count. The only caller reaches here
+     * through {@code LogService.adjust}, whose guards load {@code Action} and nothing else. A row written past the persistence context by the native
+     * increment IS seen, since nothing has hydrated it - {@code DecrementLockIT} pins that direction, and the reverse one where an increment follows
+     * a decrement's queued delete inside the same transaction.
      *
      * @param userId the owning user
      * @param actionId the action being logged

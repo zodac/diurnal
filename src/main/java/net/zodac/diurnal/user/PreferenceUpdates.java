@@ -23,19 +23,19 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * One profile/preference update, normalised out of whichever surface submitted it: {@code null} means "not part of this request, keep what is
- * stored", and any other value means "set this field to this". The Settings page's form PATCH and the REST API's {@code PATCH /api/v1/users/me} both
- * build one of these and hand it to {@link ProfileService#applyAll(User, PreferenceUpdates)}, which is the single implementation of the update walk.
+ * stored", any other value means "set this field to this". The Settings page's form PATCH and the API's {@code PATCH /api/v1/users/me} both build
+ * one and hand it to {@link ProfileService#applyAll(User, PreferenceUpdates)}, the single implementation of the update walk.
  *
  * <p>
- * <strong>This record's component order IS the order the fields are applied in</strong>, and the walk stops at the first rejection — so the field
- * whose rejection a caller is told about is decided here, once, rather than by each surface's own chain of {@code if} statements. The two surfaces
+ * <strong>This record's component order IS the order fields are applied in</strong>, and the walk stops at the first rejection - so which field's
+ * rejection a caller is told about is decided here, once, rather than by each surface's own chain of {@code if} statements. The two surfaces
  * previously wrote that walk out separately (~110 lines apiece) and had already drifted into two different orders.
  *
  * <p>
- * The values are RAW, exactly as the shared validators on {@link UserSettings}/{@code StatField}/the picker enums expect them — a page size arrives
- * as the submitted text so the one parser decides whether it is a number, rather than each surface parsing it its own way. What each surface decides
- * for itself is only what counts as ABSENT: an empty page-size override list is "the panel was not included in this PATCH" to the form (which always
- * posts every row) but an explicit "clear every override" to the API, so each resource resolves that to {@code null}-or-not before building this.
+ * Values are RAW, exactly as the shared validators on {@link UserSettings}/{@code StatField}/the picker enums expect them - a page size arrives as
+ * submitted text so one parser decides whether it's a number, rather than each surface parsing it its own way. Each surface only decides what
+ * counts as ABSENT: an empty page-size override list means "panel not included" to the form (which always posts every row) but "clear every
+ * override" to the API, so each resource resolves that to {@code null}-or-not before building this.
  *
  * @param displayName      the new display name
  * @param theme            the UI colour scheme

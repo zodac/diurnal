@@ -28,17 +28,17 @@ import org.jspecify.annotations.Nullable;
  * {@link jakarta.persistence.IdClass} on the entity, whose two {@link jakarta.persistence.Id} fields this mirrors by name and type.
  *
  * <p>
- * {@code computedForDate} is deliberately <strong>not</strong> part of this key. The cached figures depend on the user's "today" as well as on their
- * logged entries, so the row goes stale when the date rolls over - but carrying the date as a plain column and treating a mismatch as a miss lets the
- * row be overwritten in place, where putting it in the key would accumulate a fresh row set for every day any user opened the Stats page. See
+ * {@code computedForDate} is deliberately <strong>not</strong> part of this key. The cached figures depend on the user's "today" as well as their
+ * logged entries, so the row goes stale when the date rolls over - but carrying the date as a plain column and treating a mismatch as a miss lets
+ * the row be overwritten in place, where putting it in the key would accumulate a fresh row for every day any user opened the Stats page. See
  * {@link SubjectStatsCache} and the {@code subject_stats_cache} section of {@code V1__initial_schema.sql}.
  *
  * <p>
- * This is a plain class rather than one of the project's records because the JPA id-class contract requires a {@link Serializable} type with a public
- * no-argument constructor and mutable, provider-populated fields matching the entity's - a shape a record cannot express. It is data only and holds
- * no logic. Application code never reads its fields, and never constructs one at all: {@link SubjectStatsCache} carries the same two values as
- * ordinary fields, and every read, write and invalidation addresses a row by predicate rather than by identity. An {@code @IdClass} is used rather
- * than an {@code @EmbeddedId} for the reason {@link net.zodac.diurnal.log.ActionLogId} records - the latter would nest the key, turning every
+ * This is a plain class rather than one of the project's records because the JPA id-class contract requires a {@link Serializable} type with a
+ * public no-argument constructor and mutable, provider-populated fields matching the entity's - a shape a record can't express. It is data only,
+ * holds no logic, and application code never reads its fields or constructs one: {@link SubjectStatsCache} carries the same two values as ordinary
+ * fields, and every read, write and invalidation addresses a row by predicate rather than identity. An {@code @IdClass} is used rather than an
+ * {@code @EmbeddedId} for the reason {@link net.zodac.diurnal.log.ActionLogId} records - the latter would nest the key, turning every
  * {@code c.userId} in a query into {@code c.id.userId}.
  *
  * <p>

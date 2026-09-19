@@ -27,11 +27,11 @@ import jakarta.inject.Inject;
  *
  * <p>
  * Passwords are hashed with <b>Argon2id</b> (a memory-hard function resistant to GPU/ASIC cracking), tuned via {@link Argon2Config}; the resulting
- * PHC string (e.g. {@code $argon2id$v=19$m=65536,t=3,p=1$...}) embeds a unique, per-password salt and every cost parameter, and the plaintext is
- * never persisted. Because each hash records the parameters it was made with, verification still works after the cost is retuned; a caller upgrades
- * an out-of-date hash to the current cost by re-hashing on the next successful login (see {@link #needsRehash(String)}). All hashing and verification
- * across the web and REST layers routes through here, so the algorithm and its cost are defined in exactly one place. The rules a raw password must
- * satisfy live in the shared {@code net.zodac.diurnal.text} catalogue ({@code TextFields.PASSWORD}).
+ * PHC string (e.g. {@code $argon2id$v=19$m=65536,t=3,p=1$...}) embeds a unique per-password salt and every cost parameter, and the plaintext is never
+ * persisted. Each hash records the parameters it was made with, so verification still works after the cost is retuned; a caller upgrades an
+ * out-of-date hash by re-hashing on the next successful login (see {@link #needsRehash(String)}). All hashing and verification across the web and
+ * REST layers routes through here, so the algorithm and its cost are defined in one place. The rules a raw password must satisfy live in the shared
+ * {@code net.zodac.diurnal.text} catalogue ({@code TextFields.PASSWORD}).
  */
 @ApplicationScoped
 public class Passwords {

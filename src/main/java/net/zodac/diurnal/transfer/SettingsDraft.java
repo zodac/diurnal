@@ -23,25 +23,25 @@ import net.zodac.diurnal.user.StatFieldPref;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The settings one archive describes, every value already through the same validator the Settings page and {@code PATCH /api/v1/users/me} put a
- * submitted one through. {@link #displayName()} is the one component that is not a {@code @Preference} - see {@link SettingKey#DISPLAY_NAME}.
+ * The settings one archive describes, each value already through the same validator the Settings page and {@code PATCH /api/v1/users/me} use.
+ * {@link #displayName()} is the one component that is not a {@code @Preference} - see {@link SettingKey#DISPLAY_NAME}.
  *
  * <p>
  * <strong>{@code null} means "this file does not describe that preference", not "clear it".</strong> A preference always HAS a value, so a key the
- * archive leaves out cannot be asking for one to be removed - it is simply not part of what the file says, and the stored value is kept. That is the
- * same contract {@code PreferenceUpdates} carries for a partial {@code PATCH}, and for the same reason: a hand-edited {@code settings.csv} holding
- * the two rows someone cared about must not silently reset the nine they deleted.
+ * archive omits cannot be asking to remove one - it is simply not part of what the file says, and the stored value is kept. Same contract
+ * {@code PreferenceUpdates} carries for a partial {@code PATCH}: a hand-edited {@code settings.csv} holding two rows someone cared about must not
+ * silently reset the other nine.
  *
  * <p>
- * The two <strong>resettable</strong> preferences are the exception that proves it. A blank {@link #timezone()}/{@link #weekStart()} is the explicit
- * "follow the server default"/"follow the account's language" reset, exactly as a blank submission is on both existing surfaces - so those two
- * components distinguish an absent row ({@code null}) from a row carrying no value ({@code ""}).
+ * The two <strong>resettable</strong> preferences are the exception. A blank {@link #timezone()}/{@link #weekStart()} is the explicit "follow the
+ * server default"/"follow the account's language" reset, exactly as a blank submission is on both existing surfaces - so these two distinguish an
+ * absent row ({@code null}) from one carrying no value ({@code ""}).
  *
  * <p>
- * The two <strong>set</strong>-valued preferences do not need that distinction and deliberately do not have it: whenever the member is present at
- * all, {@link #pageSizes()} and {@link #statsFields()} are the COMPLETE set, so {@code null} is "no overrides"/"never customised" - the one
- * representation those states already have in the column. An override set's emptiness is a state a file can only express by carrying no rows for it,
- * where a scalar's absence can only mean the file is silent.
+ * The two <strong>set</strong>-valued preferences don't need that distinction and deliberately lack it: whenever present at all,
+ * {@link #pageSizes()} and {@link #statsFields()} are the COMPLETE set, so {@code null} means "no overrides"/"never customised" - the same
+ * representation those states already have in the column. A file can only express an empty override set by carrying no rows for it, where a
+ * scalar's absence can only mean the file is silent.
  *
  * @param actionOrder      the order the dashboard's day panel lists actions in
  * @param calendarView     the dashboard calendar layout

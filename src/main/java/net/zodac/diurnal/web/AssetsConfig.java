@@ -28,14 +28,14 @@ import java.util.Map;
  * the application-wide {@code app.*} settings.
  *
  * <p>
- * A separate {@code @ConfigMapping} on the {@code app.assets} sub-prefix, exactly as {@code app.update-check} is one - so the keys a deployment
- * sets are unchanged.
+ * A separate {@code @ConfigMapping} on the {@code app.assets} sub-prefix, as {@code app.update-check} is, so a deployment's existing keys are
+ * unchanged.
  */
 @ConfigMapping(prefix = "app.assets")
 public interface AssetsConfig {
     /**
-     * Filename of the compiled stylesheet served under {@code /css/}. Content-hashed at image-build time so each deployment serves a fresh URL;
-     * defaults to the un-hashed {@code app.css} in dev.
+     * Filename of the compiled stylesheet served under {@code /css/}. Content-hashed at image-build time (a fresh URL per deploy); defaults to the
+     * un-hashed {@code app.css} in dev.
      *
      * @return the served stylesheet filename
      */
@@ -44,8 +44,8 @@ public interface AssetsConfig {
     String cssFile();
 
     /**
-     * Filename of the self-hosted htmx script served under {@code /js/}. Content-hashed at image-build time so each deployment serves a fresh URL;
-     * defaults to the un-hashed {@code htmx.min.js} in dev.
+     * Filename of the self-hosted htmx script served under {@code /js/}. Content-hashed at image-build time (a fresh URL per deploy); defaults to
+     * the un-hashed {@code htmx.min.js} in dev.
      *
      * @return the served script filename
      */
@@ -55,7 +55,7 @@ public interface AssetsConfig {
 
     /**
      * Filename of the shared application script served under {@code /js/} (the behaviour extracted from {@code layout.html} and loaded on every
-     * page). Content-hashed at image-build time so each deployment serves a fresh URL; defaults to the un-hashed {@code app.js} in dev.
+     * page). Content-hashed at image-build time (a fresh URL per deploy); defaults to the un-hashed {@code app.js} in dev.
      *
      * @return the served shared-script filename
      */
@@ -65,7 +65,7 @@ public interface AssetsConfig {
 
     /**
      * Filename of the dashboard calendar script served under {@code /js/} (the engine extracted from {@code dashboard.html} and loaded only on the
-     * dashboard). Content-hashed at image-build time so each deployment serves a fresh URL; defaults to the un-hashed {@code dashboard.js} in dev.
+     * dashboard). Content-hashed at image-build time (a fresh URL per deploy); defaults to the un-hashed {@code dashboard.js} in dev.
      *
      * @return the served dashboard-script filename
      */
@@ -75,8 +75,7 @@ public interface AssetsConfig {
 
     /**
      * Filename of the dashboard note-box script served under {@code /js/} (the day-note panel, split out of {@code dashboard.js} and loaded only on
-     * the dashboard, BEFORE it). Content-hashed at image-build time so each deployment serves a fresh URL; defaults to the un-hashed
-     * {@code note.js} in dev.
+     * the dashboard, BEFORE it). Content-hashed at image-build time (a fresh URL per deploy); defaults to the un-hashed {@code note.js} in dev.
      *
      * @return the served note-script filename
      */
@@ -86,8 +85,7 @@ public interface AssetsConfig {
 
     /**
      * Filename of the actions-page script served under {@code /js/} (the counter-surgery behaviour extracted from {@code actions.html} and loaded
-     * only on that page). Content-hashed at image-build time so each deployment serves a fresh URL; defaults to the un-hashed {@code actions.js} in
-     * dev.
+     * only on that page). Content-hashed at image-build time (a fresh URL per deploy); defaults to the un-hashed {@code actions.js} in dev.
      *
      * @return the served actions-script filename
      */
@@ -97,8 +95,8 @@ public interface AssetsConfig {
 
     /**
      * Filename of the admin users-page script served under {@code /js/} (the 409 last-administrator banner behaviour extracted from
-     * {@code admin-users.html} and loaded only on that page). Content-hashed at image-build time so each deployment serves a fresh URL; defaults to
-     * the un-hashed {@code admin-users.js} in dev.
+     * {@code admin-users.html} and loaded only on that page). Content-hashed at image-build time (a fresh URL per deploy); defaults to the
+     * un-hashed {@code admin-users.js} in dev.
      *
      * @return the served admin users-script filename
      */
@@ -108,8 +106,8 @@ public interface AssetsConfig {
 
     /**
      * Filename of the admin API-docs page script served under {@code /js/} (the Swagger UI iframe font/theme/height behaviour extracted from
-     * {@code admin-api-docs.html} and loaded only on that page). Content-hashed at image-build time so each deployment serves a fresh URL; defaults
-     * to the un-hashed {@code admin-api-docs.js} in dev.
+     * {@code admin-api-docs.html} and loaded only on that page). Content-hashed at image-build time (a fresh URL per deploy); defaults to the
+     * un-hashed {@code admin-api-docs.js} in dev.
      *
      * @return the served API-docs-script filename
      */
@@ -119,8 +117,8 @@ public interface AssetsConfig {
 
     /**
      * Filename of the settings-page script served under {@code /js/} (the display-name/password editors, preview modal and stats-fields picker
-     * behaviour extracted from {@code settings.html} and loaded only on that page). Content-hashed at image-build time so each deployment serves a
-     * fresh URL; defaults to the un-hashed {@code settings.js} in dev.
+     * behaviour extracted from {@code settings.html} and loaded only on that page). Content-hashed at image-build time (a fresh URL per deploy);
+     * defaults to the un-hashed {@code settings.js} in dev.
      *
      * @return the served settings-script filename
      */
@@ -130,7 +128,7 @@ public interface AssetsConfig {
 
     /**
      * Filename of the stats-page script served under {@code /js/} (the per-action frequency-graph dialog, loaded only on that page). Content-hashed
-     * at image-build time so each deployment serves a fresh URL; defaults to the un-hashed {@code stats.js} in dev.
+     * at image-build time (a fresh URL per deploy); defaults to the un-hashed {@code stats.js} in dev.
      *
      * @return the served stats-script filename
      */
@@ -140,10 +138,9 @@ public interface AssetsConfig {
 
     /**
      * Base-name → content-hashed filename map for the settings preview thumbnails served under {@code /img/settings/} (e.g.
-     * {@code page-nova-full-dark} → {@code page-nova-full-dark.9f3a1c2b4d5e.webp}). Populated at image-build time — one entry per WebP, baked into
-     * the build config by the Dockerfile — so each thumbnail gets a fresh URL only when its bytes change, and is served {@code immutable}. Empty for
-     * a non-Docker {@code mvn package} / dev run, where {@link net.zodac.diurnal.web.AppInfo#settingsImageUrl(String)} falls back to the
-     * un-hashed base name.
+     * {@code page-nova-full-dark} → {@code page-nova-full-dark.9f3a1c2b4d5e.webp}). Populated at image-build time — one entry per WebP, baked in by
+     * the Dockerfile — so each thumbnail gets a fresh URL only when its bytes change, and is served {@code immutable}. Empty for a non-Docker
+     * {@code mvn package} / dev run, where {@link net.zodac.diurnal.web.AppInfo#settingsImageUrl(String)} falls back to the un-hashed base name.
      *
      * @return the settings preview base-name to hashed-filename map, empty when un-hashed
      */
@@ -154,7 +151,7 @@ public interface AssetsConfig {
      * Base-name → content-hashed filename map for the settings preview LIGHTBOX images served under {@code /img/settings/full/}, the full-size
      * counterparts of {@link #settingsImages()} under the same base names. The two are separate files because the picker tile paints at ~185 CSS px
      * while the lightbox panel is capped at 1024 CSS px, so serving one full-size image for both cost every Settings page view several times the
-     * bytes it needed; this map's images are fetched only when a reader actually opens a preview. Populated at image-build time exactly as
+     * bytes it needed; this map's images are fetched only when a reader opens a preview. Populated at image-build time exactly as
      * {@link #settingsImages()} is, and empty for a non-Docker {@code mvn package} / dev run, where
      * {@link net.zodac.diurnal.web.AppInfo#settingsFullImageUrl(String)} falls back to the un-hashed base name.
      *

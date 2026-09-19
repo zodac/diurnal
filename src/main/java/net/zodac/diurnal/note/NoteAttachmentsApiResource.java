@@ -38,6 +38,7 @@ import java.util.UUID;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.log.DateRanges;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.openapi.responses.UnauthenticatedApiResponse;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
@@ -115,7 +116,7 @@ public class NoteAttachmentsApiResource {
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = AttachmentsDto.class)))
     @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     public Response attachments(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to read, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -155,7 +156,7 @@ public class NoteAttachmentsApiResource {
     @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date, the body is empty, the extension is not one this "
         + "deployment accepts, or the name breaks a content rule.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     @APIResponse(responseCode = "413",
         description = "The file is larger than this deployment's attachment limit (MAX_ATTACHMENT_SIZE, 25 MB by default).")
     public Response attach(
@@ -191,7 +192,7 @@ public class NoteAttachmentsApiResource {
     @APIResponse(responseCode = "200", description = "The file's bytes.")
     @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     @APIResponse(responseCode = "404", description = "That day has no attachment with that ID.")
     public Response download(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day the attachment belongs to, as yyyy-MM-dd.",
@@ -236,7 +237,7 @@ public class NoteAttachmentsApiResource {
     @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date, the name breaks a content rule, or that day already "
         + "has an attachment with that name.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     @APIResponse(responseCode = "404", description = "That day has no attachment with that ID.")
     public Response rename(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day the attachment belongs to, as yyyy-MM-dd.",
@@ -270,7 +271,7 @@ public class NoteAttachmentsApiResource {
     @APIResponse(responseCode = "204", description = "The attachment was removed.")
     @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     @APIResponse(responseCode = "404", description = "That day has no attachment with that ID.")
     public Response delete(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day the attachment belongs to, as yyyy-MM-dd.",

@@ -74,13 +74,10 @@ public class AuthWebResource {
 
     private static final Logger LOGGER = LogManager.getLogger(AuthWebResource.class);
 
-    // Carries the exact seconds left on a lockout to the AJAX form handlers (app.js), which post via fetch
-    // and so never render the server-side banner — they run a live mm:ss countdown from this value instead.
-    // Shared by both the login (GET /login render) and registration (POST /register 429) surfaces.
-
-    // Short-lived cookie signalling that a just-rejected form login was a lockout (not a bad password).
-    // Its value is the seconds left; the GET /login render reads it to show the banner and seed the
-    // countdown, then clears it. Only needs to survive the immediate redirect to the login page.
+    // Short-lived cookie signalling that a just-rejected form login was a lockout (not a bad password); its value is the seconds
+    // left. The GET /login render reads it to show the banner and seed a live mm:ss countdown, then clears it — needed because
+    // the AJAX form handlers (app.js) post via fetch and never render the server-side banner. Shared by login and registration
+    // (POST /register 429) surfaces; only needs to survive the immediate redirect to /login.
     private static final String LOCKOUT_COOKIE = "diurnal_login_lockout";
     private static final int LOCKOUT_COOKIE_MAX_AGE_SECONDS = 30;
 

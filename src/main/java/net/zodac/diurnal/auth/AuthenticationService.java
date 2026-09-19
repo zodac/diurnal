@@ -40,9 +40,9 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>
  * Transaction discipline: the deliberately expensive Argon2id work (verification, and the transparent cost-upgrade re-hash) runs OUTSIDE any
- * database transaction, so no pooled connection sits idle for the duration of a hash. Only the success bookkeeping ({@code lastLoginAt} and an
- * upgraded hash) is written, in the short service-owned transactions of {@link #recordLogin(UUID)} / {@link #recordLoginWithRehash(UUID, String)} —
- * callers must NOT be {@code @Transactional}, or the hashing would run inside their transaction again.
+ * database transaction, so no pooled connection sits idle for a hash's duration. Only the success bookkeeping ({@code lastLoginAt} and an upgraded
+ * hash) is written, in the short service-owned transactions of {@link #recordLogin(UUID)} / {@link #recordLoginWithRehash(UUID, String)} — callers
+ * must NOT be {@code @Transactional}, or the hashing would run inside their transaction again.
  */
 @ApplicationScoped
 public class AuthenticationService {

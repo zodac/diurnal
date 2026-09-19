@@ -35,19 +35,19 @@ import org.jspecify.annotations.Nullable;
  * single-instance deployment; durable across restarts.
  *
  * <p>
- * {@link #resolve(String, Instant)} is deliberately NOT {@code @Transactional}, and that is load-bearing for every authenticated request in the app.
- * A {@code @Transactional} read runs in a transaction-scoped persistence context that closes at commit, so the {@link User} its {@code JOIN FETCH}
- * loaded is discarded the moment the method returns - and the resource's first {@code CurrentUser.get()} then reads that very same row a second time.
- * Reading without a transaction instead uses the REQUEST-scoped persistence context, which outlives authentication, so the user is still managed when
- * the resource asks for it and {@code CurrentUser} answers from the first-level cache with no statement at all. Measured against a real database:
- * {@code GET /api/v1/users/me} and {@code GET /settings} went from two statements to one, and {@code GET /} from four to three. A
- * {@code @Transactional} endpoint (a write) opens its own persistence context as it always did, so it is unaffected either way.
+ * {@link #resolve(String, Instant)} is deliberately NOT {@code @Transactional} - load-bearing for every authenticated request. A
+ * {@code @Transactional} read runs in a transaction-scoped persistence context that closes at commit, so the {@link User} its {@code JOIN FETCH}
+ * loaded is discarded the moment the method returns, and the resource's first {@code CurrentUser.get()} then re-reads that same row. Without a
+ * transaction, the REQUEST-scoped persistence context outlives authentication instead, so the user is still managed when the resource asks for it
+ * and {@code CurrentUser} answers from the first-level cache with no statement at all. Measured against a real database: {@code GET /api/v1/users/me}
+ * and {@code GET /settings} went from two statements to one, {@code GET /} from four to three. A {@code @Transactional} endpoint (a write) opens its
+ * own persistence context as always, so it is unaffected.
  *
  * <p>
- * The two writes {@code resolve} may need therefore open short transactions of their own, programmatically rather than by annotation - a
- * {@code @Transactional} method on this bean would be a self-call and go unintercepted, and the alternative (the {@code self} CDI-proxy pattern
- * {@code AuthenticationService} uses) buys nothing here, where each write is a single statement rather than a read-modify-write. Both are bulk
- * statements keyed on the token hash, so neither has to re-read the row it is about to touch, and both JOIN an enclosing transaction where there is
+ * The two writes {@code resolve} may need therefore open short transactions of their own, programmatically rather than by annotation: a
+ * {@code @Transactional} method on this bean would be a self-call and go unintercepted, and the {@code self} CDI-proxy pattern
+ * {@code AuthenticationService} uses buys nothing here, where each write is a single statement rather than a read-modify-write. Both are bulk
+ * statements keyed on the token hash, so neither has to re-read the row it is about to touch, and both join an enclosing transaction where there is
  * one.
  */
 @ApplicationScoped

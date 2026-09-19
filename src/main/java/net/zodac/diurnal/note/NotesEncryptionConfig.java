@@ -27,8 +27,8 @@ import java.util.Optional;
  *
  * <p>
  * <strong>This key does not live in the database, and that is its entire purpose.</strong> A stolen dump, a nightly backup, a read replica or a
- * restored volume carries the sealed notes and the wrapped data keys but nothing that opens either — those are different accidents from losing the
- * environment file, and it takes both to read a note.
+ * restored volume carries the sealed notes and wrapped data keys but nothing that opens either - different accidents from losing the environment
+ * file, and it takes both to read a note.
  *
  * <p>
  * <strong>Losing it loses every note.</strong> There is no second copy anywhere: the data keys it protects cannot be recovered without it, and no
@@ -48,10 +48,10 @@ public interface NotesEncryptionConfig {
      * {@code openssl rand -base64 32}.
      *
      * <p>
-     * Deliberately {@link Optional} and with no default. A missing key must reach {@code AppLifecycle}, which explains what to set and how to
-     * generate it — and it would not: SmallRye converts an empty string to {@code null}, so a non-optional {@code String} with a {@code ""} default
-     * fails during config binding with {@code SRCFG00040}, long before any application code runs. There is deliberately no fallback value either,
-     * because a default key is a key every copy of the source shares.
+     * Deliberately {@link Optional} with no default. A missing key must reach {@code AppLifecycle}, which explains what to set and how to generate
+     * it - and a {@code ""} default would prevent that: SmallRye converts an empty string to {@code null}, so a non-optional {@code String} defaulted
+     * to {@code ""} fails config binding with {@code SRCFG00040} before any application code runs. No fallback value either, since a default key is
+     * a key every copy of the source shares.
      *
      * @return the base64-encoded master key, or empty when none is configured
      */
@@ -62,9 +62,9 @@ public interface NotesEncryptionConfig {
      * Keys this installation has previously used, if any — the mechanism by which {@link #key()} is rotated.
      *
      * <p>
-     * Rotation cannot be a button in the interface, because the key lives in configuration and the application cannot write its own configuration.
-     * So it is driven from configuration too: set {@code NOTE_ENCRYPTION_KEY} to the new value, move the old one here, and deploy. At startup every
-     * stored data key that no longer opens under the current key is opened with one of these and re-wrapped under the new one — after which this
+     * Rotation cannot be a button in the interface, since the key lives in configuration and the application cannot write its own configuration - so
+     * it is driven from configuration too: set {@code NOTE_ENCRYPTION_KEY} to the new value, move the old one here, and deploy. At startup every
+     * stored data key that no longer opens under the current key is opened with one of these and re-wrapped under the new one, after which this
      * setting can be removed at leisure. Doing nothing is safe: a boot with no rotation to perform changes nothing.
      *
      * <p>
@@ -74,11 +74,11 @@ public interface NotesEncryptionConfig {
      *
      * <p>
      * <strong>The {@link Optional} wrapper is load-bearing and must not be flattened to a bare {@link List}</strong>, however much a
-     * "no Optional around a collection" rule wants it to be. This property is always <em>defined</em> — {@code application.properties} binds it to
-     * {@code ${NOTE_ENCRYPTION_PREVIOUS_KEYS:}}, so it arrives as the empty string on every deployment not mid-rotation — and SmallRye's
+     * "no Optional around a collection" rule wants it to be. This property is always <em>defined</em> - {@code application.properties} binds it to
+     * {@code ${NOTE_ENCRYPTION_PREVIOUS_KEYS:}}, so it arrives as the empty string on every deployment not mid-rotation - and SmallRye's
      * {@code CollectionConverter} reads an empty string as {@code null}. A non-optional {@code List} therefore fails config binding with
-     * {@code SRCFG00040} before any application code runs, exactly as the {@code ""}-default trap described on {@link #key()}: the application
-     * cannot start at all unless the operator sets a variable that is meant to be optional.
+     * {@code SRCFG00040} before any application code runs, the same {@code ""}-default trap as {@link #key()}: the application cannot start unless
+     * the operator sets a variable meant to be optional.
      *
      * @return the retired keys, newest first, or empty when no rotation is in progress
      */

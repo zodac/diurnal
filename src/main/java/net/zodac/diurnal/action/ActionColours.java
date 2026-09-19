@@ -31,17 +31,17 @@ import net.zodac.diurnal.colour.Colours;
  *
  * <p>
  * A suggestion is drawn from a fixed palette rather than the whole 24-bit space: a uniformly random hex value is as likely to be an unreadable
- * near-black, a washed-out pastel, or a near-copy of a colour the user is already using, none of which is what "give me a colour" means on a page
- * whose colours exist to tell one action's calendar dot from another's. Every palette entry is therefore at least {@link #MIN_DISTANCE} apart from
- * every other, and from both the neutral default ({@link ActionValidation#DEFAULT_COLOUR}) and the brand indigo that fills the calendar's "today"
- * cell, so no suggestion can vanish into either.
+ * near-black, a washed-out pastel, or a near-copy of a colour already in use - none of which is what "give me a colour" means on a page whose
+ * colours exist to tell one action's calendar dot from another's. Every palette entry is at least {@link #MIN_DISTANCE} from every other, and from
+ * both the neutral default ({@link ActionValidation#DEFAULT_COLOUR}) and the brand indigo filling the calendar's "today" cell, so no suggestion can
+ * vanish into either.
  *
  * <p>
- * The user's own actions extend that rule: a palette entry within {@link #MIN_DISTANCE} of a colour they already use is not offered at all, so a
- * suggestion is visibly distinct from their existing actions and not merely random. Once every palette entry is ruled out (a user with more actions
- * than the palette has colours), a fresh colour is generated instead of repeating one: random HSL values within a readable saturation/lightness
- * band, sampled until one clears {@link #MIN_DISTANCE} from everything in use. Only if {@link #GENERATION_ATTEMPTS} samples all fail - a palette
- * this dense means the space genuinely has no room left - does it settle for the least-similar sample, which is the best answer available.
+ * The user's own actions extend that rule: a palette entry within {@link #MIN_DISTANCE} of a colour already in use is not offered, so a suggestion
+ * stays visibly distinct rather than merely random. Once every entry is ruled out (more actions than the palette has colours), a fresh colour is
+ * generated instead of repeated: random HSL values in a readable saturation/lightness band, sampled until one clears {@link #MIN_DISTANCE} from
+ * everything in use. If all {@link #GENERATION_ATTEMPTS} samples fail - the space genuinely has no room left - it settles for the least-similar
+ * sample, the best answer available.
  */
 final class ActionColours {
 

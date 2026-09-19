@@ -38,7 +38,7 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
  * </ul>
  *
  * <p>
- * HTTP Basic is deliberately NOT offered: enabling it would run Argon2id on every {@code /api/*} request carrying a Basic header — an unthrottled
+ * HTTP Basic is deliberately NOT offered: it would run Argon2id on every {@code /api/*} request carrying a Basic header — an unthrottled
  * password-guessing and CPU/memory-exhaustion surface. The API authenticates with the Bearer session token alone (a cheap hashed-index lookup, no
  * per-request hashing).
  *
@@ -48,9 +48,9 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
  * {@code @SecurityRequirement(name = "BearerAuth")} ({@code auto-add-security-requirement=false}).
  *
  * <p>
- * It is an (otherwise empty) JAX-RS {@link Application} purely to give these document-level annotations a home SmallRye reliably scans. With no
- * {@code @ApplicationPath} and no overridden {@code getClasses()}, it keeps the default {@code /} base path and does not restrict resource scanning —
- * every resource is still picked up as before.
+ * It is an otherwise-empty JAX-RS {@link Application}, purely to give these document-level annotations a home SmallRye reliably scans. With no
+ * {@code @ApplicationPath} and no overridden {@code getClasses()}, it keeps the default {@code /} base path and does not restrict resource
+ * scanning.
  *
  * <p>
  * The {@code version} declared below is only a build-time fallback: {@code PublicApiFilter} overwrites {@code info.version} with the authoritative
@@ -58,9 +58,9 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
  * automatically.
  *
  * <p>
- * The {@code license} and {@code contact} entries are the document's own metadata, and are deliberately a URL rather than an email address: a
- * generated API document is a public artefact, and a contact link pointing at the issue tracker routes a consumer to the same place the README does.
- * Security problems go through {@code SECURITY.md} instead, never the issue tracker.
+ * The {@code license} and {@code contact} entries deliberately use a URL rather than an email address: a generated API document is a public
+ * artefact, and a contact link to the issue tracker routes a consumer to the same place the README does. Security problems go through
+ * {@code SECURITY.md} instead, never the issue tracker.
  */
 @OpenAPIDefinition(
     info = @Info(

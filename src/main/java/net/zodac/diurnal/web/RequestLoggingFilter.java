@@ -35,15 +35,13 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * As a JAX-RS provider it fires only for requests that reach a resource method — static assets and framework-served paths (the Swagger UI shell,
- * health checks) are handled outside JAX-RS and are not logged here. On the way in it records {@code method + path}; on the way out it records the
- * resolved status and the wall-clock time spent in the resource, so a slow or failing endpoint is visible at a glance. Everything is emitted at
- * {@code TRACE}, so it stays silent in production (root {@code net.zodac.diurnal} defaults to {@code INFO}) until {@code LOG_LEVEL=TRACE} turns it
- * on.
+ * health checks) are handled outside JAX-RS and are not logged here. On the way in it records {@code method + path}; on the way out, the resolved
+ * status and wall-clock time spent in the resource, so a slow or failing endpoint is visible at a glance. Everything is emitted at {@code TRACE}, so
+ * it stays silent in production (root {@code net.zodac.diurnal} defaults to {@code INFO}) until {@code LOG_LEVEL=TRACE} turns it on.
  *
  * <p>
- * High-frequency infrastructure probes are excluded entirely (at every level): the container's Docker {@code HEALTHCHECK} hammers
- * {@code /api/v1/status} on a short interval, which would otherwise drown the trace stream in self-generated noise. Those paths
- * ({@link #UNLOGGED_PATHS}) are never logged.
+ * High-frequency infrastructure probes are excluded entirely: the container's Docker {@code HEALTHCHECK} hammers {@code /api/v1/status} on a short
+ * interval, which would otherwise drown the trace stream in self-generated noise. Those paths ({@link #UNLOGGED_PATHS}) are never logged.
  */
 @Provider
 // Innermost request filter / outermost response filter, so the timing brackets the resource method as tightly as possible.

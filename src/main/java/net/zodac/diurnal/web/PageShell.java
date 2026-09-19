@@ -31,8 +31,8 @@ import net.zodac.diurnal.user.User;
  * whole render's {@code {msg:...}} lookups resolve against.
  *
  * <p>
- * Written out once per page-rendering resource before this existed, which made the {@code MessageBundles.ATTRIBUTE_LOCALE} attribute the risk it is:
- * a page that omits it does not fail, it silently renders in English. Setting it beside the {@code language} it must agree with is what stops the two
+ * Before this existed, each page-rendering resource wrote it out itself - which made the {@code MessageBundles.ATTRIBUTE_LOCALE} attribute a risk:
+ * a page that omits it does not fail, it silently renders in English. Setting it beside the {@code language} it must agree with stops the two
  * drifting apart.
  */
 public final class PageShell {

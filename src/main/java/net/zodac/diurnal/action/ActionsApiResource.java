@@ -41,6 +41,8 @@ import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.openapi.ApiPages;
+import net.zodac.diurnal.openapi.responses.NoSuchOwnedActionApiResponse;
+import net.zodac.diurnal.openapi.responses.UnauthenticatedApiResponse;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
@@ -106,7 +108,7 @@ public class ActionsApiResource {
         + "request header, so no body is returned.")
     @APIResponse(responseCode = "400", description = "The requested page is out of range.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     public Response listActions(
         @Parameter(name = "page", in = ParameterIn.QUERY, description = "The 1-based page to return (default 1); out-of-range values are rejected.")
         @QueryParam("page") @DefaultValue("1") final int pageNum,
@@ -115,8 +117,8 @@ public class ActionsApiResource {
         @Context final Request request) {
         final User user = currentUser.get();
 
-        // The validator folds in the page, filter and page-size (all of which change the response) plus the user's action
-        // signature. It is computed before the page query so an unchanged listing can return 304 without building the page.
+        // The validator folds in the page, filter, page-size and the user's action signature. It is computed before the page query so an
+        // unchanged listing can return 304 without building the page.
         final int pageSize = PageSizes.forSection(user, PageSection.ACTIONS);
         final EntityTag tag = EntityTags.weak(user.id, pageNum, searchTerm, pageSize, Action.userVersion(user.id));
         final Response notModified = EntityTags.privateNotModified(request, tag);
@@ -126,8 +128,8 @@ public class ActionsApiResource {
 
         final ActionsInternalResource.PaginatedActions page =
             ActionsInternalResource.getActions(user.id, pageNum, searchTerm, pageSize, user.locale());
-        // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range), so a page number is never
-        // silently answered with some other page.
+        // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range), so a page number is never silently
+        // answered with some other page.
         final Response outOfRange = ApiPages.outOfRange(pageNum, page.totalPages());
         if (outOfRange != null) {
             return outOfRange;
@@ -152,12 +154,12 @@ public class ActionsApiResource {
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionDto.class)))
     @APIResponse(responseCode = "400", description = "The name is missing, blank, or longer than 100 characters, or the colour is malformed.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     @APIResponse(responseCode = "409", description = "An action with this name already exists.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     public Response createAction(final @Nullable ActionRequest request) {
-        // A create request requires the name; normalise an absent body/field to blank so the shared service
-        // rejects it rather than treating it as a PATCH-style "keep".
+        // A create request requires the name; normalise an absent body/field to blank so the shared service rejects it rather than treating it
+        // as a PATCH-style "keep".
         final String name = request == null || request.name() == null ? "" : request.name();
         final String colour = request == null ? null : request.colour();
         return translate(actionService.create(currentUser.get(), name, colour), Response.Status.CREATED);
@@ -178,7 +180,7 @@ public class ActionsApiResource {
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "200", description = "The suggested colour.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionColourDto.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     public Response randomColour() {
         return Response.ok(new ActionColourDto(actionService.suggestColour(currentUser.get()))).build();
     }
@@ -195,8 +197,8 @@ public class ActionsApiResource {
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "200", description = "The action.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionDto.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
+    @UnauthenticatedApiResponse
+    @NoSuchOwnedActionApiResponse
     public Response getAction(
         @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The action's ID.")
         @PathParam("id") final UUID id) {
@@ -226,8 +228,8 @@ public class ActionsApiResource {
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionDto.class)))
     @APIResponse(responseCode = "400", description = "The new name is blank or longer than 100 characters, or the colour is malformed.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
+    @UnauthenticatedApiResponse
+    @NoSuchOwnedActionApiResponse
     @APIResponse(responseCode = "409", description = "An action with the new name already exists.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     public Response updateAction(
@@ -254,8 +256,8 @@ public class ActionsApiResource {
         description = "Hard-deletes an action AND all of its logged entries. This cannot be undone.")
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "204", description = "The action and its logs were deleted.")
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
+    @UnauthenticatedApiResponse
+    @NoSuchOwnedActionApiResponse
     public Response deleteAction(
         @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The action's ID.")
         @PathParam("id") final UUID id) {

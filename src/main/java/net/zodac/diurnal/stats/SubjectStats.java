@@ -31,16 +31,15 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * Intentionally a pure data carrier with no behaviour: all derived labels, trends and predicates live in {@link SubjectStatsExtensions} (as Qute
  * template extensions) so PITest can mutation-test that branching logic. PITest hot-swaps each mutant into the running JVM via
- * {@code Instrumentation.redefineClasses}, which the JVM refuses for a class carrying a {@code Record} attribute — so mutating logic held on this
- * record failed with "class redefinition failed: attempted to change the Record attribute", surfacing as the "Minion exited abnormally due to
- * RUN_ERROR" lint warnings. Keeping the record free of mutable methods means PITest generates no mutants for it, while the extracted logic mutates
- * cleanly.
+ * {@code Instrumentation.redefineClasses}, which the JVM refuses for a class carrying a {@code Record} attribute - so mutating logic held on this
+ * record failed with "class redefinition failed: attempted to change the Record attribute", surfacing as "Minion exited abnormally due to
+ * RUN_ERROR" lint warnings. Keeping the record free of methods means PITest generates no mutants for it, while the extracted logic mutates cleanly.
  *
  * <p>
- * The streak and gap figures are {@link DaySpan}s rather than plain day counts: their length is {@link Durations#days(DaySpan)}, but they are also
+ * The streak and gap figures are {@link DaySpan}s rather than plain day counts: their length is {@link Durations#days(DaySpan)}, but they're also
  * rendered as calendar durations ("1 year, 1 month, 17 days"), and that breakdown depends on the actual dates the run covered - the same 31 days is
- * "1 month" in one place in the calendar and "1 month, 3 days" in another. Carrying the dates keeps every duration exact and stable over time; a bare
- * count could only be split against some arbitrary anchor, which would make a historical streak's label drift as "today" moved.
+ * "1 month" in one place and "1 month, 3 days" in another. Carrying the dates keeps every duration exact and stable over time; a bare count could
+ * only split against some arbitrary anchor, making a historical streak's label drift as "today" moved.
  */
 public record SubjectStats(
     StatSubject subject,

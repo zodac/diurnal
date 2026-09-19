@@ -119,15 +119,15 @@ public final class TransferFiles { // NOPMD: DataClass - the format's constants,
      * The header row of {@link #ATTACHMENTS_FILE}.
      *
      * <p>
-     * <strong>{@code name} and {@code filename} are two different things</strong>, and both are carried because the application stores both: the
-     * first is the display name the day's note embeds the file by, which a rename rewrites, and the second is the name it was uploaded under, which
-     * nothing rewrites. They are equal until someone renames the file. Exporting only the first would make a backup silently lose the original
-     * filename of every renamed attachment, which is exactly the thing a backup is for.
+     * <strong>{@code name} and {@code filename} are two different things</strong>, both carried because the application stores both: the first is
+     * the display name the day's note embeds the file by, which a rename rewrites; the second is the name it was uploaded under, which nothing
+     * rewrites. They are equal until someone renames the file - exporting only the first would silently lose the original filename of every
+     * renamed attachment on restore, exactly what a backup is for.
      *
      * <p>
      * The last column names an ENTRY inside the archive ({@code attachments/0001.png}), not a path on anyone's disk: the reader looks it up as an
-     * exact string among the entries it unpacked, and resolves nothing. The number is a sequence and the extension is the file name's own, so a user
-     * who unzips the archive gets files their computer will open, while the manifest stays the only place a user-chosen name appears.
+     * exact string among the entries it unpacked, resolving nothing. The number is a sequence and the extension is the file name's own, so
+     * unzipping the archive gives files the computer will open, while the manifest stays the only place a user-chosen name appears.
      */
     public static final List<String> ATTACHMENTS_HEADER = List.of("date", "name", "filename", "file");
 
@@ -152,17 +152,16 @@ public final class TransferFiles { // NOPMD: DataClass - the format's constants,
      * Every member an archive may hold, which is {@link #ALL_FILES} plus the OPTIONAL {@link #ATTACHMENTS_FILE} and {@link #SETTINGS_FILE}.
      *
      * <p>
-     * <strong>Attachments and settings are optional where the other three are required</strong>, and the asymmetry is deliberate. An archive
-     * exported before either existed is a complete export of everything the account held at the time, and refusing it would make every backup taken
-     * before the feature landed unrestorable. The three that are required are required because they validate against each other: a log names its
-     * action, so {@code logs.csv} without {@code actions.csv} cannot be checked at all.
+     * <strong>Attachments and settings are optional where the other three are required</strong>, deliberately. An archive exported before either
+     * existed is a complete export of everything the account held at the time, and refusing it would make every earlier backup unrestorable. The
+     * three required members validate against each other: a log names its action, so {@code logs.csv} without {@code actions.csv} cannot be
+     * checked at all.
      *
      * <p>
-     * What an ABSENT optional member means differs between the two, because the two describe different kinds of thing. An absent
-     * {@link #ATTACHMENTS_FILE} says "this account has no files", which is exactly right under replace-all. An absent {@link #SETTINGS_FILE} says
-     * nothing at all, and the account's settings are left as they are: a preference always HAS a value, so there is no "this account has no
-     * settings" state for the member's absence to describe, and the only other reading - reset every preference to its default - would silently
-     * change the language out from under someone restoring a backup taken before this member existed.
+     * What an ABSENT optional member means differs between the two, since they describe different kinds of thing. An absent
+     * {@link #ATTACHMENTS_FILE} says "this account has no files", exactly right under replace-all. An absent {@link #SETTINGS_FILE} says nothing: a
+     * preference always HAS a value, so there is no "no settings" state for absence to describe, and the only other reading - reset every
+     * preference to default - would silently change the language out from under someone restoring an older backup.
      */
     public static final List<String> ALL_MEMBERS = List.of(ACTIONS_FILE, LOGS_FILE, NOTES_FILE, ATTACHMENTS_FILE, SETTINGS_FILE);
 

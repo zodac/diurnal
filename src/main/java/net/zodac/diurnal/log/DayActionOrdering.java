@@ -30,20 +30,19 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * <strong>The selected day's own count is the primary key under every option</strong>, highest first, so an action already logged that day sits at
- * the top of the panel whichever order is chosen. That is what keeps the panel a record of the day as well as the means of filling it in. The
- * setting replaces only what breaks a tie between two actions on the same count - which, on a day nothing has been logged against yet, is every pair
- * of them, so the setting decides the whole list exactly when it matters.
+ * the top of the panel whichever order is chosen - keeping the panel a record of the day as well as the means of filling it in. The setting only
+ * breaks ties between actions on the same count - on a day nothing has been logged yet, that's every pair, so the setting decides the whole list
+ * exactly when it matters.
  *
  * <p>
- * <strong>Every order ends in the collated name</strong>, including the two that do not start there. A total and a last-logged day are both values
- * many actions share (most obviously the actions with neither), and a comparator that stopped at one would leave those in whatever order the
- * database handed them back - stable within a render and different across two, which reads as a list that reshuffles itself. The name is the only
- * key that is total, and it is COLLATED rather than compared by code point for the reason {@code ActionsInternalResource#getActions} gives: code
- * point order puts every accented or non-Latin name after every plain-ASCII one, and would order the same two names differently on two surfaces of
- * the same screen.
+ * <strong>Every order ends in the collated name</strong>, including the two that don't start there. A total and a last-logged day are both values
+ * many actions share (most obviously the actions with neither), and a comparator stopping at one would leave those in whatever order the database
+ * returned - stable within a render, different across two, reading as a list that reshuffles itself. The name is the only total key, and it is
+ * COLLATED rather than compared by code point for the reason {@code ActionsInternalResource#getActions} gives: code point order puts every accented
+ * or non-Latin name after every plain-ASCII one, ordering the same two names differently on two surfaces of the same screen.
  *
  * <p>
- * A never-logged action has no {@link ActionHistory} entry at all, and sorts to the bottom of both history-based orders - below every action with a
+ * A never-logged action has no {@link ActionHistory} entry, and sorts to the bottom of both history-based orders - below every action with a
  * history, and among its own kind by name. Held as a pure static so the orderings are unit-testable ({@code DayActionOrderingTest}); the resource
  * that uses it can only be reached through a rendered page.
  */

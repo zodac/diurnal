@@ -32,16 +32,16 @@ import net.zodac.diurnal.note.crypto.Aes256Gcm;
  *
  * <p>
  * <strong>Both names are sealed as well as the file.</strong> A filename is the note's content by another route: an operator reading
- * {@code note_attachments} in the clear would learn as much from {@code "divorce-papers.pdf"} as from the paragraph beside it, which is exactly what
+ * {@code note_attachments} in the clear would learn as much from {@code "divorce-papers.pdf"} as from the paragraph beside it - exactly what
  * encrypting {@code notes.content_encrypted} was built to prevent. The consequence is that no {@code UNIQUE} index can hold a day's names apart, so
  * {@code NoteAttachmentService} settles that over the handful of rows a day has instead.
  *
  * <p>
- * Each part is bound to the OWNER, the DATE, the attachment's own ID and which part it is, through the AEAD associated data — so a ciphertext lifted
- * out of the table fails to open anywhere but where it came from. The last of those is what stops the parts being swapped for one another: a name
- * pasted into the file column would otherwise open perfectly and be served as file bytes, and a display name pasted over a file name would quietly
- * undo a rename. The rest of the row (the owner, the date, the size) stays in the clear for the same reason a note's does, and an administrator can
- * edit those columns, so binding them into the seal is what makes doing so detectable rather than silently effective.
+ * Each part is bound to the OWNER, the DATE, the attachment's own ID and which part it is, through the AEAD associated data - so a ciphertext lifted
+ * out of the table fails to open anywhere but where it came from. The last of those stops the parts being swapped for one another: a name pasted
+ * into the file column would otherwise open perfectly and be served as file bytes, and a display name pasted over a file name would quietly undo a
+ * rename. The rest of the row (owner, date, size) stays in the clear for the same reason a note's does, and an administrator can edit those columns
+ * - so binding them into the seal is what makes doing so detectable rather than silently effective.
  *
  * <p>
  * Kept free of persistence and request state so the round trip is deterministically unit-testable.

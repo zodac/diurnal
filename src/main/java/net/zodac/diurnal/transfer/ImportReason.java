@@ -24,16 +24,16 @@ import net.zodac.diurnal.text.TextOutcomeExtensions;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Why an uploaded archive - or one row inside it - was refused, carried structured so {@link ImportService#message(ImportReason)} can still word it
- * in English (unchanged) for the API's {@code 400} body while the web resource resolves a translated sentence via
- * {@code partials/import-reason.html} (or, for {@link InvalidTextField}, the shared {@code partials/text-failure-message.html} - the same reuse
- * {@code ProfileRejection}/{@code RegistrationError} make for the same pipeline).
+ * Why an uploaded archive - or one row inside it - was refused, carried structured so {@link ImportService#message(ImportReason)} can word it in
+ * English (unchanged) for the API's {@code 400} body while the web resource resolves a translated sentence via {@code partials/import-reason.html}
+ * (or, for {@link InvalidTextField}, the shared {@code partials/text-failure-message.html} - the same reuse {@code ProfileRejection}/
+ * {@code RegistrationError} make for the same pipeline).
  *
  * <p>
  * Carried by {@link ArchiveOutcome.Malformed} (a whole archive that could not even be opened - {@link NotZipArchive}/{@link TooManyEntries}/
- * {@link ArchiveTooLarge}/{@link ArchiveUnreadable}), and by {@link ImportProblem} (one row, or one member, that a readable archive was refused
- * for - every other variant). {@link CsvUnreadable} sits between the two: it is a whole MEMBER that could not be parsed as CSV at all, reported the
- * same way a missing or malformed member is.
+ * {@link ArchiveTooLarge}/{@link ArchiveUnreadable}), and by {@link ImportProblem} (one row or member a readable archive refused - every other
+ * variant). {@link CsvUnreadable} sits between the two: a whole MEMBER that could not be parsed as CSV at all, reported the same way a missing or
+ * malformed member is.
  *
  * <p>
  * A reason never quotes note content, exactly as {@link ImportProblem}'s own rule requires - none of these variants carry one.

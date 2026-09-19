@@ -30,13 +30,13 @@ import net.zodac.diurnal.text.TextRules;
  * requirements tooltip are rendered from the same constant the server validates against.
  *
  * <p>
- * Kept as a {@code @Named} bean rather than threaded through each page's data map because the inputs it bounds are spread across pages and HTMX
- * partials (the action row, the settings cards, the registration form) that no single resource renders.
+ * Kept as a {@code @Named} bean rather than threaded through each page's data map because the inputs it bounds span pages and HTMX partials (the
+ * action row, the settings cards, the registration form) that no single resource renders.
  *
  * <p>
  * <strong>Nothing here has a Java caller.</strong> Qute resolves every accessor by NAME at render time, so an IDE's unused-declaration inspection
- * flags all of them; each one therefore names the templates that read it, and carries {@code @SuppressWarnings("unused")} the way the CDI observers
- * elsewhere in this package do. Deleting one compiles cleanly and fails at render, so the pointers below are what stands in for a compiler check.
+ * flags all of them; each therefore names the templates that read it and carries {@code @SuppressWarnings("unused")}, as the CDI observers elsewhere
+ * in this package do. Deleting one compiles cleanly and fails at render, so the pointers below stand in for a compiler check.
  */
 @Named("textFields")
 @ApplicationScoped

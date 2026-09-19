@@ -29,14 +29,14 @@ import jakarta.ws.rs.ext.Provider;
  * <p>
  * <strong>No response filter configured in {@code application.properties} touches {@code /api}.</strong> The {@code html-pages} filter that marks
  * every page {@code no-store} excludes it by name, and the {@code html-fragments} filter covers only {@code /internal}. So an API response carries
- * exactly the directive its resource method attached - and a {@code 200} carrying none at all is heuristically cacheable by any cache that sees it,
- * the browser's own disk cache included.
+ * exactly the directive its resource method attached - and a {@code 200} carrying none is heuristically cacheable by any cache that sees it, the
+ * browser's own disk cache included.
  *
  * <p>
- * <strong>Every one of these responses is private per-user data</strong>, which is the same reason {@link EntityTags} attaches
- * {@code private, no-cache} to the validated reads. That directive was applied per call site, so it reached only the endpoints that happened to want
- * an {@code ETag}; the rest - the whole-journal export among them, which is the one artefact holding every note IN THE CLEAR - went out undirected.
- * Applying the rule here instead makes it structural: a new API read is covered by existing, rather than by remembering.
+ * <strong>Every one of these responses is private per-user data</strong>, the same reason {@link EntityTags} attaches {@code private, no-cache} to
+ * the validated reads. That directive was applied per call site, so it reached only the endpoints that wanted an {@code ETag}; the rest - the
+ * whole-journal export among them, the one artefact holding every note IN THE CLEAR - went out undirected. Applying the rule here instead makes it
+ * structural: a new API read is covered by default, rather than by remembering.
  *
  * <p>
  * {@code no-store} rather than {@code no-cache}, because these are the responses with no validator to revalidate against - there is nothing to be

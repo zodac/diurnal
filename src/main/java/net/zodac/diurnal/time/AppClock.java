@@ -110,10 +110,10 @@ public class AppClock {
      * Freezes time to a fixed clock, so a test can pin a date boundary and assert on it deterministically. Undone by {@link #useSystemClock()}.
      *
      * <p>
-     * Package-private deliberately, so only {@code net.zodac.diurnal.time} can reach it. This bean is injected into every service that resolves a
-     * date boundary, and as a public setter this would let any one of them move "today" for every user in the deployment — a production caller has
-     * no legitimate reason to swap the clock, and the compiler is a better guard against that than a naming convention. The test tree reaches it
-     * through {@code AppClocks}, the one class in this package that exists to relay these two calls to {@code IntegrationTestBase}.
+     * Package-private deliberately, so only {@code net.zodac.diurnal.time} can reach it: this bean is injected into every service that resolves a
+     * date boundary, and a public setter would let any of them move "today" for every user in the deployment — a production caller has no
+     * legitimate reason to swap the clock, and the compiler is a better guard than a naming convention. The test tree reaches it through
+     * {@code AppClocks}, the one class in this package that relays these two calls to {@code IntegrationTestBase}.
      *
      * @param fixed the clock to read from until the real one is restored
      */

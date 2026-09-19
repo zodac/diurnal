@@ -31,9 +31,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * Deliberately NO display label: the toggle's words are resolved at the render site from {@code AppMessages} ({@code {msg:month}}/{@code {msg:year}}/
- * {@code {msg:allTime}} in {@code partials/stats-chart.html}), because an English {@code label()} on the enum is the thing that renders in every
- * language until someone notices — the "third bucket" rule in {@code .claude/I18N.md}, and what {@code PageSection}/{@code IpLockoutStatus} each
- * shipped once.
+ * {@code {msg:allTime}} in {@code partials/stats-chart.html}), since an English {@code label()} on the enum is what renders in every language until
+ * someone notices — the "third bucket" rule in {@code .claude/I18N.md}, which {@code PageSection}/{@code IpLockoutStatus} each shipped once.
  *
  * <p>
  * The period only decides the shape of the window; {@link FrequencyKeys} owns every calendar rule for anchoring, wording and stepping one.

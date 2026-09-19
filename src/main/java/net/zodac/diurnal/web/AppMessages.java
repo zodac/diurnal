@@ -21,49 +21,38 @@ import io.quarkus.qute.i18n.Message;
 import io.quarkus.qute.i18n.MessageBundle;
 
 /**
- * The application's message-bundle interface — the single source of translated UI text. Phase 1 of
- * {@code .claude/I18N.md} moves the app's ~150 hardcoded English strings here, one grouped slice of pages/features
- * at a time (see that phase's "order of attack"); this currently covers the anonymous "no session yet" pages
- * (error pages, login, register, first-run setup) — see the section comments below for what each slice added and
- * when.
+ * The application's message-bundle interface — the single source of translated UI text. {@code .claude/I18N.md}'s Phase 1 moves the app's
+ * hardcoded English strings here in grouped slices, starting with the anonymous "no session yet" pages (error pages, login, register, first-run
+ * setup) — see the section comments below for what each slice added and when.
  *
  * <p>
- * Each method's {@link Message @Message} value is the DEFAULT (English) text — Quarkus resolves it whenever no
- * more specific locale variant matches the current render's locale (see below), so English needs no separate
- * {@code msg_en-GB.properties} file. A translated language is added as a sibling {@code msg_<locale>.properties}
- * file under {@code src/main/resources/messages/} (Quarkus auto-discovers it by matching the bundle's NAME, which
- * for an unqualified top-level {@code @MessageBundle} interface like this one defaults to
- * {@link MessageBundle#DEFAULT_NAME} — the literal string {@code "msg"}, the same token the {@code {msg:...}}
- * template namespace uses, NOT this interface's simple name ({@code AppMessages}) and NOT the word "messages" —
- * e.g. {@code msg_ar-SA.properties}), with one {@code methodName=translated text} line per entry here. (A real,
- * wrongly-named {@code messages_es-ES.properties}
- * silently found NO matching bundle and fell back to English with no build-time or startup error — see Phase 5 of
- * {@code .claude/I18N.md} for how this was caught: only a runtime render assertion against the real translated text
- * revealed it, since every check before that point — the build, the resource being copied to {@code target/classes},
- * even the CDI bean's registration — stays green regardless of whether any locale actually matched the file.)
+ * Each method's {@link Message @Message} value is the DEFAULT (English) text — Quarkus resolves it whenever no more specific locale variant
+ * matches the current render's locale (see below), so English needs no separate {@code msg_en-GB.properties} file. A translated language is added
+ * as a sibling {@code msg_<locale>.properties} file under {@code src/main/resources/messages/} (Quarkus matches it against the bundle's NAME,
+ * which for an unqualified top-level {@code @MessageBundle} like this one is {@link MessageBundle#DEFAULT_NAME} — the literal string
+ * {@code "msg"}, NOT this interface's simple name — e.g. {@code msg_ar-SA.properties}), one {@code methodName=translated text} line per entry
+ * here. A wrongly-named {@code messages_es-ES.properties} once silently matched no bundle and fell back to English with no build-time or startup
+ * error — see Phase 5 of {@code .claude/I18N.md}: only a runtime render assertion against the real translated text caught it, since the build, the
+ * resource copy to {@code target/classes}, and the CDI bean's registration all stay green regardless of whether any locale actually matched.
  *
  * <p>
- * Deliberately UNQUALIFIED ({@link MessageBundle @MessageBundle} with no name): the "one bundle per language"
- * decision in {@code .claude/I18N.md} means every translated string lives here, so templates resolve any of them
- * via the short, unprefixed {@code {msg:methodName}} rather than a per-feature bundle prefix. A parameterised entry
- * (e.g. {@link #loginWithProvider(String)}) is called from a template the same way — {@code {msg:loginWithProvider(oidcProviderName)}}
- * — with the argument matched by the method's own parameter name inside the {@code @Message} text.
+ * Deliberately UNQUALIFIED ({@link MessageBundle @MessageBundle} with no name): the "one bundle per language" decision in
+ * {@code .claude/I18N.md} means every translated string lives here, so templates resolve any of them via the short, unprefixed
+ * {@code {msg:methodName}} rather than a per-feature bundle prefix. A parameterised entry (e.g. {@link #loginWithProvider(String)}) is called the
+ * same way — {@code {msg:loginWithProvider(oidcProviderName)}} — with the argument matched by the method's own parameter name.
  *
  * <p>
- * The locale a render uses is set per {@code TemplateInstance} (Qute's {@code MessageBundles.ATTRIBUTE_LOCALE}
- * attribute), not resolved implicitly — every page-rendering resource sets it from the same value it already
- * renders into {@code <html lang>}: the signed-in user's stored {@code User.language} when authenticated, or
- * {@link net.zodac.diurnal.user.Language#fromAcceptLanguageHeader(String)} for the "no session yet" pages.
+ * The locale a render uses is set per {@code TemplateInstance} (Qute's {@code MessageBundles.ATTRIBUTE_LOCALE} attribute), not resolved
+ * implicitly — every page-rendering resource sets it from the same value it already renders into {@code <html lang>}: the signed-in user's stored
+ * {@code User.language} when authenticated, or {@link net.zodac.diurnal.user.Language#fromAcceptLanguageHeader(String)} otherwise.
  *
  * <p>
- * Quarkus generates this interface's implementation via build-time bytecode processing (Gizmo), which is invisible
- * to Qodana's static analysis — it sees no source-level implementing class and no direct Java caller of any entry
- * here (the {@code {msg:...}} template namespace and the CDI-injected bean both resolve entries at runtime), so it
- * flags the interface itself as unimplemented/unused. Suppressed below, the same treatment
- * {@link net.zodac.diurnal.user.PreviewOption}'s methods already carry for the identical "read by a mechanism
- * static analysis can't trace" situation. (The single-method-only findings from when this interface had just its
- * proof-of-mechanism entry — PMD's {@code ImplicitFunctionalInterface}, Qodana's
- * {@code InterfaceMayBeAnnotatedFunctional} — no longer apply now that it has many methods, so are not suppressed.)
+ * Quarkus generates this interface's implementation via build-time bytecode processing (Gizmo), invisible to Qodana's static analysis — it sees
+ * no source-level implementing class or direct Java caller (the {@code {msg:...}} template namespace and the CDI-injected bean both resolve
+ * entries at runtime), so it flags the interface as unimplemented/unused. Suppressed below, the same treatment
+ * {@link net.zodac.diurnal.user.PreviewOption}'s methods already carry for the identical situation. (The single-method-only findings from when
+ * this interface had just its proof-of-mechanism entry — PMD's {@code ImplicitFunctionalInterface}, Qodana's
+ * {@code InterfaceMayBeAnnotatedFunctional} — no longer apply now it has many methods, so are not suppressed.)
  */
 @MessageBundle
 @SuppressWarnings({"unused", "InterfaceNeverImplemented"})

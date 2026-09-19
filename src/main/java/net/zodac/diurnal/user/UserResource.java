@@ -42,6 +42,7 @@ import net.zodac.diurnal.http.ClientAddress;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.openapi.responses.UnauthenticatedApiResponse;
 import net.zodac.diurnal.stats.StatField;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -107,7 +108,7 @@ public class UserResource {
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = UserDto.class)))
     @APIResponse(responseCode = "304", description = "Not modified: the profile is unchanged since the ETag in the 'If-None-Match' request "
         + "header, so no body is returned.")
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     @APIResponse(responseCode = "404", description = "The authenticated account no longer exists.")
     public Response me(@Context final Request request) {
         // CurrentUser resolves the account from the SecurityIdentity built by session auth
@@ -153,7 +154,7 @@ public class UserResource {
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = UserDto.class)))
     @APIResponse(responseCode = "400", description = "A submitted value is invalid; the message names the allowed values.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     public Response updateMe(final @Nullable UpdateMeRequest request) {
         final User user = currentUser.get();
         if (request != null) {
@@ -189,7 +190,7 @@ public class UserResource {
     @APIResponse(responseCode = "400",
         description = "The current password is incorrect, or the new password is missing, too long, or the same as the existing one.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     @APIResponse(responseCode = "403", description = "The account holds no password to change (OIDC-only sign-in).")
     public Response changePassword(
         final @Nullable ChangePasswordRequest request,

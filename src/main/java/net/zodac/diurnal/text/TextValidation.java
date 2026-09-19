@@ -68,18 +68,18 @@ public final class TextValidation {
     }
 
     /**
-     * A submitted SEARCH term, put into the same shape the stored values it will be compared against are already in: stripped, and composed to NFC.
+     * A submitted SEARCH term, put into the same shape the stored values it is compared against are already in: stripped, and composed to NFC.
      *
      * <p>
-     * Every free-text value in the app is NFC-composed on the way in (see {@link TextFieldExtensions#normalise(TextField, String)}), so a term typed
-     * or pasted in decomposed form - which several input methods and macOS's own clipboard produce routinely for accented Latin, Vietnamese and
-     * Arabic text - is a different sequence of code points from the visually identical value it is meant to find, and matches nothing at all. That
-     * failure is silent and looks like missing data rather than a bug, so the fold belongs at every search entry point rather than at the one that
-     * happened to be reported.
+     * Every free-text value in the app is NFC-composed on the way in (see {@link TextFieldExtensions#normalise(TextField, String)}), so a term
+     * typed or pasted in decomposed form - which several input methods and macOS's clipboard produce routinely for accented Latin, Vietnamese and
+     * Arabic text - is a different sequence of code points from the visually identical value it is meant to find, matching nothing. That failure is
+     * silent and looks like missing data rather than a bug, so the fold belongs at every search entry point, not just the one that happened to be
+     * reported.
      *
      * <p>
-     * Case is deliberately NOT folded here: the note search matches with a {@code CASE_INSENSITIVE | UNICODE_CASE} pattern against the note's own
-     * text so it can report where a hit sits, and the two list searches lower-case both sides at the comparison itself.
+     * Case is deliberately NOT folded here: note search matches with a {@code CASE_INSENSITIVE | UNICODE_CASE} pattern against the note's own text
+     * so it can report where a hit sits, and the two list searches lower-case both sides at the comparison itself.
      *
      * @param raw the submitted term ({@code null} is treated as an empty search)
      * @return the term, ready to compare

@@ -36,11 +36,11 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The single owner of every action mutation — create, update, delete — plus the read-only colour suggestion behind the new-action form's randomise
- * control, shared by the web UI's HTMX endpoints ({@link ActionsInternalResource}) and
- * the public REST API ({@link ActionsApiResource}), so a rule added or changed here applies to both surfaces by construction (the
- * {@code AuthenticationService} pattern). The resources only translate the returned {@link ActionResult} into their medium; validation order is
- * blank → too long → duplicate → colour. A malformed colour is rejected on both surfaces (never silently corrected); an <em>absent</em> colour on
- * creation is filled in with a suggestion ({@link #suggestColour(User)}), the same answer the randomise control would have given.
+ * control, shared by the web UI's HTMX endpoints ({@link ActionsInternalResource}) and the public API ({@link ActionsApiResource}), so a rule
+ * change here applies to both by construction (the {@code AuthenticationService} pattern). Each resource only translates the returned
+ * {@link ActionResult} into its medium; validation order is blank → too long → duplicate → colour. A malformed colour is rejected on both surfaces
+ * (never silently corrected); an <em>absent</em> colour on creation is filled in with a suggestion ({@link #suggestColour(User)}), the same answer
+ * the randomise control would give.
  *
  * <p>
  * The name is validated and normalised by the shared {@link TextValidation} pipeline against {@link TextFields#ACTION_NAME}, so it obeys the same
@@ -77,17 +77,16 @@ class ActionService {
         final Action action = new Action();
         action.userId = user.id;
         action.name = normName;
-        // An absent colour on creation is the one filled-in field (the caller submitted no input to preserve). It takes a suggestion rather than the
-        // neutral slate: an action's colour exists to tell its calendar dot from every other one, which a shared grey does not do, and the user who
-        // did not choose is exactly the one who gets no value from being asked to. The web form shows the same suggestion up front, so this is only
-        // reached by an API caller that omitted the field.
+        // An absent colour on creation gets a suggestion rather than the neutral slate: an action's colour exists to tell its calendar dot from
+        // every other one, which a shared grey does not do. The web form shows the same suggestion up front, so this branch is only reached by an
+        // API caller that omitted the field.
         action.colour = colour == null ? suggestColour(user) : colour;
         action.persist();
 
         // The duplicate pre-check above is a TOCTOU: two concurrent creates of the same name can both pass it, and the loser would otherwise
-        // surface the actions_user_name_unique violation as a 500 at commit. Flushing here forces the INSERT now, turning that race into the same
-        // DuplicateName result as the pre-check. The failed flush marks the (caller-owned) transaction rollback-only, so nothing is persisted and
-        // the resource's in-memory error response is preserved (Quarkus rolls back cleanly rather than committing).
+        // surface actions_user_name_unique as a 500 at commit. Flushing here forces the INSERT now, turning that race into the same DuplicateName
+        // result. The failed flush marks the (caller-owned) transaction rollback-only, so nothing persists and the in-memory error response is
+        // preserved (Quarkus rolls back cleanly rather than committing).
         try {
             Panache.getEntityManager().flush();
         } catch (final ConstraintViolationException e) {
@@ -115,9 +114,9 @@ class ActionService {
             return new ActionResult.NotFound();
         }
 
-        // Every rejection must happen BEFORE the first field is assigned: `action` is a managed entity, so a value assigned ahead of a later
-        // rejection would still be flushed when the caller's transaction commits — a 4xx response that silently persisted half the request.
-        // null IS the "field absent from the PATCH" state: the current name is kept.
+        // Every rejection must happen BEFORE the first field is assigned: `action` is a managed entity, so an assignment ahead of a later
+        // rejection would still be flushed on commit — a 4xx that silently persisted half the request. null IS the "field absent from the PATCH"
+        // state: the current name is kept.
         String normName = null;
         if (name != null) {
             final TextOutcome nameOutcome = TextValidation.check(TextFields.ACTION_NAME, name);
@@ -160,8 +159,8 @@ class ActionService {
         }
         // Remove the action's logged entries first, then the action itself.
         ActionLog.deleteByAction(action.userId, action.id);
-        // The action's own figures go with it, and every other subject's are unaffected - but the cache is keyed per user, so the whole set is
-        // dropped and the next Stats read rebuilds it. A rename or a recolour needs no such call: neither is stored.
+        // The action's own figures go with it and every other subject's are unaffected - but the cache is keyed per user, so the whole set drops
+        // and the next Stats read rebuilds it. A rename or recolour needs no such call, since neither is stored.
         SubjectStatsCache.invalidate(action.userId);
         action.delete();
         LOGGER.info("Action deleted: {} for user {}", action.id, user.email);
@@ -180,14 +179,14 @@ class ActionService {
     String suggestColour(final User user) {
         final Collection<String> inUse = new ArrayList<>(Action.distinctColours(user.id));
         inUse.add(user.noteColour);
-        // A generator of its own rather than ThreadLocalRandom.current(): that instance belongs to the calling thread and stays correct only while
-        // it never leaves it, which is a contract this method cannot enforce once it hands the instance to another class. One suggestion allocates
-        // one short-lived generator - nothing next to the query above it - and there is then no thread-confined object being passed anywhere.
+        // A generator of its own rather than ThreadLocalRandom.current(): that instance stays correct only while it never leaves the calling
+        // thread, a contract this method can't enforce once it hands the instance elsewhere. One suggestion, one short-lived generator - no
+        // thread-confined object gets passed around.
         return ActionColours.suggest(inUse, new SplittableRandom());
     }
 
-    // The blank and over-long cases keep their own banners because both surfaces already word them; every content-rule rejection is carried as the
-    // message the shared pipeline generated, so a rule added to ACTION_NAME later needs no change here.
+    // Blank and over-long keep their own banners since both surfaces already word them; every content-rule rejection carries the shared
+    // pipeline's generated message, so a rule added to ACTION_NAME later needs no change here.
     private static ActionResult nameRejection(final TextOutcome.Failure failure) {
         return switch (failure) {
             case final TextOutcome.Blank _ -> new ActionResult.BlankName(failure);

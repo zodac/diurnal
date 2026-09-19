@@ -28,8 +28,8 @@ package net.zodac.diurnal.persistence;
  * shipped implementation to it.
  *
  * <p>
- * The value written by both statements is the SEALED note content - the only form there is, since {@code notes} carries no plaintext column.
- * An implementation must therefore write the bound bytes through unaltered: a vendor whose upsert cannot carry the sealed value is not a vendor this
+ * The value written by both statements is the SEALED note content - the only form there is, since {@code notes} carries no plaintext column. An
+ * implementation must therefore write the bound bytes through unaltered: a vendor whose upsert cannot carry the sealed value is not one this
  * interface can be implemented for.
  */
 public interface NoteStatements {

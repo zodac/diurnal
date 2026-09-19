@@ -34,47 +34,41 @@ import org.jspecify.annotations.Nullable;
  * Resolves the client IP of a request, for the per-IP auth throttle and for security logging.
  *
  * <p>
- * <strong>This is the key the per-IP auth throttle counts against, so what it trusts decides whether that throttle can be bypassed at all.</strong>
- * The connection's own {@code remoteAddress()} is the default answer, and it is the only one a directly-exposed deployment ever gives: a client that
- * could choose its own key would get a fresh counter on every request and so unlimited password guessing, which is the whole of what the throttle
- * exists to stop.
+ * <strong>This is the throttle key, so what it trusts decides whether the throttle can be bypassed.</strong> {@code remoteAddress()} is the
+ * default, and the only answer a directly-exposed deployment ever gives - a client able to choose its own key could reset its counter on every
+ * request, defeating the throttle.
  *
  * <p>
- * Cloudflare's {@code CF-Connecting-IP} is preferred over it, but ONLY when the deployment declares itself to be behind Cloudflare
- * ({@code TRUST_CLOUDFLARE_HEADER} - see {@link AppConfig#trustCloudflareHeader()}). Behind Cloudflare the header is set by Cloudflare to the real
- * client and OVERWRITES any value a client tries to send, so it cannot be forged through Cloudflare - unlike the leftmost {@code X-Forwarded-For}
- * entry (what Vert.x reads when {@code TRUST_X_FORWARDED_HEADERS} is on), which Cloudflare only APPENDS the real client IP to. Anywhere else the
- * header is just another thing the caller typed, which is why the flag defaults to off and why trusting it is not implied by
- * {@code TRUST_X_FORWARDED_HEADERS}: a deployment can sit behind Traefik without sitting behind Cloudflare, and each header is only trustworthy from
- * the proxy that sets it. Even with the flag on, this is safe only while the origin is reachable ONLY through Cloudflare; that containment belongs at
- * the network edge (restrict the origin's ingress to Cloudflare's ranges), not here.
+ * {@code CF-Connecting-IP} is preferred, but only when {@code TRUST_CLOUDFLARE_HEADER} declares the deployment sits behind Cloudflare (see
+ * {@link AppConfig#trustCloudflareHeader()}). Cloudflare OVERWRITES that header with the real client IP, so it cannot be forged through Cloudflare -
+ * unlike the leftmost {@code X-Forwarded-For} entry (read when {@code TRUST_X_FORWARDED_HEADERS} is on), to which Cloudflare only APPENDS. Elsewhere
+ * the header is just caller-supplied text, so the flag defaults off and is independent of {@code TRUST_X_FORWARDED_HEADERS}: a deployment can sit
+ * behind Traefik without sitting behind Cloudflare. Even with the flag on, this is safe only while the origin is reachable solely through
+ * Cloudflare; that containment belongs at the network edge (restrict ingress to Cloudflare's ranges), not here.
  *
  * <p>
- * <strong>Whatever the source, the resolved value must look like an IP address, or it is discarded.</strong> It is not only a throttle key: it is
- * written to {@code ip_lockouts.ip_address} (a {@code VARCHAR(64)}, which an unbounded value overflows - turning a failed login into a
- * constraint violation on the credential path) and it is interpolated into log lines (which a value carrying a newline can forge, and a non-ASCII
- * one renders as {@code ?} on the production console). Bounding and shape-checking it once, here at the single place it is resolved, is what keeps
- * every one of those downstream uses safe without each having to re-state the rule. The bound is 62 characters - the longest IPv6 literal is 45, plus
- * a zone identifier - which is what keeps it inside that column by construction.
+ * <strong>Whatever the source, the value must look like an IP address or it is discarded.</strong> It is written to
+ * {@code ip_lockouts.ip_address} ({@code VARCHAR(64)}, which an unbounded value overflows) and interpolated into log lines (which a newline can
+ * forge and a non-ASCII value renders as {@code ?} on the production console). Bounding and shape-checking it once, here, keeps every downstream
+ * use safe without each restating the rule. The 62-character bound covers the longest IPv6 literal (45) plus a zone identifier.
  *
  * <p>
- * <strong>Both ways of getting the flag wrong are warned about, once.</strong> Neither can be an {@code AppLifecycle} startup line, because whether
- * an origin sits behind Cloudflare is not knowable at boot - only a request reveals it - so both fire on the first request that shows the mismatch:
+ * <strong>Both misconfigurations are warned about once.</strong> Neither can be an {@code AppLifecycle} startup line - whether an origin sits
+ * behind Cloudflare is only knowable from a request - so both fire on the first request that shows the mismatch:
  *
  * <ul>
- *     <li><strong>The header arrives but the flag is off</strong> ({@link #isHeaderIgnored}): a Cloudflare deployment that has not opted in. This is
- *     the silent one, and the reason the warning exists at all - the header is ignored and the throttle falls back to the connection address, which
- *     behind a proxy is the caller-appendable leftmost {@code X-Forwarded-For} entry, so an upgrade would restore the bypass with nothing saying
- *     so.</li>
- *     <li><strong>The flag is on but the header is absent</strong> ({@link #isOriginUnprotected}): the request did not come through Cloudflare, so
- *     the origin is reachable directly - and on a directly-reachable origin this flag lets a caller forge the header and choose its own throttle
- *     key. This is the more dangerous of the two, being an open bypass rather than a lost defence.</li>
+ *     <li><strong>Header present, flag off</strong> ({@link #isHeaderIgnored}): a Cloudflare deployment that has not opted in. The silent case -
+ *     the header is ignored and the throttle falls back to the caller-appendable {@code X-Forwarded-For} entry, so an upgrade would restore the
+ *     bypass with nothing saying so.</li>
+ *     <li><strong>Flag on, header absent</strong> ({@link #isOriginUnprotected}): the request did not come through Cloudflare, so the origin is
+ *     directly reachable and a caller can forge the header to choose its own throttle key. The more dangerous case - an open bypass rather than a
+ *     lost defence.</li>
  * </ul>
  *
  * <p>
- * Exactly one of the two can ever fire in a given process, since they need opposite values of the same flag and configuration is fixed for the run -
- * which is what lets a single latch serve both. Each is logged once rather than per request: this is a deployment-configuration fact, not a
- * per-request event, and the credential path these sit on is exactly where a repeated line would be a log-flooding lever.
+ * Only one of the two can fire in a given process, since they need opposite values of the same flag; a single latch serves both. Each logs once
+ * per start rather than per request, since this is a deployment-configuration fact and the credential path here is exactly where repeats would
+ * flood the log.
  */
 @ApplicationScoped
 public class ClientAddress {

@@ -23,23 +23,22 @@ import io.quarkus.qute.TemplateExtension;
  * The elements a sentence wraps, composed so that the sentence itself can stay ONE bundle entry.
  *
  * <p>
- * A sentence with an element in the middle of it - a linked provider name, a live counter - used to be written as two or three entries the template
- * set on either side of that element. That shape cannot be translated: it fixes the element's position for every language at the position English
- * puts it in, and the fragments are meaningless in isolation to whoever is translating them. The entry instead carries a {@code {placeholder}} and
- * the element arrives already composed, exactly as {@code app.js} substitutes the live clock into {@link AppMessages#lockoutRetryCountdown(String)}
- * on the client. Where the element is FIXED markup the template passes a string literal directly and needs nothing from here; these are the two that
- * carry a value and so have to be built.
+ * A sentence with an element in the middle - a linked provider name, a live counter - used to be written as two or three entries the template set
+ * on either side of it. That shape cannot be translated: it fixes the element's position at wherever English puts it, and the fragments are
+ * meaningless in isolation to a translator. The entry instead carries a {@code {placeholder}} and the element arrives already composed, exactly as
+ * {@code app.js} substitutes the live clock into {@link AppMessages#lockoutRetryCountdown(String)} on the client. Where the element is FIXED markup
+ * the template passes a string literal directly and needs nothing from here; these are the two that carry a value and so have to be built.
  *
  * <p>
- * Neither is NAMESPACED, and that is load-bearing rather than a style choice: a {@code ns:method(...)} call does not resolve when it is nested
- * inside a message parameter - the bundle resolver is handed a {@code Results$NotFound} and the render dies with a {@code ClassCastException},
- * which the BUILD does not catch, since template analysis validates the call itself perfectly well. The plain base-object form nested the same way
- * is what {@code import-reason.html}'s {@code {msg:importUnknownAction(actionName.escapeHtml)}} already relies on.
+ * Neither is NAMESPACED, and that is load-bearing rather than a style choice: a {@code ns:method(...)} call does not resolve when nested inside a
+ * message parameter - the bundle resolver gets a {@code Results$NotFound} and the render dies with a {@code ClassCastException}, which the BUILD
+ * does not catch, since template analysis validates the call itself perfectly well. The plain base-object form nested the same way is what
+ * {@code import-reason.html}'s {@code {msg:importUnknownAction(actionName.escapeHtml)}} already relies on.
  *
  * <p>
- * Every method returns MARKUP, so the entry it is substituted into is rendered {@code .raw} - which switches Qute's escaping off for the whole
- * entry, including this markup's own arguments (see {@link HtmlEscaping}). Each therefore escapes what it embeds here rather than relying on the
- * call site to remember, since the point of substituting a whole element is that the call site never sees the two halves separately.
+ * Every method returns MARKUP, so the entry it is substituted into is rendered {@code .raw} - switching Qute's escaping off for the whole entry,
+ * including this markup's own arguments (see {@link HtmlEscaping}). Each therefore escapes what it embeds rather than relying on the call site to
+ * remember, since the point of substituting a whole element is that the call site never sees the two halves separately.
  */
 @TemplateExtension
 public final class MessageMarkup {

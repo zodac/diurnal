@@ -170,12 +170,12 @@ public class SettingsWebResource {
     // ── Preferences ────────────────────────────────────────────────────────
 
     /**
-     * The single settings endpoint: partially updates the current user's display name and/or preferences — only the form fields PRESENT in the
-     * request change (PATCH semantics). The Settings page's controls each auto-save themselves on {@code change} by PATCHing here with just their
-     * own field included, so every request deliberately carries one setting's data; a request may equally carry several. Every submitted value is
-     * validated and an unrecognised one is rejected with {@code 422} (and the reason) so the client keeps the previous value — nothing is silently
-     * coerced (a blank timezone is the explicit server-default reset). Every rule is the shared {@link ProfileService} the API's
-     * {@code PATCH /api/v1/users/me} also calls. Returns {@code 204} when everything applied.
+     * The single settings endpoint: partially updates the current user's display name and/or preferences - only the form fields PRESENT in the
+     * request change (PATCH semantics). The Settings page's controls auto-save on {@code change} by PATCHing here with just their own field, so a
+     * request typically carries one setting's data but may carry several. Every submitted value is validated; an unrecognised one is rejected with
+     * {@code 422} (and the reason) so the client keeps the previous value — nothing is silently coerced (a blank timezone is the explicit
+     * server-default reset). Every rule is the shared {@link ProfileService} the API's {@code PATCH /api/v1/users/me} also calls. Returns
+     * {@code 204} when everything applied.
      *
      * @param displayName      the new display name, when submitted
      * @param theme            the new theme, when submitted

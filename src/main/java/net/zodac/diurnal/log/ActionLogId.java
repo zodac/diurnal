@@ -25,24 +25,24 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The identity of an {@link ActionLog}: the {@code (user, action, day)} the row tallies, which is the whole of what makes it unique. Named by
- * {@link jakarta.persistence.IdClass} on the entity, whose three {@link jakarta.persistence.Id} fields this mirrors by name and type.
+ * The identity of an {@link ActionLog}: the {@code (user, action, day)} the row tallies. Named by {@link jakarta.persistence.IdClass} on the
+ * entity, whose three {@link jakarta.persistence.Id} fields this mirrors by name and type.
  *
  * <p>
- * This is a plain class rather than one of the project's records because the JPA id-class contract requires a {@link Serializable} type with a public
- * no-argument constructor and mutable, provider-populated fields matching the entity's - a shape a record cannot express. It is data only and holds
- * no logic. Application code never READS its fields - {@link ActionLog} carries the same three values as ordinary fields, so every query and every
- * caller addresses them there instead - and builds one only through {@link #of(UUID, UUID, LocalDate)}, for the one operation that must address a row
- * by its identity rather than by a predicate ({@link ActionLog#decrementCount}'s pessimistic load). That is also why an {@code @IdClass} is used
- * rather than an {@code @EmbeddedId} - the latter would nest the key, turning every {@code l.userId} in a query into {@code l.id.userId}.
+ * A plain class rather than one of the project's records, since the JPA id-class contract requires a {@link Serializable} type with a public
+ * no-argument constructor and mutable, provider-populated fields matching the entity's - a shape a record cannot express. Data only, no logic.
+ * Application code never READS its fields - {@link ActionLog} carries the same three values as ordinary fields, so every query and caller
+ * addresses them there instead - and builds one only through {@link #of(UUID, UUID, LocalDate)}, for the one operation that must address a row by
+ * identity rather than by predicate ({@link ActionLog#decrementCount}'s pessimistic load). Also why {@code @IdClass} is used rather than
+ * {@code @EmbeddedId} - the latter would nest the key, turning every {@code l.userId} in a query into {@code l.id.userId}.
  *
  * <p>
- * <strong>Every suppression on this class is that contract, not an exemption taken for convenience.</strong> The fields cannot be {@code final}
- * (there is a no-argument constructor for the provider to fill), cannot be {@code private} or absent (the provider matches them by name against the
- * entity's), and the type must be {@link Serializable} without needing serialization methods of its own - so {@code WeakerAccess}, {@code unused}
- * and the two {@code Serializable*} inspections each report a fact that is true and cannot be changed while the entity keeps a composite key. The two
- * non-final-field inspections say the same of {@code equals}/{@code hashCode} and are scoped out in {@code code-quality-config-overrides/qodana.yaml}
- * instead, because neither honours a {@code @SuppressWarnings} here.
+ * <strong>Every suppression here is that contract, not a convenience exemption.</strong> Fields cannot be {@code final} (a no-argument constructor
+ * exists for the provider to fill), cannot be {@code private} or absent (the provider matches them by name against the entity's), and the type must
+ * be {@link Serializable} without needing its own serialization methods - so {@code WeakerAccess}, {@code unused} and the two {@code Serializable*}
+ * inspections each report a true, unchangeable fact while the entity keeps a composite key. The same non-final-field issue on
+ * {@code equals}/{@code hashCode} is scoped out in {@code code-quality-config-overrides/qodana.yaml} instead, since neither honours a
+ * {@code @SuppressWarnings} here.
  */
 @SuppressWarnings({
     "unused",                                          // Hibernate assigns and reads these fields reflectively; no Java code does

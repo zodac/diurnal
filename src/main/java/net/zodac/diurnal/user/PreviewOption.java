@@ -32,9 +32,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * <strong>Only {@link #value()} has a Java caller</strong> ({@code ProfileService.allowedValues}, wording the rejection for an unrecognised
- * submission). The other four are read by NAME out of {@code partials/preview-picker.html}, which forwards each one into
- * {@code partials/preview-option.html}, so an IDE reports them unused. They are what makes this interface worth having: the picker loops
- * {@code PreviewOption[]} and reads the same five names off every option, which is why adding a theme or a font needs no template change.
+ * submission). The other four are read by NAME out of {@code partials/preview-picker.html}, forwarded into {@code partials/preview-option.html}, so
+ * an IDE reports them unused - they're what makes this interface worth having: the picker loops {@code PreviewOption[]} and reads the same five
+ * names off every option, why adding a theme or a font needs no template change.
  *
  * <p>
  * {@link FunctionalInterface} is accurate rather than an invitation: {@link #preview()} is the single abstract method, and saying so is what both

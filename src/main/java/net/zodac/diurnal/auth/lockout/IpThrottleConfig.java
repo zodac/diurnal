@@ -27,15 +27,15 @@ import java.time.Duration;
  * logins <em>or</em> registrations from one client IP within {@link #lockoutDuration()}, that IP is locked out of both logging in and registering.
  *
  * <p>
- * This is the only auth lockout — there is deliberately no per-account (email) dimension, since a per-account lockout would let an attacker deny
- * service to a targeted victim by failing logins for their email. Keying purely on the client IP avoids that footgun.
+ * This is the only auth lockout — deliberately no per-account (email) dimension, since that would let an attacker deny service to a targeted victim
+ * by failing logins for their email. Keying purely on the client IP avoids that footgun.
  *
  * <p>
  * The client IP is resolved by {@code net.zodac.diurnal.http.ClientAddress} from Vert.x {@code remoteAddress()}, which honours
  * {@code quarkus.http.proxy.proxy-address-forwarding} ({@code TRUST_X_FORWARDED_HEADERS}), or from {@code CF-Connecting-IP} when
- * {@code TRUST_CLOUDFLARE_HEADER} is on; this control is therefore only meaningful when whichever of those is trusted is configured correctly.
- * Because many users can share one IP (NAT/CGNAT), the limit is deliberately generous and a counter decays after a quiet window so shared IPs don't
- * accumulate unrelated failures.
+ * {@code TRUST_CLOUDFLARE_HEADER} is on; this control is only meaningful when whichever is trusted is configured correctly. Since many users can
+ * share one IP (NAT/CGNAT), the limit is deliberately generous and a counter decays after a quiet window so shared IPs don't accumulate unrelated
+ * failures.
  */
 @ConfigMapping(prefix = "auth.ip-throttle")
 public interface IpThrottleConfig {

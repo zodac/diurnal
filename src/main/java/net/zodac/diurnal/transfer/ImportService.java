@@ -47,31 +47,31 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The single owner of the data import, shared by the web UI's HTMX endpoints ({@code TransferInternalResource}) and the public REST API
- * ({@code TransferApiResource}), so a rule added or changed here applies to both surfaces by construction. The resources only translate the returned
+ * ({@code TransferApiResource}), so a rule change here applies to both by construction. The resources only translate the returned
  * {@link ImportResult} into their medium.
  *
  * <p>
  * <strong>An import REPLACES.</strong> Every action, day count, note and note attachment the account holds is removed, and the archive's contents
- * are written in their place - the account ends up holding exactly what the file describes, and nothing else. That is what makes the archive a
- * backup that can actually be restored, and it is also why the operation is worth confirming: {@link #preview(User, byte[])} runs the identical read
- * and validation and stops short of the write, so the confirmation is shown real figures from the real file rather than an estimate.
+ * are written in their place - the account ends up holding exactly what the file describes, nothing else. That is what makes the archive a backup
+ * that can actually be restored, and why the operation is worth confirming: {@link #preview(User, byte[])} runs the identical read and validation
+ * and stops short of the write, so the confirmation shows real figures from the real file rather than an estimate.
  *
  * <p>
  * The preview deliberately keeps <strong>no server-side state</strong> - the browser simply sends the same file again to confirm. Staging a parsed
- * archive between two requests would mean holding one user's whole journal, in the clear, in memory or in a table, for as long as they left the tab
- * open; re-reading the upload costs a few milliseconds and holds nothing. It also means the committed import validates the bytes it is about to
- * write, rather than trusting a verdict reached on an earlier request.
+ * archive between requests would mean holding one user's whole journal, in the clear, in memory or a table, for as long as the tab stayed open;
+ * re-reading the upload costs a few milliseconds and holds nothing. It also means the committed import validates the bytes it is about to write,
+ * rather than trusting a verdict from an earlier request.
  *
  * <p>
  * Writes go through each package's own owner: {@link Note} content is written by {@link NoteService#replaceAll(User, Map)} and attachments by
- * {@code NoteAttachmentService.replaceAll}, which are the only things that can seal either, and the bulk deletes are the same entity statements
- * {@code AdminUserService} uses to clear an account. Actions are inserted
- * before their logs and flushed, because a log names its action by NAME and the id it needs does not exist until the action row does.
+ * {@code NoteAttachmentService.replaceAll} - the only things that can seal either - and the bulk deletes are the same entity statements
+ * {@code AdminUserService} uses to clear an account. Actions are inserted before their logs and flushed, since a log names its action by NAME and
+ * the id it needs does not exist until the action row does.
  *
  * <p>
- * <strong>The account's SETTINGS are the one part an import does not replace wholesale.</strong> They are written last, and only where the archive
- * names them: a preference always has a value, so a key the file leaves out cannot be asking for one to be removed, and {@code settings.csv} is
- * optional precisely so that an archive taken before it existed still restores without resetting the account's language. See {@link SettingsDraft}.
+ * <strong>The account's SETTINGS are the one part an import does not replace wholesale.</strong> They are written last, only where the archive
+ * names them: a preference always has a value, so a key the file omits cannot be asking to remove one, and {@code settings.csv} is optional
+ * precisely so an archive taken before it existed still restores without resetting the account's language. See {@link SettingsDraft}.
  *
  * <p>
  * The caller owns the transaction: {@link #apply(User, byte[])} must be invoked from a {@code @Transactional} endpoint, so a rejection part-way

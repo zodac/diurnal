@@ -32,10 +32,10 @@ import net.zodac.diurnal.openapi.OpenApiDocsPaths;
  * time.
  *
  * <p>
- * {@code default-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'} close the remaining fetch-destination directives on the strict
- * policy: an audit of every template, stylesheet, and served script found no {@code data:} URI consumer (all images/favicons are real same-origin
- * files), no font source outside the bundled {@code /fonts/} woff2 files, and no fetch/HTMX target outside the app's own origin — so none of the
- * three need the relaxations the docs policy below carries, and {@code default-src} closes off any directive this class doesn't otherwise set.
+ * {@code default-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'} close the remaining fetch-destination directives: an audit of
+ * every template, stylesheet and served script found no {@code data:} URI consumer (all images/favicons are same-origin files), no font source
+ * outside the bundled {@code /fonts/} woff2 files, and no fetch/HTMX target outside the app's own origin — so none need the relaxations the docs
+ * policy below carries, and {@code default-src} closes off any directive this class doesn't otherwise set.
  */
 final class CspPolicy {
 

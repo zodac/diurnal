@@ -26,16 +26,15 @@ import org.jspecify.annotations.Nullable;
  * source of truth for the "Dashboard action order" setting's picker.
  *
  * <p>
- * Stored in {@code users.action_order} as this enum's {@link #value()}, {@code NOT NULL} and defaulted to {@link #ALPHABETICAL}, which is the order
- * the panel had before the setting existed. There is no "automatic" state and so no nullable column, unlike {@code users.week_start}: nothing about
- * the account's language or region suggests one of these over another.
+ * Stored in {@code users.action_order} as this enum's {@link #value()}, {@code NOT NULL} and defaulted to {@link #ALPHABETICAL} - the order the
+ * panel had before the setting existed. There is no "automatic" state and so no nullable column, unlike {@code users.week_start}: nothing about the
+ * account's language or region suggests one of these over another.
  *
  * <p>
- * <strong>The selected day's count is the primary sort key under every option, and this setting only replaces the tie-break.</strong> An action
- * logged today floats to the top of the panel whichever order is chosen - that is what keeps the panel a record of the day as well as a way to fill
- * it in - so this decides the order of everything below that line, and therefore the whole list on a day not yet logged against, which is every day
- * at the moment it is opened. The comparator itself is {@code log.DayActionOrdering}: the ordering needs the account's log history, which this
- * package cannot see.
+ * <strong>The selected day's count is the primary sort key under every option; this setting only replaces the tie-break.</strong> An action logged
+ * today floats to the top of the panel whichever order is chosen - keeping the panel a record of the day as well as a way to fill it in - so this
+ * decides the order of everything below that line, and therefore the whole list on a day not yet logged against, which is every day at the moment
+ * it's opened. The comparator itself is {@code log.DayActionOrdering}: the ordering needs the account's log history, which this package cannot see.
  *
  * <p>
  * Each constant carries no English label. The three are ordinary UI text with no CLDR or data source to resolve them from, so they are worded in

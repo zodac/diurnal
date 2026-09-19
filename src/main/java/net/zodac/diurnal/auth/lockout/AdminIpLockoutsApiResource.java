@@ -35,6 +35,8 @@ import java.util.List;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.openapi.ApiPages;
+import net.zodac.diurnal.openapi.responses.AdminOnlyApiResponse;
+import net.zodac.diurnal.openapi.responses.UnauthenticatedApiResponse;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
@@ -106,8 +108,8 @@ public class AdminIpLockoutsApiResource {
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "200", description = "The currently locked-out IPs.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = CurrentLockoutsDto.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "403", description = "The caller is not an administrator.")
+    @UnauthenticatedApiResponse
+    @AdminOnlyApiResponse
     @APIResponse(responseCode = "404", description = "The per-IP lockout feature is disabled.")
     public Response listCurrent() {
         if (!ipThrottleConfig.enabled()) {
@@ -137,8 +139,8 @@ public class AdminIpLockoutsApiResource {
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = IpLockoutHistoryPageDto.class)))
     @APIResponse(responseCode = "400", description = "The requested page is out of range.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "403", description = "The caller is not an administrator.")
+    @UnauthenticatedApiResponse
+    @AdminOnlyApiResponse
     @APIResponse(responseCode = "404", description = "The per-IP lockout feature is disabled.")
     public Response listHistory(
         @Parameter(name = "page", in = ParameterIn.QUERY, description = "The 1-based page to return (default 1); out-of-range values are rejected.")
@@ -172,8 +174,8 @@ public class AdminIpLockoutsApiResource {
         + "history record as manually unlocked. Available only when the per-IP lockout is enabled.")
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "204", description = "The IP was unlocked.")
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "403", description = "The caller is not an administrator.")
+    @UnauthenticatedApiResponse
+    @AdminOnlyApiResponse
     @APIResponse(responseCode = "404", description = "The feature is disabled, or the IP was not currently locked out.")
     public Response unlock(
         @Parameter(name = "ip", in = ParameterIn.PATH, required = true, description = "The client IP address to unlock.")

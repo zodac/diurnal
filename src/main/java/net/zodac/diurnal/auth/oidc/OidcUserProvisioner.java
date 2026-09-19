@@ -57,22 +57,22 @@ import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Runs after every successful authentication. It only acts on OIDC web-app (authorisation code flow) identities — those are the ones that carry an
- * {@link IdTokenCredential}; form-auth and API Bearer identities have none and pass straight through. For an OIDC identity it gathers the
- * {@link OidcLoginFacts} and applies {@link OidcLoginPolicy#decide(OidcLoginFacts)}: continuing as the linked local {@link User}, provisioning a
- * fresh one, or refusing the login. It then normalises the principal to the user's email so all existing resource code (which looks users up by
- * email) works unchanged.
+ * Runs after every successful authentication, acting only on OIDC web-app (authorisation code flow) identities - those carrying an
+ * {@link IdTokenCredential}; form-auth and API Bearer identities have none and pass straight through. For an OIDC identity it gathers
+ * {@link OidcLoginFacts} and applies {@link OidcLoginPolicy#decide(OidcLoginFacts)}: continue as the linked local {@link User}, provision a fresh
+ * one, or refuse the login. It then normalises the principal to the user's email so existing resource code (which looks users up by email) works
+ * unchanged.
  *
  * <p>
- * Accounts are resolved by the immutable issuer + subject pair ONLY — an email match with an unlinked local account refuses the login instead of
- * silently linking (see {@link OidcLoginPolicy} for why). On a refusal the user-facing reason is carried to the login page via the short-lived
- * {@value #ERROR_COOKIE} cookie (the code-flow failure redirect goes to {@code /login?error=oidc}, which reads and clears it), mirroring the
- * login-lockout cookie pattern.
+ * Accounts are resolved by the immutable issuer+subject pair ONLY — an email match with an unlinked local account refuses the login instead of
+ * silently linking (see {@link OidcLoginPolicy} for why). A refusal carries its user-facing reason to the login page via the short-lived
+ * {@value #ERROR_COOKIE} cookie (the code-flow failure redirect goes to {@code /login?error=oidc}, which reads and clears it) — the same pattern
+ * as the login-lockout cookie.
  *
  * <p>
- * Note: in Quarkus the code-flow identity does NOT expose the ID token as a {@code "id_token"} attribute, nor is the principal a
- * {@code JsonWebToken}. The ID token is only available as an {@link IdTokenCredential}, so we read the claims by decoding the token payload below.
- * Without this, no {@code user} role is ever added and the dashboard rejects OIDC logins with a 403.
+ * Note: Quarkus's code-flow identity does NOT expose the ID token as an {@code "id_token"} attribute, nor is the principal a
+ * {@code JsonWebToken} - it is only available as an {@link IdTokenCredential}, so claims are read by decoding the token payload below. Without
+ * this, no {@code user} role is ever added and the dashboard rejects OIDC logins with a 403.
  */
 @ApplicationScoped
 public class OidcUserProvisioner implements SecurityIdentityAugmentor {

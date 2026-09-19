@@ -30,9 +30,8 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>
  * Connecting is a one-way conversion: the account's password is removed in the same step, so a linked account signs in through the identity
- * provider ONLY (there is no hybrid state and no disconnect). The password
- * removal is deliberate: two permanently-live credentials would double the account's attack surface and make "which login rules apply?" ambiguous,
- * and the IdP is the stronger authority once trusted.
+ * provider ONLY (no hybrid state, no disconnect). This is deliberate: two permanently-live credentials would double the attack surface and make
+ * "which login rules apply?" ambiguous, and the IdP is the stronger authority once trusted.
  *
  * <p>
  * Callers own the transaction (each endpoint is {@code @Transactional}); this bean only assumes one is active.

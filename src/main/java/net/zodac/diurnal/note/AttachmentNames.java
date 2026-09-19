@@ -65,16 +65,15 @@ public final class AttachmentNames {
         "bmp", "image/bmp");
 
     // The audio types served INLINE, so the hover card can offer a player. Chosen the same way the image table is - a fixed map, never the browser's
-    // own Content-Type - and safe to serve for the same reason: a media element DECODES, it does not execute, so none of these can run against this
-    // application's origin the way an .svg or an .html could.
+    // own Content-Type - and safe for the same reason: a media element DECODES, it does not execute, so none of these can run against this
+    // application's origin the way an .svg or .html could.
     //
-    // The set is what every current browser decodes natively, since this application cannot transcode (it is a stateless container with no ffmpeg,
-    // and an attachment is a row). mp3/m4a/aac/wav/flac play everywhere; the Ogg family (ogg/oga/opus) plays everywhere except older Safari, where
-    // the element simply declines to start - the same graceful failure a corrupt PNG already has. Opus earns its place despite that: at the 1 MB
+    // The set is what every current browser decodes natively, since this application cannot transcode (a stateless container with no ffmpeg, and an
+    // attachment is a row). mp3/m4a/aac/wav/flac play everywhere; the Ogg family (ogg/oga/opus) plays everywhere except older Safari, where the
+    // element simply declines to start - the same graceful failure a corrupt PNG already has. Opus earns its place regardless: at the 1 MB
     // request-body ceiling it holds four or five MINUTES of speech, where WAV holds about six seconds.
     //
-    // Deliberately absent: .wma and .amr (no browser), .aiff (Safari only), and .weba/WebM audio (well supported, but almost nobody has a file
-    // named that).
+    // Deliberately absent: .wma/.amr (no browser), .aiff (Safari only), .weba/WebM audio (well supported, but almost nobody has a file named that).
     private static final Map<String, String> PREVIEWABLE_AUDIO_TYPES = Map.of(
         "mp3", "audio/mpeg",
         "m4a", "audio/mp4",
@@ -175,24 +174,24 @@ public final class AttachmentNames {
      * for everything else, and the name in both an ASCII-only fallback and the RFC 5987 {@code filename*} form.
      *
      * <p>
-     * <strong>The disposition is the second half of the same decision {@link #mediaType(String)} makes.</strong> Anything with no preview of its
-     * own is served as opaque bytes AND told to save rather than render, so an uploaded {@code .html} or {@code .svg} cannot execute against this
-     * application's own origin however the browser is talked into opening it. Both halves therefore read the FILE name — the one that says what the
-     * file is — while the name the browser SAVES it under is a separate argument.
+     * <strong>The disposition is the second half of the same decision {@link #mediaType(String)} makes.</strong> Anything with no preview is served
+     * as opaque bytes AND told to save rather than render, so an uploaded {@code .html} or {@code .svg} cannot execute against this application's
+     * origin however the browser is talked into opening it. Both halves read the FILE name - the one that says what the file is - while the name
+     * the browser SAVES it under is a separate argument.
      *
      * <p>
-     * The name is emitted twice because the header's own grammar is ASCII: the quoted {@code filename} carries a transliterated fallback for a
-     * client that understands nothing else, and {@code filename*} carries the real one, which every current browser prefers. The fallback is
-     * deliberately built by REMOVING what will not fit rather than by transliterating it, so a wholly non-Latin name degrades to
-     * {@link #FALLBACK_NAME} rather than to a line of question marks — and the quote and backslash go with it, which is what stops a name from
-     * closing the quoted string and writing a header of its own. A name that keeps only its extension that way ({@code "写真.png"} leaves
-     * {@code ".png"}) is given that stem back, or the browser would save it as a hidden file with no name.
+     * The name is emitted twice because the header's grammar is ASCII: the quoted {@code filename} carries a transliterated fallback for a client
+     * that understands nothing else, and {@code filename*} carries the real one, which every current browser prefers. The fallback is built by
+     * REMOVING what won't fit rather than transliterating it, so a wholly non-Latin name degrades to {@link #FALLBACK_NAME} rather than a line of
+     * question marks - the quote and backslash go with it too, stopping a name from closing the quoted string and writing a header of its own. A
+     * name that keeps only its extension that way ({@code "写真.png"} leaves {@code ".png"}) gets that stem back, or the browser would save it as a
+     * hidden file with no name.
      *
      * <p>
-     * <strong>The two names answer different questions.</strong> Whether to render or to save is decided by the FILE name, because it is what the
-     * bytes are and a user renaming a file cannot change that (nor use a rename to make an {@code .svg} render inline). What the browser saves it AS
-     * is the DISPLAY name, because that is what they chose to call it — even when they chose something with no extension at all, which is legal and
-     * which the {@code Content-Type} above then covers. They are the same string for every attachment nobody has renamed.
+     * <strong>The two names answer different questions.</strong> Whether to render or save is decided by the FILE name - it is what the bytes are,
+     * and renaming a file cannot change that (nor use a rename to make an {@code .svg} render inline). What the browser saves it AS is the DISPLAY
+     * name, since that's what they chose to call it - even with no extension at all, which is legal and which {@code Content-Type} above covers.
+     * They are the same string for every attachment nobody has renamed.
      *
      * @param displayName the name the browser should save the file under
      * @param fileName    the name the file was uploaded under, which decides whether it renders inline

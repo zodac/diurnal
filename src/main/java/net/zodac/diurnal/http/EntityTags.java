@@ -40,8 +40,8 @@ import org.jspecify.annotations.Nullable;
  * Every response these validators decorate is <strong>private per-user</strong> data, so the caching directive is {@code private, no-cache}
  * ({@link #privateNoCache()}): a shared cache must never store it, and even a private cache must revalidate against the ETag before reuse. The
  * accompanying {@code Vary: Authorization, Cookie} keeps the two authentication channels (Bearer token and session cookie) from ever sharing a cache
- * entry. The tags are <strong>weak</strong> ({@code W/"…"}) because equal logical state need not produce byte-identical JSON, which is exactly the
- * comparison {@code If-None-Match} uses.
+ * entry. The tags are <strong>weak</strong> ({@code W/"…"}) because equal logical state need not produce byte-identical JSON - exactly what
+ * {@code If-None-Match} compares.
  */
 public final class EntityTags {
 

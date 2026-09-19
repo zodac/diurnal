@@ -29,6 +29,7 @@ import jakarta.ws.rs.core.Response;
 import java.util.List;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.openapi.ApiPages;
+import net.zodac.diurnal.openapi.responses.UnauthenticatedApiResponse;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
@@ -109,7 +110,7 @@ public class AttachmentsApiResource {
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = AttachmentPageDto.class)))
     @APIResponse(responseCode = "400", description = "The requested page is out of range.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     public Response attachments(
         @Parameter(name = "q", in = ParameterIn.QUERY,
         description = "Keep only the attachments whose display name OR uploaded file name contains this text, matched case-insensitively as a "

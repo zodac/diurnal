@@ -42,27 +42,26 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The single owner of every attachment mutation — attach, rename, delete — shared by the web UI's internal endpoints
- * ({@link NoteAttachmentsInternalResource}) and the public REST API ({@link NoteAttachmentsApiResource}), so a rule added or changed here applies to
- * both surfaces by construction. The resources only translate the returned {@link AttachmentResult} into their medium, exactly as they do with
- * {@link NoteResult}.
+ * ({@link NoteAttachmentsInternalResource}) and the public REST API ({@link NoteAttachmentsApiResource}), so a rule change here applies to both
+ * surfaces by construction. The resources only translate the returned {@link AttachmentResult} into their medium, exactly as with {@link NoteResult}.
  *
  * <p>
  * <strong>An attachment and the note's text are two halves of one thing, and this bean keeps them together.</strong> A file is embedded by writing a
- * {@code [[name]]} token into the note ({@link NoteTokens}), so renaming one has to rewrite every token naming it and deleting one has to remove
- * them — otherwise the note would be left pointing at a file that is gone, or at a name nothing has. Both happen in the same transaction as the row
- * they follow, and both write the note through {@link NoteService}, which is the one thing that may store one: a note has exactly one legitimate
- * stored form (sealed under its owner's data key, bound to their id and the date), and nothing else in the application knows it.
+ * {@code [[name]]} token into the note ({@link NoteTokens}), so renaming one has to rewrite every token naming it, and deleting one has to remove
+ * them - otherwise the note would point at a gone file, or a name nothing has. Both happen in the same transaction as the row they follow, and both
+ * write the note through {@link NoteService}, the one thing that may store one: a note has exactly one legitimate stored form (sealed under its
+ * owner's data key, bound to their id and the date), and nothing else in the application knows it.
  *
  * <p>
- * <strong>A day's names are unique, and that is enforced here rather than by the database.</strong> The stored name is sealed, so no {@code UNIQUE}
- * index can compare two of them; and it has to be unique, because the note's token addresses a file BY name. An upload resolves a collision silently
- * ({@link AttachmentNames#unique(String, Collection)} — the user chose a file, not a name), while a rename is refused
- * ({@link AttachmentRefusal#DUPLICATE_NAME} — the name is the whole of what they typed).
+ * <strong>A day's names are unique, enforced here rather than by the database.</strong> The stored name is sealed, so no {@code UNIQUE} index can
+ * compare two of them; and it has to be unique, because the note's token addresses a file BY name. An upload resolves a collision silently
+ * ({@link AttachmentNames#unique(String, Collection)} - the user chose a file, not a name), while a rename is refused
+ * ({@link AttachmentRefusal#DUPLICATE_NAME} - the name is the whole of what they typed).
  *
  * <p>
- * <strong>A file's NAME is as private as the note it sits in</strong>, so nothing here logs one — {@code "divorce-papers.pdf"} gives away as much as
- * the paragraph around it, which is the same reason {@link NoteService} never logs a note's content. Every statement below carries the account, the
- * date and a count, and {@code SecretsStayOutOfLogsTest} fails any that does otherwise.
+ * <strong>A file's NAME is as private as the note it sits in</strong>, so nothing here logs one - {@code "divorce-papers.pdf"} gives away as much as
+ * the paragraph around it, the same reason {@link NoteService} never logs a note's content. Every statement below carries the account, the date and
+ * a count; {@code SecretsStayOutOfLogsTest} fails any that does otherwise.
  *
  * <p>
  * Callers own the transaction (each resource write method is {@code @Transactional}); this bean only assumes one is active.
@@ -145,17 +144,16 @@ public class NoteAttachmentService {
      * the notes page's attachments table and its HTMX list fragment render.
      *
      * <p>
-     * <strong>A filename is searched exactly as a note is: by opening it.</strong> The stored name is sealed under the owner's data key (see
-     * {@link AttachmentContent}), so there is nothing in the {@code note_attachments} table a {@code LIKE} could run against and no predicate the
-     * database could page on — which is why this reads the account's rows, opens every name and then slices. The rule it matches with is
-     * {@link NoteSearch#matches(String, String)}, the same case-insensitive substring test the notes search uses, so "search" means one thing on
-     * both halves of the page.
+     * <strong>A filename is searched exactly as a note is: by opening it.</strong> The stored name is sealed under the owner's data key (see {@link
+     * AttachmentContent}), so there is nothing in the {@code note_attachments} table a {@code LIKE} could run against and no predicate the database
+     * could page on - this reads the account's rows, opens every name, then slices. It matches with {@link NoteSearch#matches(String, String)}, the
+     * same case-insensitive substring test the notes search uses, so "search" means one thing on both halves of the page.
      *
      * <p>
      * <strong>The cost is a different shape from the note search's, which is why there is no blank-term fast path here.</strong> A name is a hundred
      * characters at most and there are as many rows as the account has FILES rather than days, so the whole selection is one index-ordered read of
-     * small rows and one short AES pass each; the bytes are never touched (the projection does not select them). Paging that in the database would
-     * buy a page of names at the cost of a second code path, and would still not be able to page a search.
+     * small rows and one short AES pass each; the bytes are never touched (the projection excludes them). Paging that in the database would buy a
+     * page of names at the cost of a second code path, and still couldn't page a search.
      *
      * @param user     the owning user, whose key opens every name read
      * @param query    the search term ({@code null} or blank lists every attachment)
@@ -264,12 +262,12 @@ public class NoteAttachmentService {
      *
      * <p>
      * The data key is resolved ONCE for the whole account, exactly as {@code NoteService.readContents} does for a range of notes. An attachment
-     * that will not open is <strong>omitted</strong> rather than failing the export, the rule every other read here follows: one damaged row must
+     * that will not open is <strong>omitted</strong> rather than failing the export - the rule every other read here follows: one damaged row must
      * not deny someone the rest of their history.
      *
      * <p>
-     * <strong>This is the one path that holds an account's whole library at once</strong>, which is what bounds how large an export can usefully be
-     * — see {@code ExportService}, and {@code MAX_ARCHIVE_SIZE} for the ceiling on getting one back in.
+     * <strong>This is the one path that holds an account's whole library at once</strong>, which bounds how large an export can usefully be - see
+     * {@code ExportService}, and {@code MAX_ARCHIVE_SIZE} for the ceiling on getting one back in.
      *
      * @param user the owning user
      * @return every readable attachment, oldest day first
@@ -315,14 +313,14 @@ public class NoteAttachmentService {
      *
      * <p>
      * It lives here, rather than the importer storing rows itself, for the same reason note content does: an attachment has exactly one legitimate
-     * stored form — both halves sealed under the owner's data key and bound to their id, the day and this row — and this bean is the only thing that
-     * knows it. An importer reaching for {@code NoteAttachment.store} directly would be the one path in the application capable of writing a file,
-     * or a filename, in the clear.
+     * stored form - both halves sealed under the owner's data key and bound to their id, the day and this row - and this bean is the only thing
+     * that knows it. An importer reaching for {@code NoteAttachment.store} directly would be the one path capable of writing a file, or a filename,
+     * in the clear.
      *
      * <p>
      * <strong>The content is expected to have been validated already</strong>, by {@code transfer.ImportParser}, against the same
-     * {@code TextFields#ATTACHMENT_NAME} field and the same {@link AttachmentPolicy} an upload meets. The rules are not re-applied here because they
-     * were applied once, to produce exactly these values (the validate-once rule in {@code CODE_STYLE.md}).
+     * {@code TextFields#ATTACHMENT_NAME} field and the same {@link AttachmentPolicy} an upload meets. The rules are not re-applied here since they
+     * were applied once already, to produce exactly these values (the validate-once rule in {@code CODE_STYLE.md}).
      *
      * @param user  the acting user
      * @param files the attachments to write, in the order they should be stored
@@ -356,13 +354,13 @@ public class NoteAttachmentService {
      *
      * <p>
      * <strong>That name is not necessarily the one that was uploaded.</strong> It is sanitised first (a path prefix dropped, the note token's square
-     * brackets replaced, an over-long one shortened without losing its extension), and then made unique among the day's other files. The caller must
+     * brackets replaced, an over-long one shortened without losing its extension), then made unique among the day's other files. The caller must
      * therefore embed the RETURNED name in the note rather than the one it sent, or the token would address nothing.
      *
      * <p>
      * <strong>The note is not written here.</strong> An upload stores the file and hands its name back; the token goes into the note box where the
-     * user's caret is, and reaches the server when they save. Writing the note here would turn attaching a file into a silent save of whatever else
-     * they had half-typed.
+     * user's caret is, reaching the server only when they save. Writing the note here would turn attaching a file into a silent save of whatever
+     * else they had half-typed.
      *
      * @param user    the acting user
      * @param day     the day to attach to (which may be in the future, and need not have a note yet)
@@ -517,12 +515,11 @@ public class NoteAttachmentService {
     }
 
     // Rewrites the day's note so its tokens follow what just happened to the attachment, and answers the stored content afterwards. An empty `to`
-    // removes the token rather than renaming it, and a blank `from` leaves the note alone - the case where a damaged row's name would not open, so
-    // there is no token to identify. A day with no note has nothing to rewrite either, which is the ordinary state of a file attached to a day the
-    // user has not saved yet.
+    // removes the token rather than renaming it; a blank `from` leaves the note alone - a damaged row's name that would not open, so there is no
+    // token to identify. A day with no note has nothing to rewrite either, the ordinary state of a file attached to a day not yet saved.
     //
-    // The rewrite goes through NoteService like every other note write, so a rename that pushes a note already at its bound past it is refused
-    // there - and the resource's @RollbackOnErrorStatus undoes the row change beside it, keeping the file and the writing in step.
+    // Goes through NoteService like every other note write, so a rename pushing a note past its bound is refused there - and the resource's
+    // @RollbackOnErrorStatus undoes the row change beside it, keeping the file and the writing in step.
     private Rewrite rewrite(final User user, final LocalDate day, final String from, final String to) {
         final Note note = Note.findEntry(user.id, day);
         final Optional<String> stored = note == null ? Optional.empty() : noteService.readContent(note);

@@ -37,12 +37,12 @@ import org.jspecify.annotations.Nullable;
  * Derived labels, trends and predicates computed from an {@link SubjectStats} record.
  *
  * <p>
- * This behaviour is deliberately held here rather than on the {@code SubjectStats} record so that PITest can mutation-test it. PITest hot-swaps each
+ * This behaviour is deliberately held here rather than on the {@code SubjectStats} record so PITest can mutation-test it. PITest hot-swaps each
  * mutant into the running minion JVM via {@code Instrumentation.redefineClasses}, which the JVM refuses for a class carrying a {@code Record}
  * attribute — every record mutant failed with "class redefinition failed: attempted to change the Record attribute" (the "Minion exited abnormally
  * due to RUN_ERROR" lint warnings), leaving the logic untested. As methods on this plain class the same logic redefines cleanly and is fully mutated.
- * The template-facing methods are {@link TemplateExtension}s, so Qute still resolves {@code {s.monthTrend}}, {@code {s.latestLabel}} etc.
- * against an {@code SubjectStats} value.
+ * The template-facing methods are {@link TemplateExtension}s, so Qute still resolves {@code {s.monthTrend}}, {@code {s.latestLabel}} etc. against an
+ * {@code SubjectStats} value.
  */
 public final class SubjectStatsExtensions {
 
@@ -153,14 +153,14 @@ public final class SubjectStatsExtensions {
         return new StatTile(key, label, labelIsCustom, value, "", false, "text-ink", false, 0L, 0L, 0, 0L, 0L, 0L);
     }
 
-    // FIRST_PERFORMED / LAST_PERFORMED: the sub-caption is "Today"/"Yesterday"/"<elapsed> ago", or a dash when
-    // never performed - see partials/stats-cards.html's {#switch tile.key}, which is the only place that can
-    // resolve those words in the viewer's own language (a direct Java call to AppMessages always returns the
-    // English default; see AppMessages' own class Javadoc). -1 (never performed) rather than a boolean-plus-count
-    // pair, since every legitimate day count is >= 0. LAST_PERFORMED's caller passes the SAME span as the
-    // CURRENT_GAP tile (currentGapSpan, shifted a day from the naive first/today range) so the two report
-    // identically for the same distance. The elapsed duration (subDaysAgo >= 2) is carried as a raw breakdown, the
-    // same durationYears/Months/Days fields the duration tiles use for their own value - see StatTile's Javadoc.
+    // FIRST_PERFORMED / LAST_PERFORMED: the sub-caption is "Today"/"Yesterday"/"<elapsed> ago", or a dash when never
+    // performed - see partials/stats-cards.html's {#switch tile.key}, the only place that can resolve those words in
+    // the viewer's own language (a direct Java call to AppMessages always returns the English default; see its own
+    // class Javadoc). -1 (never performed) rather than a boolean-plus-count pair, since every legitimate day count is
+    // >= 0. LAST_PERFORMED's caller passes the SAME span as the CURRENT_GAP tile (currentGapSpan, shifted a day from
+    // the naive first/today range) so the two report identically for the same distance. The elapsed duration
+    // (subDaysAgo >= 2) is carried as a raw breakdown, the same durationYears/Months/Days fields the duration tiles
+    // use for their own value - see StatTile's Javadoc.
     private static StatTile sinceTile(final String key, final String label, final boolean labelIsCustom, final String value,
         final @Nullable DaySpan span) {
         if (span == null) {
@@ -188,15 +188,15 @@ public final class SubjectStatsExtensions {
         return new StatTile(key, label, labelIsCustom, value, "", true, valueClass, false, subCount1, subCount2, 0, 0L, 0L, 0L);
     }
 
-    // Every duration tile leads with the figure AND its unit ("1 day", "5 days", "1 year, 2 months, 3 days"),
-    // so the four streak/gap tiles read identically however long the run is - a one-day run must not render a
-    // bare "1" while a longer one spells its units out. The sub-caption then carries the run's actual dates,
-    // which is the one piece of information the condensed duration drops. A run that is still going has no end
-    // date to show, a one-day run needs only the single date, and an empty run has none. Only the still-going
-    // case needs a translated word ("since") in front of the date - a closed range is dates and a punctuation
-    // separator, neither of which is English-specific - so only that word moves to the template; see
-    // partials/stats-cards.html's {#switch tile.key}. The value itself is "" - its words ("1 year, 2 months") can
-    // only be resolved template-side (AppMessages#duration), so the raw breakdown travels instead.
+    // Every duration tile leads with the figure AND its unit ("1 day", "5 days", "1 year, 2 months, 3 days"), so the
+    // four streak/gap tiles read identically however long the run is - a one-day run must not render a bare "1"
+    // while a longer one spells its units out. The sub-caption then carries the run's actual dates, the one piece of
+    // information the condensed duration drops: a still-going run has no end date to show, a one-day run needs only
+    // the single date, an empty run has none. Only the still-going case needs a translated word ("since") in front of
+    // the date - a closed range is dates and a punctuation separator, neither English-specific - so only that word
+    // moves to the template; see partials/stats-cards.html's {#switch tile.key}. The value itself is "" - its words
+    // ("1 year, 2 months") can only be resolved template-side (AppMessages#duration), so the raw breakdown travels
+    // instead.
     private static StatTile durationTile(final String key, final String label, final boolean labelIsCustom, final DaySpan span,
         final boolean ongoing, final Language lang) {
         final DurationParts parts = Durations.breakdown(span);
@@ -297,11 +297,10 @@ public final class SubjectStatsExtensions {
     }
 
     // ── Averages ──────────────────────────────────────────────────────────
-    // Two distinct things are averaged, so the labels must never be shortened back to a bare "weekly average":
-    // the DAY averages count each active day once (how OFTEN the habit happens), the COUNT averages sum every
-    // repeat on those days (how MUCH of it happens). Both are measured over the elapsed weeks/months since the
-    // action was first performed, floored at one so a brand-new action reports its own total rather than a
-    // divide-by-zero.
+    // Two distinct things are averaged, so labels must never shorten back to a bare "weekly average": DAY averages
+    // count each active day once (how OFTEN the habit happens), COUNT averages sum every repeat on those days (how
+    // MUCH of it happens). Both are measured over elapsed weeks/months since first performed, floored at one so a
+    // brand-new action reports its own total rather than a divide-by-zero.
 
     /**
      * The average number of active days per week since the action was first performed, rendered to the given number of decimal places. A zero average

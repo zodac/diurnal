@@ -37,21 +37,21 @@ import org.jspecify.annotations.Nullable;
  * Rejects an over-sized request body with {@code 413} before it is read, on every endpoint EXCEPT the data-import endpoints.
  *
  * <p>
- * The HTTP layer's own {@code quarkus.http.limits.max-body-size} has to stay large enough for a re-imported export (tens of MB), but that same
- * ceiling applied to every other endpoint is a cheap memory-exhaustion lever: an unauthenticated caller could make the server buffer a
- * multi-megabyte body on a hot path like {@code POST /api/v1/auth/login} (each of which then also runs an Argon2id hash). This filter caps every
- * body at the far smaller {@code app.http.max-request-body} using the request's {@code Content-Length}, and exempts only the import endpoints
- * ({@code /api/v1/data/import*}, {@code /internal/data/import*}), which legitimately need the larger ceiling.
+ * The HTTP layer's own {@code quarkus.http.limits.max-body-size} must stay large enough for a re-imported export (tens of MB), but that ceiling
+ * applied to every other endpoint is a cheap memory-exhaustion lever: an unauthenticated caller could make the server buffer a multi-megabyte body
+ * on a hot path like {@code POST /api/v1/auth/login}, which then also runs an Argon2id hash. This filter caps every body at the far smaller
+ * {@code app.http.max-request-body} using {@code Content-Length}, exempting only the import endpoints ({@code /api/v1/data/import*},
+ * {@code /internal/data/import*}), which legitimately need the larger ceiling.
  *
  * <p>
  * <strong>The two note-attachment uploads are held to a limit of their own</strong> ({@code app.http.max-attachment-body}, see
- * {@link AttachmentUploadPaths}). They are the one ordinary capability whose body is a file the user chose, so they need a ceiling measured in tens
- * of megabytes — and giving them their own is what lets every other endpoint keep the small one, which is the whole point of the cap.
+ * {@link AttachmentUploadPaths}): the one ordinary capability whose body is a file the user chose, needing a ceiling measured in tens of megabytes
+ * — giving them their own is what lets every other endpoint keep the small one, the whole point of the cap.
  *
  * <p>
- * A body with no {@code Content-Length} (a chunked upload) is not measured here and is still bounded by {@code max-body-size}; a client that
- * understates {@code Content-Length} only causes the server to read that many bytes, so the header is a sound basis for the check. The cap is checked
- * on {@code Content-Length} alone, so it costs nothing and runs before authentication.
+ * A body with no {@code Content-Length} (a chunked upload) is not measured here and is still bounded by {@code max-body-size}; a client
+ * understating {@code Content-Length} only causes the server to read that many bytes, so the header is a sound basis for the check - checked
+ * alone, so it costs nothing and runs before authentication.
  *
  * <p>
  * The exemption is what makes {@link ImportConcurrencyFilter} necessary: the import endpoints are the only ones whose per-request memory this filter

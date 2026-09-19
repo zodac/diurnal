@@ -37,9 +37,9 @@ final class ErrorPages {
 
     /**
      * Renders a styled error page for the given status, filling the header with the signed-in user's display name and admin flag (or blanks for an
-     * anonymous visitor). The default theme/font are used because an error page is rendered without loading the user's saved preferences — unlike
-     * language, which is resolved from the request's {@code Accept-Language} header rather than a fixed default, since an error page is one of the
-     * "no session yet" surfaces {@code Language.fromAcceptLanguageHeader} exists for (see its Javadoc).
+     * anonymous visitor). The default theme/font are used because an error page renders without loading the user's saved preferences — unlike
+     * language, which is resolved from the request's {@code Accept-Language} header rather than defaulted, since an error page is one of the "no
+     * session yet" surfaces {@code Language.fromAcceptLanguageHeader} exists for (see its Javadoc).
      *
      * @param template          the error-page Qute template (e.g. the {@code error-404} template)
      * @param status            the HTTP status to return
@@ -49,8 +49,8 @@ final class ErrorPages {
      */
     static Response render(final Template template, final Response.Status status, final SecurityIdentity identity,
         final @Nullable String acceptLanguage) {
-        // Read displayName and isAdmin from the identity attributes - set at auth time by
-        // UserIdentities (session auth) / OidcUserProvisioner, so no DB call is needed here.
+        // Read displayName and isAdmin from the identity attributes - set at auth time by UserIdentities (session auth) / OidcUserProvisioner,
+        // so no DB call is needed here.
         String displayName = "";
         boolean isAdmin = false;
         if (!identity.isAnonymous()) {

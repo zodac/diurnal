@@ -105,9 +105,9 @@ public final class Calendars {
      * The calendar a language's dates SHOULD be rendered in but cannot be, so a caller can report it.
      *
      * <p>
-     * Empty is the ordinary answer: a language whose CLDR default is Gregorian, or one whose default is a calendar this app supports. A value means
-     * the language will be shown Gregorian dates instead of its own - which is a degraded rendering rather than an unusable app, so the caller LOGS
-     * rather than refusing to boot, unlike every other startup check in {@code AppLifecycle}.
+     * Empty is the ordinary answer: a language whose CLDR default is Gregorian, or one whose default calendar this app supports. A value means the
+     * language will be shown Gregorian dates instead of its own - a degraded rendering rather than an unusable app, so the caller LOGS rather than
+     * refusing to boot, unlike every other startup check in {@code AppLifecycle}.
      *
      * @param languageTag the language tag, as {@code Language#value()} carries it
      * @return the unsupported calendar the language expects, or empty when nothing is being downgraded

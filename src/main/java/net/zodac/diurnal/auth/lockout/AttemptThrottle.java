@@ -29,35 +29,35 @@ import org.jspecify.annotations.Nullable;
 /**
  * In-memory, fixed-window attempt throttle over an opaque string key: after {@code maxAttempts} failures for a key within the window, that key is
  * locked out for {@code lockoutDuration}. This is the single shared lockout primitive; {@link IpThrottle} runs one instance keyed by client IP to
- * gate <em>both</em> failed logins and failed registrations from a single host.
+ * gate <em>both</em> failed logins and failed registrations from one host.
  *
  * <p>
  * The class is key-agnostic (nothing here knows what the key represents), so the same logic backs every lockout without duplication. There is
- * deliberately no "success clears the counter" hook: a valid login or registration must not reset an IP's brute-force budget (otherwise one success
- * would launder an attacker's whole tally), so the counter only ever clears by decaying after a quiet window.
+ * deliberately no "success clears the counter" hook: a valid login/registration must not reset an IP's brute-force budget (one success would
+ * otherwise launder an attacker's whole tally), so the counter only clears by decaying after a quiet window.
  *
  * <p>
  * Time is passed in by the caller (from {@code AppClock.now()}) rather than read here, so the logic is pure and deterministically unit-testable, and
  * integration tests can freeze/advance the clock. Config is snapshot at construction (Quarkus {@code @ConfigMapping} values are fixed for the run).
  *
  * <p>
- * State is held in a {@link ConcurrentHashMap} and mutated only inside {@link ConcurrentHashMap#compute} (which locks the bin), so concurrent
- * attempts for the same key are consistent. A counter <em>decays</em>: a fresh failure that arrives more than one window after the previous one
- * starts over, so a shared key (e.g. a NAT'd IP) never accumulates unrelated failures indefinitely. A restart also drops the entry.
+ * State is held in a {@link ConcurrentHashMap}, mutated only inside {@link ConcurrentHashMap#compute} (which locks the bin), so concurrent attempts
+ * for the same key stay consistent. A counter <em>decays</em>: a fresh failure arriving more than one window after the previous one starts over, so
+ * a shared key (e.g. a NAT'd IP) never accumulates unrelated failures indefinitely. A restart also drops the entry.
  *
  * <p>
- * Decaying is not the same as being forgotten, though, and the difference is the map's size: a decayed counter is reset in place the next time its
- * key is seen, so without {@link #evictStale(Instant)} every key ever seen is retained for the life of the process. {@link IpThrottle} runs that
- * eviction on a schedule, which is what bounds the map for a deployment under sustained attack from many addresses.
+ * Decaying is not the same as being forgotten - the difference is the map's size: a decayed counter is reset in place the next time its key is
+ * seen, so without {@link #evictStale(Instant)} every key ever seen is retained for the process's life. {@link IpThrottle} runs that eviction on a
+ * schedule, bounding the map under sustained attack from many addresses.
  */
-// AccessingNonPublicFieldOfAnotherObject: Attempt is a private nested mutable holder, read and written directly by the methods below - the
+// AccessingNonPublicFieldOfAnotherObject: Attempt is a private nested mutable holder read/written directly by the methods below - the
 // inspection's ignoreInnerClasses option only covers the opposite direction (an inner class reading its enclosing class's fields).
 @SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
 public final class AttemptThrottle {
 
-    // Read only as `!enabled`, which BooleanVariableAlwaysNegated objects to - but the inverse name it implies,
-    // `disabled`, is what NegativelyNamedBooleanVariable objects to. Every read is a guard clause returning the
-    // no-op answer, so satisfying the first would mean wrapping four method bodies in an IF guard.
+    // Read only as `!enabled`, which BooleanVariableAlwaysNegated objects to - but the inverse name it implies, `disabled`,
+    // is what NegativelyNamedBooleanVariable objects to. Every read is a guard clause returning the no-op answer, so
+    // satisfying the first would mean wrapping four method bodies in an IF guard.
     @SuppressWarnings("BooleanVariableAlwaysNegated")
     private final boolean enabled;
     private final int maxAttempts;
@@ -181,23 +181,22 @@ public final class AttemptThrottle {
     }
 
     /**
-     * Drops every key whose counter has decayed, and reports how many went. Without this the map only ever grows: a key is retained for the life of
-     * the process once seen, because {@link #recordFailure} resets a lapsed counter <em>in place</em> rather than removing it, and the only other
-     * removal is an administrator's {@link #unlock}. One entry per client IP is nothing for a deployment's real user base and everything for a
-     * sustained attack from many addresses, which is precisely when the map is being written to hardest.
+     * Drops every key whose counter has decayed, and reports how many went. Without this the map only grows: a key is retained for the process's
+     * life once seen, since {@link #recordFailure} resets a lapsed counter <em>in place</em> rather than removing it, and the only other removal is
+     * an administrator's {@link #unlock}. One entry per client IP is nothing for a real user base and everything for a sustained attack from many
+     * addresses - precisely when the map is written to hardest.
      *
      * <p>
-     * A key is dropped on exactly the condition that makes it worthless to keep: it is stale by {@link Attempt#isStaleAt}, which is the same test
-     * {@link #recordFailure} uses to decide a fresh failure starts a new count. So an evicted key was going to be reset the moment it was next seen,
-     * and eviction changes no decision this class makes - it only stops the entry occupying memory until then. That test is also, exactly, "not
+     * A key is dropped on exactly the condition that makes it worthless to keep: staleness ({@link Attempt#isStaleAt}), the same test
+     * {@link #recordFailure} uses to decide a fresh failure starts a new count. So an evicted key was going to be reset the moment it was next
+     * seen - eviction changes no decision this class makes, it only stops the entry occupying memory until then. That test is also exactly "not
      * currently locked": a lockout always runs to {@code lastFailureAt + lockoutDuration}, the same instant staleness begins, so a live lockout can
      * never be evicted and an attacker cannot clear their own budget by waiting.
      *
      * <p>
-     * Each key is re-tested inside {@link java.util.concurrent.ConcurrentHashMap#computeIfPresent}, which holds the bin lock that
-     * {@link #recordFailure} also computes under, so a failure arriving mid-sweep either precedes the test (and saves the entry) or follows the
-     * removal (and starts a fresh count). Reading the entry outside that lock would let the two interleave and drop a counter that had just been
-     * incremented.
+     * Each key is re-tested inside {@link java.util.concurrent.ConcurrentHashMap#computeIfPresent}, which holds the same bin lock
+     * {@link #recordFailure} computes under, so a failure arriving mid-sweep either precedes the test (saving the entry) or follows the removal
+     * (starting a fresh count). Reading the entry outside that lock would let the two interleave and drop a counter just incremented.
      *
      * @param now the current instant
      * @return how many keys were dropped

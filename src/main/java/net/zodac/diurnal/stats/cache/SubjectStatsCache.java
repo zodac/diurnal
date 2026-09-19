@@ -42,20 +42,20 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * <strong>A cached row is only valid for the day it was computed on.</strong> The figures depend on the user's "today" as much as on their entries -
- * the current streak walks back from it, the longest gap carries an open run before it, and the 'this'/'last' month and year counts are keyed off it
- * - so {@link #computedForDate} is stored and every read checks it. A mismatch is a miss, not a correction: the figures are recomputed and the rows
- * overwritten. A stale row therefore costs time rather than correctness, which is the property that matters for a cache nobody is watching.
+ * the current streak walks back from it, the longest gap carries an open run before it, the 'this'/'last' month and year counts are keyed off it -
+ * so {@link #computedForDate} is stored and every read checks it. A mismatch is a miss, not a correction: figures are recomputed and rows
+ * overwritten - a stale row costs time rather than correctness, the property that matters for a cache nobody is watching.
  *
  * <p>
- * <strong>This class is a sink: it depends on nothing else in the application</strong>, which is what lets the packages that write logs and notes
- * import it to call {@link #invalidate(UUID)} without creating a cycle back into {@code stats} (which itself reads {@code log} and {@code note}). It
- * is the {@code auth.session} and {@code note.crypto} arrangement, for the same reason. The mapping between these columns and the
- * {@code SubjectStats} record consequently lives in {@code stats.SubjectStatsCaching}, not here - a row is pure data.
+ * <strong>This class is a sink: it depends on nothing else in the application</strong>, letting the packages that write logs and notes import it
+ * to call {@link #invalidate(UUID)} without creating a cycle back into {@code stats} (which itself reads {@code log} and {@code note}) - the same
+ * arrangement as {@code auth.session} and {@code note.crypto}. The mapping between these columns and the {@code SubjectStats} record lives in
+ * {@code stats.SubjectStatsCaching}, not here - a row is pure data.
  *
  * <p>
  * <strong>Only the numbers are stored.</strong> The subject's name and colour are rebuilt live by the reader (from {@code actions}, or from the
- * user's note colour for the notes subject), so renaming an action, recolouring it or changing the note colour needs no invalidation at all - none of
- * them changes a figure here.
+ * user's note colour for the notes subject), so renaming an action, recolouring it or changing the note colour needs no invalidation - none of them
+ * changes a figure here.
  */
 @Entity
 @Table(name = "subject_stats_cache")

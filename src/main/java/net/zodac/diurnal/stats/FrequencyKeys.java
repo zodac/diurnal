@@ -25,17 +25,17 @@ import net.zodac.diurnal.user.Language;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Every calendar rule for the frequency chart's window: validating the {@code at} parameter, anchoring a window, wording it, and stepping to the
- * neighbouring one. A window is always carried as the {@link LocalDate} of its FIRST day — the first of the month for {@link FrequencyPeriod#MONTH},
- * the first of January for {@link FrequencyPeriod#YEAR} and {@link FrequencyPeriod#ALL} — so a single date fixes both the window and the arithmetic
+ * Every calendar rule for the frequency chart's window: validating the {@code at} parameter, anchoring a window, wording it, and stepping to its
+ * neighbour. A window is always carried as the {@link LocalDate} of its FIRST day — the first of the month for {@link FrequencyPeriod#MONTH}, the
+ * first of January for {@link FrequencyPeriod#YEAR} and {@link FrequencyPeriod#ALL} — so a single date fixes both the window and the arithmetic
  * over it.
  *
  * <p>
  * The wire form of a window (the {@code at} parameter, and the value the chart's navigation buttons post back) is its <em>key</em>: {@code yyyy-MM}
- * for a month, {@code yyyy} for a year, and the fixed {@code all} for the all-time window, which names no calendar unit because there is only ever
- * one of it. Keys are validated strictly and never coerced: a malformed key is a {@code 400} on both surfaces rather than a silent fallback to the
- * current window, so a bookmarked or scripted request can never quietly return a different window's data than it asked for. The year is bounded to
- * four digits, which is what both dated key forms can round-trip.
+ * for a month, {@code yyyy} for a year, the fixed {@code all} for the all-time window (naming no calendar unit, since there's only ever one). Keys
+ * are validated strictly and never coerced: a malformed key is a {@code 400} on both surfaces rather than a silent fallback to the current window,
+ * so a bookmarked or scripted request can never quietly get a different window's data than it asked for. The year is bounded to four digits, which
+ * both dated key forms can round-trip.
  *
  * <p>
  * The all-time window is the one whose bounds the key does NOT fix: it starts at the account's earliest logged day and runs to the end of the current

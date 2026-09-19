@@ -23,9 +23,9 @@ import java.util.Optional;
 /**
  * The pure decision core of the startup OIDC discovery probe (unit-tested to full mutation strength). Quarkus fetches the identity provider's
  * discovery document lazily, on the first login attempt, so a misconfigured issuer (a typo, an unreachable host, a wrong URL) boots cleanly and is
- * only discovered by the first user who is bounced to {@code /login?error=oidc}. When enabled, {@code AppLifecycle} probes the discovery endpoint at
- * startup and fails fast on a broken configuration instead; this class decides whether that probe runs, where it points, and whether a completed
- * probe indicates a healthy provider.
+ * only discovered by the first user bounced to {@code /login?error=oidc}. When enabled, {@code AppLifecycle} probes the discovery endpoint at
+ * startup and fails fast instead; this class decides whether that probe runs, where it points, and whether a completed probe indicates a healthy
+ * provider.
  *
  * <p>
  * The {@code AppLifecycle} glue owns only the HTTP call (the untestable I/O); every branch of the decision lives here.

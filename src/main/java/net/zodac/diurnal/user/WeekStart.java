@@ -31,9 +31,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * Stored in {@code users.week_start} as this enum's {@link #value()}, with {@code NULL} (and a blank submission) meaning "follow the account's
- * language", the same shape {@code users.timezone} uses for "follow the server default": there is no {@code AUTOMATIC} constant and no sentinel
- * string to interpret, so the automatic state has exactly one representation. {@link #resolve(String, Locale)} is the one place that state is
- * turned into a real day, from the CLDR data behind {@link WeekFields#getFirstDayOfWeek()} - Monday for {@code en-GB}/{@code es-ES}, Sunday for
+ * language" - the same shape {@code users.timezone} uses for "follow the server default": no {@code AUTOMATIC} constant, no sentinel string to
+ * interpret, so the automatic state has exactly one representation. {@link #resolve(String, Locale)} is the one place that state becomes a real
+ * day, from the CLDR data behind {@link WeekFields#getFirstDayOfWeek()} - Monday for {@code en-GB}/{@code es-ES}, Sunday for
  * {@code en-US}/{@code ar-SA}/{@code ja-JP}.
  *
  * <p>

@@ -32,6 +32,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
+import net.zodac.diurnal.openapi.responses.UnauthenticatedApiResponse;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
@@ -113,7 +114,7 @@ public class TransferApiResource {
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "200", description = "The archive, as an attachment.",
         content = @Content(mediaType = APPLICATION_ZIP, schema = @Schema(type = SchemaType.STRING, format = "binary")))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     public Response export(
         @Parameter(name = "attachments", in = ParameterIn.QUERY,
         description = "Whether to include the files attached to the user's notes. Defaults to true - an export is a backup, so it carries "
@@ -148,7 +149,7 @@ public class TransferApiResource {
     @APIResponse(responseCode = "400", description = "The archive was refused - it is not a readable ZIP, it is missing a member, or at "
         + "least one row is invalid. The reply locates every problem it can.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ImportRejectionDto.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     @APIResponse(responseCode = "429", description = "The maximum number of concurrent imports are already in flight; nothing was read. Retry "
         + "after the number of seconds given in the Retry-After header.")
     public Response preview(
@@ -185,7 +186,7 @@ public class TransferApiResource {
     @APIResponse(responseCode = "400", description = "The archive was refused, so nothing was written - it is not a readable ZIP, it is "
         + "missing a member, or at least one row is invalid. The reply locates every problem it can.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ImportRejectionDto.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     @APIResponse(responseCode = "429", description = "The maximum number of concurrent imports are already in flight, so nothing was read and "
         + "nothing was written. Retry after the number of seconds given in the Retry-After header.")
     public Response importData(

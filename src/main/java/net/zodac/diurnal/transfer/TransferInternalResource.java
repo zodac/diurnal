@@ -48,14 +48,14 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * <strong>There is deliberately no internal export endpoint.</strong> The card's Export button links straight to {@code GET /api/v1/data/export}: a
- * cookie is accepted there, and the bytes it produces are the same bytes an internal twin would produce, so a second endpoint would duplicate the
- * export rather than plumb it.
+ * cookie is accepted there, and the bytes it produces are the same an internal twin would produce, so a second endpoint would only duplicate the
+ * export.
  *
  * <p>
  * Both endpoints take the <strong>raw archive as the request body</strong> rather than a multipart form, exactly as the public API does. The card
  * sends it with {@code fetch} from {@code settings.js} instead of an htmx attribute, for the reason the login, register and password cards do: a
- * refused archive is an expected, handled outcome, and htmx logs every {@code 4xx} to the console unsuppressably. It also means the Import button can
- * re-send the very bytes the preview was computed from, which is what keeps the two steps stateless - nothing is staged on the server between them.
+ * refused archive is an expected, handled outcome, and htmx logs every {@code 4xx} to the console unsuppressably. It also lets the Import button
+ * re-send the very bytes the preview was computed from, keeping the two steps stateless - nothing is staged on the server between them.
  *
  * <p>
  * A refusal answers {@code 422} here where the API answers {@code 400}: the same per-surface split every other text input in the app uses. The body
@@ -63,12 +63,12 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * The two header-row refusals ({@link ImportReason.EmptyFile}/{@link ImportReason.WrongHeader}) are the one place this resource composes markup
- * rather than leaving it to a template: their column names have to be substituted into a translated sentence as a single value, and Qute cannot
- * build one out of a loop on the way into a {@code msg:} expression. Each name is set in its own {@code <code>} chip and the separating commas are
- * left as plain sentence text, so a chip marks exactly one column name rather than running the whole list together - and the separator stays the
- * ASCII comma in every language, because chips and commas together spell the literal header row the file has to carry (see .claude/I18N.md on the
- * CSV format being a never-translated cross-language contract). The names are {@link TransferFiles} constants, never anything from the upload, which
- * is what keeps the composed markup safe to hand to a {@code .raw} entry.
+ * rather than leaving it to a template: their column names must be substituted into a translated sentence as a single value, and Qute cannot build
+ * one out of a loop on the way into a {@code msg:} expression. Each name sits in its own {@code <code>} chip with the separating commas left as
+ * plain sentence text, so a chip marks exactly one column name rather than running the whole list together - and the separator stays the ASCII
+ * comma in every language, since chips and commas together spell the literal header row the file has to carry (see .claude/I18N.md on the CSV
+ * format being a never-translated cross-language contract). The names are {@link TransferFiles} constants, never anything from the upload, which is
+ * what keeps the composed markup safe to hand to a {@code .raw} entry.
  */
 @Path("/internal/data")
 @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)

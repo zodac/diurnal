@@ -25,8 +25,8 @@ import jakarta.persistence.Query;
  * <p>
  * Declared as a constant beside the query it belongs to (see {@code ActionLogQueries} and {@code NoteQueries}) and passed to
  * {@link JpqlQuery#bind(QueryParameter, Object)} or {@link SqlQuery#bind(QueryParameter, Object)} in place of a bare string, so a misspelled
- * parameter name - or a value of the wrong type for it - is a compile error rather than an {@code IllegalArgumentException} raised the first time
- * the query is executed against the database.
+ * parameter name - or a value of the wrong type for it - is a compile error rather than an {@code IllegalArgumentException} raised when the query
+ * first runs.
  *
  * <p>
  * That covers the binding half only: the spelling still has to match the placeholder inside the query text, which no Java type can reach. The

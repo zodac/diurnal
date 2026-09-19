@@ -42,20 +42,20 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The single owner of account registration — the shared per-IP lockout check, field validation, duplicate-email check and user creation — used by
- * both the web form ({@code AuthWebResource.register}) and the REST API ({@code AuthResource.register}), so a rule added or changed here applies
- * to both surfaces by construction (the {@link AuthenticationService} pattern). The resources only translate the returned
- * {@link RegistrationResult} into their medium and keep their deliberately different <em>enablement policies</em> (the web setup flow may create
- * the very first — administrator — account; the API never may).
+ * both the web form ({@code AuthWebResource.register}) and the REST API ({@code AuthResource.register}), so a rule change here applies to both by
+ * construction (the {@link AuthenticationService} pattern). Each resource only translates the returned {@link RegistrationResult} into its medium
+ * and keeps its deliberately different <em>enablement policy</em> (the web setup flow may create the very first — administrator — account; the API
+ * never may).
  *
  * <p>
  * The unified validation rules: every field is required, and the email, display name and password are each checked against their entry in the
- * shared {@code TextFields} catalogue - so registration cannot accept a value the Settings page would reject, or vice versa. When the caller collects
- * a confirmation password (the web form), it must match. Every rejected submission is recorded against the shared per-IP throttle
+ * shared {@code TextFields} catalogue - so registration cannot accept a value the Settings page would reject, or vice versa. When the caller
+ * collects a confirmation password (the web form), it must match. Every rejected submission is recorded against the shared per-IP throttle
  * ({@link IpThrottle}) exactly once.
  *
  * <p>
  * Transaction discipline: the deliberately expensive Argon2id hash is computed OUTSIDE any database transaction, so no pooled connection sits idle
- * for the duration of the hash. Only the account insert runs in the short service-owned transaction of {@link #createUser(String, String, String)} —
+ * for the hash's duration. Only the account insert runs in the short service-owned transaction of {@link #createUser(String, String, String)} —
  * callers must NOT be {@code @Transactional}, or the hashing would run inside their transaction again. The session a resource mints from a
  * {@code Success} is a separate (store-owned) transaction; a crash in between leaves a valid account with no session, which simply logs in normally.
  */

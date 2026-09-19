@@ -70,8 +70,8 @@ public class AppInfo {
 
     /**
      * The release version (e.g. {@code 0.0.1}), shown in the footer. Delegates to {@link ApplicationVersion}, which reads the authoritative version
-     * from the repository's {@code VERSION} file (packaged onto the classpath) — CI bumps it independently of the {@code -SNAPSHOT} Maven project
-     * version — and falls back to the Maven project version when the resource is missing, blank, or unreadable.
+     * from the packaged {@code VERSION} file — CI bumps it independently of the {@code -SNAPSHOT} Maven project version — falling back to the
+     * Maven version when that resource is missing, blank, or unreadable.
      *
      * @return the release version
      */
@@ -82,8 +82,8 @@ public class AppInfo {
     /**
      * The application's tagline, shown in the page {@code <title>}, the login wordmark's {@code alt} text, and the navbar logo tooltip. Deliberately
      * NOT translated - like the "Diurnal" name itself, it is brand copy rather than UI chrome, so it stays in English regardless of the viewer's
-     * {@code language} (see {@code .claude/I18N.md}'s Phase 1 slice 3, which originally routed this through the message bundle, and this feedback's
-     * reversal of that choice).
+     * {@code language} (see {@code .claude/I18N.md}'s Phase 1 slice 3, which originally routed this through the message bundle before this
+     * reversal).
      *
      * @return the tagline
      */
@@ -102,8 +102,8 @@ public class AppInfo {
 
     /**
      * Whether the footer's "update available" indicator should be offered: {@code true} when the one-shot startup update check found a newer release
-     * than the running version. A pure read of the stored startup result - no I/O. The footer additionally gates rendering on the current user being
-     * an administrator, so the indicator shows on every page's footer for an admin and never for anyone else (nor on the anonymous pages).
+     * than the running version. A pure read of the stored startup result - no I/O. The footer additionally gates rendering on the caller being an
+     * administrator, so the indicator shows only on an admin's pages, never anyone else's (nor the anonymous pages).
      *
      * @return {@code true} when a newer release is available
      */
@@ -125,8 +125,8 @@ public class AppInfo {
 
     /**
      * The release page the footer's up-arrow indicator links to - the <em>latest</em> published release ({@code {repo}/releases/tag/{latest}}), so
-     * an administrator clicking the arrow lands on the newer release, not the running version's notes (that is the version link's job). Only consumed
-     * inside the indicator's {@code {#if}} branch, so this is read only when an update is actually available.
+     * clicking it lands on the newer release, not the running version's notes (that's the version link's job). Only consumed inside the indicator's
+     * {@code {#if}} branch, so read only when an update is available.
      *
      * @return the latest-release page URL
      */
@@ -154,11 +154,10 @@ public class AppInfo {
 
     /**
      * The URL of a settings preview thumbnail, under its content-hashed filename (e.g. {@code page-nova-full-dark} →
-     * {@code page-nova-full-dark.9f3a1c2b4d5e.webp}), linked by {@code partials/preview-thumb.html} so each deploy busts client and reverse-proxy
-     * caches only when that image's bytes change — the same per-file cache-busting the stylesheet and the scripts get. The map is baked in at
-     * image-build time ({@link AssetsConfig#settingsImages()}); un-hashed dev/{@code mvn package} runs have no entry, so this falls back to the
-     * plain {@code <base>.webp} name (served {@code no-store} in dev). The URL itself comes from {@link AppPaths}, so it carries the deployment's
-     * base path.
+     * {@code page-nova-full-dark.9f3a1c2b4d5e.webp}), linked by {@code partials/preview-thumb.html} — the same per-file cache-busting the
+     * stylesheet and scripts get. The map is baked in at image-build time ({@link AssetsConfig#settingsImages()}); an un-hashed
+     * dev/{@code mvn package} run has no entry, so this falls back to the plain {@code <base>.webp} name (served {@code no-store} in dev). The URL
+     * comes from {@link AppPaths}, so it carries the deployment's base path.
      *
      * @param base the preview image base name, without extension (e.g. {@code page-nova-full-dark})
      * @return the thumbnail URL
@@ -169,10 +168,10 @@ public class AppInfo {
 
     /**
      * The URL of a settings preview's full-size lightbox image, the counterpart of {@link #settingsImageUrl(String)} under the same base name,
-     * linked by {@code partials/preview-thumb.html} and carried to the lightbox by {@code settings.js}. Held as its own file so the picker's tiles -
-     * which paint at roughly a fifth of the lightbox's width - are not made to carry the full-size bytes on every Settings page view; this one is
-     * requested only when a preview is opened. The map is baked in at image-build time ({@link AssetsConfig#settingsFullImages()}); un-hashed
-     * dev/{@code mvn package} runs have no entry, so this falls back to the plain {@code <base>.webp} name.
+     * linked by {@code partials/preview-thumb.html} and carried to the lightbox by {@code settings.js}. Held as its own file so the picker's tiles
+     * - roughly a fifth of the lightbox's width - don't carry the full-size bytes on every Settings page view; this is requested only when a
+     * preview opens. The map is baked in at image-build time ({@link AssetsConfig#settingsFullImages()}); an un-hashed dev/{@code mvn package} run
+     * has no entry, so this falls back to the plain {@code <base>.webp} name.
      *
      * @param base the preview image base name, without extension (e.g. {@code page-nova-full-dark})
      * @return the full-size image URL
@@ -183,9 +182,9 @@ public class AppInfo {
 
     /**
      * The URL of a top-level vector mark, under its content-hashed filename (e.g. {@code wordmark.svg} → {@code wordmark.9f3a1c2b4d5e.svg}), linked
-     * by the templates so each deploy busts caches only when the mark's bytes change — the same per-file cache-busting the stylesheet and the scripts
-     * get. The map ({@link AssetsConfig#hashedImages()}) is keyed by the base name (the part before the first dot), so this looks up that base;
-     * un-hashed dev/{@code mvn package} runs have no entry and fall back to the passed filename verbatim (served {@code no-store} in dev).
+     * by the templates — the same per-file cache-busting the stylesheet and scripts get. The map ({@link AssetsConfig#hashedImages()}) is keyed by
+     * the base name (before the first dot); an un-hashed dev/{@code mvn package} run has no entry and falls back to the passed filename verbatim
+     * (served {@code no-store} in dev).
      *
      * @param filename the mark's un-hashed filename, with extension (e.g. {@code wordmark.svg})
      * @return the image URL

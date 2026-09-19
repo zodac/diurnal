@@ -33,9 +33,9 @@ import java.time.Instant;
  * {@code PanacheEntity} takes over {@link PanacheEntityBase}, which is why the active-record statics still resolve against each concrete entity.
  *
  * <p>
- * The stamps use {@link Instant#now()} directly rather than {@code AppClock}: they record when the row was written in absolute terms, which is not a
- * user-visible date boundary and so belongs to no user's timezone (see {@code CLAUDE.md}). {@code created_at} is mapped {@code updatable = false}, so
- * an update statement never carries it and a row's creation time cannot be rewritten by a later save.
+ * The stamps use {@link Instant#now()} directly rather than {@code AppClock}: they record when the row was written in absolute time, not a
+ * user-visible date boundary, so they belong to no user's timezone (see {@code CLAUDE.md}). {@code created_at} is mapped {@code updatable = false},
+ * so an update statement never carries it and a row's creation time cannot be rewritten later.
  */
 @MappedSuperclass
 // A JPA base class carries mapped state, not behaviour to override: `abstract` is here to stop it being instantiated or mapped

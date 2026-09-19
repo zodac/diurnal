@@ -47,15 +47,13 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * Scope decisions, and why they are safe:
  * <ul>
- *   <li><strong>Only cookie-authenticated requests are guarded.</strong> A Bearer-token API call
- *       (no session cookie) is not a CSRF vector — the credential is not ambient — so it is left
- *       alone.</li>
- *   <li><strong>Requests with neither {@code Origin} nor {@code Referer} are allowed.</strong>
- *       Browsers always attach an {@code Origin} to a cross-site POST/PUT/PATCH/DELETE, so their
- *       total absence means a non-browser client (curl, a test harness) that is not driving a
- *       victim's ambient cookie — again, not a CSRF vector.</li>
- *   <li><strong>A present-but-mismatched (or opaque {@code "null"}) {@code Origin} is rejected.</strong>
- *       This closes the sandboxed-iframe {@code Origin: null} bypass.</li>
+ *   <li><strong>Only cookie-authenticated requests are guarded.</strong> A Bearer-token API call (no session cookie) is not a CSRF vector — the
+ *       credential is not ambient — so it is left alone.</li>
+ *   <li><strong>Requests with neither {@code Origin} nor {@code Referer} are allowed.</strong> Browsers always attach an {@code Origin} to a
+ *       cross-site POST/PUT/PATCH/DELETE, so their total absence means a non-browser client (curl, a test harness) not driving a victim's ambient
+ *       cookie — again, not a CSRF vector.</li>
+ *   <li><strong>A present-but-mismatched (or opaque {@code "null"}) {@code Origin} is rejected</strong> — this closes the sandboxed-iframe
+ *       {@code Origin: null} bypass.</li>
  * </ul>
  *
  * <p>

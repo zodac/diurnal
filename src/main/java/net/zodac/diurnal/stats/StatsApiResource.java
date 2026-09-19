@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.openapi.ApiPages;
+import net.zodac.diurnal.openapi.responses.UnauthenticatedApiResponse;
 import net.zodac.diurnal.time.Durations;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Language;
@@ -98,7 +99,7 @@ public class StatsApiResource {
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = StatsPageDto.class)))
     @APIResponse(responseCode = "400", description = "The requested page is out of range.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     public Response stats(
         @Parameter(name = "page", in = ParameterIn.QUERY,
         description = "The 1-based page to return (default 1); out-of-range values are rejected.")
@@ -141,7 +142,7 @@ public class StatsApiResource {
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = FrequencyChartDto.class)))
     @APIResponse(responseCode = "400", description = "The period, the window key or the set of subjects to chart is not valid.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @UnauthenticatedApiResponse
     @APIResponse(responseCode = "404", description = "One of the requested IDs does not belong to the authenticated user.")
     public Response frequency(
         @Parameter(name = "subjectId", in = ParameterIn.PATH,

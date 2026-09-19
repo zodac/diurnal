@@ -31,10 +31,10 @@ import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The single owner of the per-IP lockout <em>history</em> and the administrative view over it: it records a durable {@link IpLockout} row whenever a
- * lockout trips, lists the currently-locked IPs and the last week of history, and manually unlocks an IP. The live lockout enforcement stays in
- * {@link IpThrottle}/{@link AttemptThrottle} (in-memory); this service is the seam where a tripped lockout is persisted and where an administrator
- * reads/clears it, shared by the admin page's HTMX endpoints and the REST API so the rules cannot diverge between the surfaces.
+ * The single owner of the per-IP lockout <em>history</em> and the administrative view over it: records a durable {@link IpLockout} row whenever a
+ * lockout trips, lists the currently-locked IPs and the last week of history, and manually unlocks an IP. Live enforcement stays in
+ * {@link IpThrottle}/{@link AttemptThrottle} (in-memory); this service is the seam where a tripped lockout is persisted and an administrator
+ * reads/clears it — shared by the admin page's HTMX endpoints and the REST API so the rules cannot diverge.
  *
  * <p>
  * Transaction discipline mirrors the hashing services: {@link #recordFailure(String, Instant)} runs on the (non-transactional) credential path, so

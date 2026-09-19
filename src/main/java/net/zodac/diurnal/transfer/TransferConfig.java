@@ -33,15 +33,13 @@ public interface TransferConfig {
      *
      * <p>
      * <strong>It exists for one spreadsheet and costs another.</strong> Excel on Windows reads a BOM-less UTF-8 CSV in the system code page, mangling
-     * every accented character and emoji in a file it was asked to open by double-click; LibreOffice consumes a BOM only when its import dialog is
-     * set to Unicode (UTF-8), and otherwise shows those three bytes as a stray character in the first header cell. Neither behaviour can be detected
-     * from the server, and an export is a download rather than a negotiation - so which spreadsheet the deployment cares about is the operator's to
-     * state.
+     * every accented character and emoji in a file opened by double-click; LibreOffice consumes a BOM only when its import dialog is set to Unicode
+     * (UTF-8), otherwise showing those three bytes as a stray character in the first header cell. Neither behaviour is detectable from the server,
+     * and an export is a download rather than a negotiation - so which spreadsheet the deployment cares about is the operator's to state.
      *
      * <p>
-     * It governs the WRITE side only: {@code Csv.parse} strips a leading BOM whatever this says, so an archive exported under either setting - or one
-     * that has been through an editor that added its own - imports identically. Turning it off is not a format change, which is why the archive needs
-     * no version marker to go with it.
+     * Governs the WRITE side only: {@code Csv.parse} strips a leading BOM regardless, so an archive exported under either setting - or edited to add
+     * its own - imports identically. Turning it off is not a format change, so the archive needs no version marker for it.
      *
      * @return {@code true} when an exported CSV leads with a byte-order mark
      */
@@ -50,22 +48,21 @@ public interface TransferConfig {
     boolean csvByteOrderMark();
 
     /**
-     * The most an uploaded archive may decompress to, across all of its entries, driven by {@code MAX_ARCHIVE_SIZE}. This is the zip-bomb defence:
-     * a few kilobytes of upload can otherwise inflate to gigabytes, and a limit on the COMPRESSED size (or a trust in an entry's declared size,
-     * which is attacker-controlled) does not bound that at all.
+     * The most an uploaded archive may decompress to, across all its entries, driven by {@code MAX_ARCHIVE_SIZE} - the zip-bomb defence. A few
+     * kilobytes of upload can otherwise inflate to gigabytes, and a limit on the COMPRESSED size (or trust in an entry's declared size, which is
+     * attacker-controlled) does not bound that at all.
      *
      * <p>
-     * <strong>It is configurable because attachments made it a real ceiling rather than a theoretical one.</strong> Before them the figure only had
-     * to admit a journal written out as text, which no plausible account approaches; an account that attaches photographs reaches any fixed number
-     * eventually, and how much headroom is affordable depends on the machine.
+     * <strong>Configurable because attachments made it a real ceiling rather than a theoretical one.</strong> Before them the figure only had to
+     * admit a journal written as text, which no plausible account approaches; an account attaching photographs reaches any fixed number eventually,
+     * and affordable headroom depends on the machine.
      *
      * <p>
      * <strong>What it costs, and why the default is not larger.</strong> One import holds the compressed upload AND its decompressed entries at
      * once, and an image barely compresses - so peak heap is about {@code 2 x} this value per import, times
-     * {@code app.http.max-concurrent-imports}. At the default 128 MB and two permits that is roughly 512 MB against the 1330 MB heap a 2 GB
-     * container gives (see the README's "Application Memory"), which is as much of it as one feature should claim. Raising this means raising
-     * {@code MAX_UPLOAD_SIZE} with it - the HTTP layer refuses a larger body before this is ever consulted - and giving the container the memory to
-     * match.
+     * {@code app.http.max-concurrent-imports}. At the default 128 MB and two permits that's roughly 512 MB against the 1330 MB heap a 2 GB
+     * container gives (see the README's "Application Memory") - as much as one feature should claim. Raising this means raising
+     * {@code MAX_UPLOAD_SIZE} with it - the HTTP layer refuses a larger body before this is consulted - and giving the container matching memory.
      *
      * @return the most an uploaded archive may decompress to
      */

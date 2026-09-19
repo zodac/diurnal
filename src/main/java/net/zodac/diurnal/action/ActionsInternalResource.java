@@ -173,13 +173,12 @@ public class ActionsInternalResource {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         final Locale locale = user.locale();
-        // The prompt is resolved by rendering actionMessagesTemplate (a real, locale-aware template
-        // render) rather than a Java string literal, so it translates correctly - a raw literal handed
-        // to dt-confirm-delete-row.html as inert data can never pick up the request's locale.
+        // The prompt is resolved by rendering actionMessagesTemplate (a real, locale-aware template render) rather than a Java string literal, so
+        // it translates correctly - a raw literal handed to dt-confirm-delete-row.html as inert data can never pick up the request's locale.
         final String prompt = actionMessagesTemplate.data("key", "deletePrompt")
             .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-        // Surgical delete: the destructive POST returns 204 and the row is removed in place
-        // (see actions.html beforeSwap), so the confirmation row targets its own row with outerHTML.
+        // Surgical delete: the destructive POST returns 204 and the row is removed in place (see actions.html beforeSwap), so the confirmation
+        // row targets its own row with outerHTML.
         return Response.ok(confirmDeleteRowTemplate
                 .data("rowId", "action-" + id)
                 .data("cols", 3)
@@ -209,9 +208,8 @@ public class ActionsInternalResource {
     public Response createAction(
         @FormParam("name") final String name,
         @FormParam("colour") final @Nullable String colour) {
-        // The form always submits a name; normalise a missing field to blank so it is rejected rather
-        // than treated as a PATCH-style "keep" by the shared service. A missing colour is passed on as
-        // null, so it takes the same suggestion the API gives a caller that omitted it.
+        // The form always submits a name; normalise a missing field to blank so it is rejected rather than treated as a PATCH-style "keep" by the
+        // shared service. A missing colour passes through as null, taking the same suggestion the API gives a caller that omitted it.
         final User user = currentUser.get();
         return translate(actionService.create(user, name == null ? "" : name, colour), user.locale());
     }
@@ -233,8 +231,8 @@ public class ActionsInternalResource {
         @PathParam("id") final UUID id,
         @FormParam("name") final String name,
         @FormParam("colour") @DefaultValue(ActionValidation.DEFAULT_COLOUR) final String colour) {
-        // The edit form always submits both fields; normalise a missing name to blank so it is rejected
-        // rather than treated as a PATCH-style "keep" by the shared service.
+        // The edit form always submits both fields; normalise a missing name to blank so it is rejected rather than treated as a PATCH-style
+        // "keep" by the shared service.
         final User user = currentUser.get();
         return translate(actionService.update(user, id, name == null ? "" : name, colour), user.locale());
     }
@@ -272,10 +270,10 @@ public class ActionsInternalResource {
         final Locale locale) {
         final List<Action> all = Action.findByUser(userId);
 
-        // Collated rather than code-point order (Action.findByUser's own SQL "order by name asc" is a plain DB
-        // sort, not locale-aware): user-typed action names are free text in any script, and plain String.compareTo
-        // (uppercase-before-lowercase, ordinal for accented/non-Latin characters) mis-sorts them for the viewing
-        // user's own language - the same reasoning LogsApiResource's day-events endpoint already applies.
+        // Collated rather than code-point order (Action.findByUser's own SQL "order by name asc" is a plain DB sort, not locale-aware): user-typed
+        // action names are free text in any script, and plain String.compareTo (uppercase-before-lowercase, ordinal for accented/non-Latin
+        // characters) mis-sorts them for the viewing user's own language - the same reasoning LogsApiResource's day-events endpoint already
+        // applies.
         // NFC-composed before comparing, not merely lower-cased: every stored name is composed on the way in (TextValidation), so a term typed or
         // pasted in decomposed form is a different code-point sequence from the identical-looking name it should find, and matches nothing.
         final String term = TextValidation.searchTerm(searchTerm).toLowerCase(Locale.ROOT);

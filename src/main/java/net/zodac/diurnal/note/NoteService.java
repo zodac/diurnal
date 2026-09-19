@@ -39,44 +39,41 @@ import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The single owner of every note write — save and clear — shared by the web UI's internal endpoints ({@link NotesInternalResource}) and the public
- * REST API ({@link NotesApiResource}), so a rule added or changed here applies to both surfaces by construction (the {@code LogService} pattern). The
- * resources only translate the returned {@link NoteResult} into their medium.
+ * The single owner of every note write — save and clear — shared by the internal web endpoints ({@link NotesInternalResource}) and the public API
+ * ({@link NotesApiResource}), so a rule change here applies to both by construction (the {@code LogService} pattern); each resource only translates
+ * the returned {@link NoteResult} into its medium.
  *
  * <p>
- * The content is validated and normalised by the shared {@link TextValidation} pipeline against the configured {@link NoteField}, so a note obeys the
- * same length and content rules as every other free-text input in the app, and what is stored is the cleaned value. That field is the app's one
- * {@code MULTILINE} input, so a note's line breaks survive where every other field folds them to a space, and the one whose length bound a
- * deployment may set for itself ({@code NOTE_MAX_LENGTH}).
+ * Content is validated and normalised by the shared {@link TextValidation} pipeline against {@link NoteField}, so a note obeys the same
+ * length/content rules as every other free-text input, and what is stored is the cleaned value. It is the app's one {@code MULTILINE} field (line
+ * breaks survive rather than folding to a space) and the one whose length bound a deployment may set itself ({@code NOTE_MAX_LENGTH}).
  *
  * <p>
- * <strong>A note may be written for ANY date, including a future one.</strong> This service deliberately does not apply
- * {@code LogGuards.isFuture}, which blocks logging an action against a day that has not arrived: planning a day in advance is a legitimate thing to
- * write down, whereas claiming to have already performed an action then is not. The dashboard therefore shows its "actions can't be logged for a
- * future date" placeholder beside a fully live note box.
+ * <strong>A note may be written for ANY date, including a future one.</strong> Unlike action logging, this service deliberately skips
+ * {@code LogGuards.isFuture}: planning ahead is legitimate, claiming to have already acted is not. The dashboard shows its "actions can't be logged
+ * for a future date" placeholder beside a fully live note box.
  *
  * <p>
- * <strong>A note's CONTENT must never reach the application log.</strong> Not at {@code debug}, not in an exception message, not truncated, not
- * "just the first line" - a journal entry is the most private thing the app stores, and a log file is read by an administrator who is not necessarily
- * its author, shipped to wherever logs are aggregated, and kept long after the note itself may have been deleted. Every log statement here therefore
- * carries the DATE and the user only, which is all an operator needs to trace a write-request. The same rule binds anything that handles a note: the
- * request logging filter records only method, path and status (never a body), and a rejection message is worded from the field rather than quoting
- * the value (see {@code TEXT_INPUT.md}) - so no path currently leaks one. Keep it that way.
+ * <strong>A note's CONTENT must never reach the application log</strong> - not at {@code debug}, not in an exception message, not truncated to
+ * "just the first line". A journal entry is the most private thing the app stores, and a log is read by an administrator who may not be its author,
+ * shipped to wherever logs aggregate, and kept long after the note itself may be deleted. Every log statement here carries only the DATE and the
+ * user, which is all an operator needs to trace a write. The same rule binds anything that touches a note: the request-logging filter records only
+ * method/path/status (never a body), and a rejection message is worded from the field rather than quoting the value (see {@code TEXT_INPUT.md}).
+ * Keep it that way.
  *
  * <p>
- * <strong>Reading is the other half of this bean, and it is where the encryption is felt.</strong> A note's content exists only as ciphertext, so
- * there is no index and no {@code WHERE} clause that could match on it - see {@link NoteSearch} for why a per-word blind index was rejected. Matching
- * therefore means opening notes and scanning them in memory, at one AES pass per note, under a data key resolved once for the whole batch. That cost
- * is what {@link #journalPage(User, String, int, int)} and {@link #rangePage(User, String, LocalDate, LocalDate, int, int)} split on: <strong>a blank
- * term is paged in the database</strong> and opens only the page it returns, because with nothing to match the stored order is the displayed order;
- * <strong>a real term has to open the whole selection</strong>, because which notes belong on page one is unknown until every one of them has been
- * read. Browsing is the notes page's default state, so that split is the difference between a fixed cost per page view and one that grows with every
- * note ever written.
+ * <strong>Reading is where the encryption is felt.</strong> Content exists only as ciphertext, so there is no index or {@code WHERE} clause that
+ * could match on it - see {@link NoteSearch} for why a per-word blind index was rejected. Matching means opening and scanning notes in memory, one
+ * AES pass each, under a data key resolved once per batch. That cost is what {@link #journalPage(User, String, int, int)} and
+ * {@link #rangePage(User, String, LocalDate, LocalDate, int, int)} split on: <strong>a blank term is paged in the database</strong> and opens only
+ * the returned page, since with nothing to match the stored order is the displayed order; <strong>a real term has to open the whole
+ * selection</strong>, since which notes belong on page one is unknown until all are read. Browsing is the default state, so this split is the
+ * difference between a fixed per-view cost and one that grows with every note ever written.
  *
  * <p>
- * <strong>Each surface still chooses its own selection and ordering</strong> - the notes page its whole history newest-first, the public API a date
- * range earliest-first - and only the matching RULE is shared, which is the part that must not differ between them. The two paths agree on that rule
- * by construction: {@link NoteSearch#matchesEverything(String)}, which decides whether the database may do the paging, is the same blank-term rule
+ * <strong>Each surface still chooses its own selection and ordering</strong> - the notes page its whole history newest-first, the API a date range
+ * earliest-first - only the matching RULE is shared, which is the part that must not differ. The two agree by construction:
+ * {@link NoteSearch#matchesEverything(String)}, which decides whether the database may do the paging, is the same blank-term rule
  * {@link NoteSearch#matches(String, String)} applies to every note.
  *
  * <p>

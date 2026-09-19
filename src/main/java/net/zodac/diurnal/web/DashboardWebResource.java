@@ -85,11 +85,11 @@ public class DashboardWebResource {
         final User user = currentUser.get();
         final LocalDate today = clock.today(clock.zoneFor(user.timezone));
         final Locale locale = user.locale();
-        // The initially selected day's note is rendered inline, the same way the stats summary card is:
-        // dashboard.js seeds its client-side cache from it, so opening the dashboard costs no request.
+        // The initially selected day's note renders inline, like the stats summary card: dashboard.js seeds its client-side cache from it, so
+        // opening the dashboard costs no extra request.
         final Note note = Note.findEntry(user.id, today);
-        // The one resolution of "which day does this user's week start on?" per render: the header's column WORDS and the
-        // grid's own cell offset (data-week-start, read by dashboard.js) both come from it, so they cannot disagree.
+        // The one resolution of "which day does this user's week start on?" per render: the header's column WORDS and the grid's cell offset
+        // (data-week-start, read by dashboard.js) both come from it, so they cannot disagree.
         final WeekStart weekStart = WeekStart.resolve(user.weekStart, locale);
         return PageShell.forUser(StatsSummary.render(dashboardTemplate, user, today, statsService), user)
                 .data("noteContent", note == null ? "" : noteService.readContent(note).orElse(""))
@@ -97,9 +97,9 @@ public class DashboardWebResource {
                 .data("weekStartIndex", weekStart.browserIndex())
                 .data("calendarView", user.calendarView)
                 .data("today", today.toString())
-                // The calendar's note marker is the user's colour verbatim, plus the lightened variant the one cell whose
-                // number sits on the solid brand fill needs to stay readable. Both ride CSS custom properties set on the
-                // calendar, so the marker rules stay a single pair regardless of the colour behind them.
+                // The calendar's note marker is the user's colour verbatim, plus the lightened variant the one cell whose number sits on the
+                // solid brand fill needs to stay readable. Both ride CSS custom properties set on the calendar, so the marker rules stay a
+                // single pair regardless of the colour behind them.
                 .data("noteColour", user.noteColour)
                 .data("noteColourOnBrand", Colours.readableOn(user.noteColour, Colours.BRAND_FILL))
                 .data("showNoteCounter", user.showNoteCounter)

@@ -37,24 +37,23 @@ import org.apache.logging.log4j.Logger;
  * <p>
  * <strong>This is the aggregate half of a bound the rest of the application only states per request.</strong> {@code TransferArchive}'s caps
  * ({@code MAX_MEMBER_BYTES} 32 MB, and {@code MAX_ARCHIVE_SIZE}, 128 MB by default) bound what ONE import decompresses to, and
- * {@code quarkus.http.limits.max-body-size} bounds what ONE upload may weigh - but the import endpoints are precisely the ones
+ * {@code quarkus.http.limits.max-body-size} bounds what ONE upload may weigh - but the import endpoints are exactly the ones
  * {@link RequestBodyLimitFilter} exempts from the small per-request cap, so nothing bounded their SUM. Each in-flight import holds its whole
- * uploaded body, the members it decompressed and the rows it parsed, all at once and all in memory, and
- * {@code POST /api/v1/data/import/preview} writes nothing at all - so it is freely repeatable by any account, on a deployment where registration is
- * open. Enough of those concurrently exhaust the heap and take the instance down for everybody, which is a far worse outcome than a caller being
- * told to come back in a moment.
+ * uploaded body, decompressed members and parsed rows all at once in memory, and {@code POST /api/v1/data/import/preview} writes nothing - so it is
+ * freely repeatable by any account, on a deployment where registration is open. Enough of those at once exhaust the heap and take the instance down
+ * for everybody - far worse than telling a caller to come back in a moment.
  *
  * <p>
  * <strong>A Vert.x route rather than a JAX-RS filter, and that is load-bearing twice over.</strong> It runs before the framework reads the request
  * body, so a refusal costs the memory it exists to protect rather than spending it first; and it can release its permit from
  * {@link RoutingContext#addEndHandler}, which fires when the response ends OR fails. A permit released on a response-filter path instead would leak
- * on any request that never reached one, and a leaked permit lowers the deployment's capacity permanently.
+ * on any request that never reached one, permanently lowering the deployment's capacity.
  *
  * <p>
  * The gate deliberately sits ahead of authentication, because that is where the body-reading it prevents also sits. An anonymous caller can
- * therefore occupy a permit - but only for the microseconds its request takes to be challenged, since nothing is read or parsed for it, so this
- * costs a flood-capable attacker the same flood it would take to saturate any other endpoint and buys them no memory amplification at all. The
- * amplification is the whole of what this guards.
+ * therefore occupy a permit - but only for the microseconds its request takes to be challenged, since nothing is read or parsed for it. So this
+ * costs a flood-capable attacker the same flood it would take to saturate any other endpoint, buying them no memory amplification - which is
+ * exactly what this guards.
  */
 @ApplicationScoped
 public class ImportConcurrencyFilter {

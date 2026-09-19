@@ -33,9 +33,9 @@ public final class FrequencyChartExtensions {
     }
 
     /**
-     * Whether the "Compare to..." control should be offered at all: the chart must have room for another subject, AND there must be a subject left to
-     * offer. Both halves are needed - a chart can be under the limit and still have nothing to add, when everything the user has logged is already on
-     * it (a brand-new account with one action is the common case), and a control whose only possible answer is "nothing else to compare" is noise.
+     * Whether the "Compare to..." control should be offered: the chart needs room for another subject AND a subject left to offer. Both matter - a
+     * chart under the limit can still have nothing to add (e.g. a brand-new account with one action), and a control whose only possible answer is
+     * "nothing else to compare" is noise.
      *
      * @param chart the chart
      * @param candidates the subjects the picker could still offer, unfiltered
@@ -77,9 +77,8 @@ public final class FrequencyChartExtensions {
      * already on the graph. Empty when nothing is being compared yet.
      *
      * <p>
-     * Worded here rather than in the template because a nested expression inside a Qute {@code {#include}} string parameter is not interpolated - it
-     * would render the literal braces. The URL itself is assembled by {@code AppPaths}, which owns every path in the application; this contributes
-     * only the query.
+     * Worded here rather than in the template: a nested expression inside a Qute {@code {#include}} string parameter is not interpolated and would
+     * render the literal braces. {@code AppPaths} owns every path in the application and assembles the URL itself; this contributes only the query.
      *
      * @param chart the chart
      * @return the {@code "?compare=…&compare=…"} query, or an empty string when nothing is being compared

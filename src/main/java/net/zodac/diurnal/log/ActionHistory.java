@@ -26,9 +26,8 @@ import java.util.UUID;
  * dashboard's day panel under the {@code mostLogged} and {@code mostRecent} settings. A typed projection, never a positional {@code Object[]} tuple.
  *
  * <p>
- * An action the user has never logged has no row here at all, rather than a zeroed one - the query aggregates the logs, and there are none to
- * aggregate. {@link DayActionOrdering} treats an absent entry as the bottom of the order, which is where a never-logged action belongs under both
- * settings.
+ * An action the user has never logged has no row here, rather than a zeroed one - the query aggregates the logs, and there are none to aggregate.
+ * {@link DayActionOrdering} treats an absent entry as the bottom of the order, where a never-logged action belongs under both settings.
  *
  * @param actionId the action the summary belongs to
  * @param totalCount the summed {@code count} over every day the action has been logged

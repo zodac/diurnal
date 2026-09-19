@@ -30,21 +30,21 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * The single, global per-IP lockout consulted by <em>every</em> credential surface — the login form, {@code POST /api/v1/auth/login}, the
- * registration form and {@code POST /api/v1/auth/register}. One shared counter per client IP tallies both failed logins and failed registrations
- * together; once it reaches the configured limit within the window, that IP is locked out of <em>both</em> logging in and registering.
+ * registration form and {@code POST /api/v1/auth/register}. One shared counter per client IP tallies failed logins and failed registrations
+ * together; once it reaches the configured limit within the window, that IP is locked out of <em>both</em>.
  *
  * <p>
  * There is deliberately <strong>no per-account (email) dimension</strong>: keying a lockout on the submitted email lets an attacker deny service to a
  * chosen victim by failing logins for their address, so the throttle is keyed purely on the client IP. The trade-off (a distributed, many-IP
- * brute-force against one account) is mitigated by Argon2id hashing and uniform response timing, not by account lockouts.
+ * brute-force against one account) is mitigated by Argon2id hashing and uniform response timing, not account lockouts.
  *
  * <p>
  * A success never clears the counter (it decays on its own after a quiet window), so neither a valid login nor a throwaway registration can reset an
- * IP's brute-force budget or launder attempts between the two pages. The client IP comes from {@link ClientAddress}, which keys on the connection's
- * own address (honouring {@code TRUST_X_FORWARDED_HEADERS}) unless the deployment declares itself to be behind Cloudflare - so this control is only
- * meaningful when whichever of the two is trusted is actually configured correctly. State is in-memory (resets on restart, not shared across
- * instances) — acceptable for the single-instance deployment, and bounded by {@link #evictStaleAttempts()} rather than growing with every address
- * ever seen. Time is passed in from {@code AppClock.now()} so the logic stays pure and testable.
+ * IP's brute-force budget or launder attempts between the two pages. The client IP comes from {@link ClientAddress}, keyed on the connection's own
+ * address (honouring {@code TRUST_X_FORWARDED_HEADERS}) unless the deployment declares itself behind Cloudflare - so this control is only meaningful
+ * when whichever is trusted is configured correctly. State is in-memory (resets on restart, not shared across instances) — acceptable for a
+ * single-instance deployment, and bounded by {@link #evictStaleAttempts()} rather than growing with every address ever seen. Time is passed in from
+ * {@code AppClock.now()} so the logic stays pure and testable.
  */
 @ApplicationScoped
 public class IpThrottle {

@@ -38,6 +38,8 @@ import java.util.UUID;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.openapi.ApiPages;
+import net.zodac.diurnal.openapi.responses.AdminOnlyApiResponse;
+import net.zodac.diurnal.openapi.responses.UnauthenticatedApiResponse;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -96,8 +98,8 @@ public class AdminUsersApiResource {
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = AdminUserPageDto.class)))
     @APIResponse(responseCode = "400", description = "The requested page is out of range.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "403", description = "The caller is not an administrator.")
+    @UnauthenticatedApiResponse
+    @AdminOnlyApiResponse
     public Response listUsers(
         @Parameter(name = "page", in = ParameterIn.QUERY,
         description = "The 1-based page to return (default 1); out-of-range values are rejected.")
@@ -125,8 +127,8 @@ public class AdminUsersApiResource {
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "200", description = "The account.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = AdminUserDto.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "403", description = "The caller is not an administrator.")
+    @UnauthenticatedApiResponse
+    @AdminOnlyApiResponse
     @APIResponse(responseCode = "404", description = "No such account.")
     public Response getUser(
         @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The user's ID.")
@@ -156,8 +158,8 @@ public class AdminUsersApiResource {
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = AdminUserDto.class)))
     @APIResponse(responseCode = "400", description = "The role is missing or not a recognised role value.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "403", description = "The caller is not an administrator.")
+    @UnauthenticatedApiResponse
+    @AdminOnlyApiResponse
     @APIResponse(responseCode = "404", description = "No such account.")
     @APIResponse(responseCode = "409", description = "The change would demote the last administrator.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
@@ -193,8 +195,8 @@ public class AdminUsersApiResource {
         + "administrator is refused.")
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "204", description = "The account and all of its data were deleted.")
-    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    @APIResponse(responseCode = "403", description = "The caller is not an administrator.")
+    @UnauthenticatedApiResponse
+    @AdminOnlyApiResponse
     @APIResponse(responseCode = "404", description = "No such account.")
     @APIResponse(responseCode = "409", description = "The account is the last administrator.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))

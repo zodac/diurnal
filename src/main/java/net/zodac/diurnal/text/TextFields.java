@@ -35,9 +35,9 @@ public final class TextFields {
      * The "must hold at least one non-whitespace character" rule, as a regular expression for an OpenAPI {@code @Schema(pattern = ...)}.
      *
      * <p>
-     * <strong>Documentation only.</strong> It describes a required text field in the published document and enforces nothing; the rule itself is
-     * applied by the shared {@code *Service} behind each endpoint. The value is what SmallRye used to derive from a {@code @NotBlank} annotation,
-     * kept so the document did not change when those annotations were removed.
+     * <strong>Documentation only.</strong> It describes a required field in the published OpenAPI document and enforces nothing - the rule is
+     * applied by the shared {@code *Service} behind each endpoint. It is what SmallRye used to derive from a {@code @NotBlank} annotation, kept so
+     * the document did not change when those annotations were removed.
      */
     public static final String NOT_BLANK_PATTERN = "\\S";
 
@@ -55,8 +55,8 @@ public final class TextFields {
      * The longest accepted display name, matching the {@code users.display_name} column width.
      *
      * <p>
-     * Sized to the desktop navbar rather than to the storage: the name is rendered in full beside the nav links and the log-out button, with no
-     * truncation, so a longer one pushes that row out of shape. Fifty characters is comfortably past any real name while still fitting.
+     * Sized to the desktop navbar, not the storage: the name renders in full beside the nav links and log-out button with no truncation, so a
+     * longer one pushes that row out of shape. Fifty characters comfortably fits while exceeding any real name.
      */
     public static final int DISPLAY_NAME_MAX_LENGTH = 50;
 
@@ -69,21 +69,21 @@ public final class TextFields {
      * The DEFAULT longest accepted note — roughly four pages of prose, comfortably past any real journal entry.
      *
      * <p>
-     * Unlike every other bound here, this one is a <strong>default rather than the value in force</strong>: a deployment may set its own through
-     * {@code NOTE_MAX_LENGTH} ({@link net.zodac.diurnal.note.NotesConfig#maxLength()}), and the field the application actually validates against
-     * is resolved from that by {@code note.NoteField}. The constant survives as the default, as the instance {@link #DEFAULT_NOTE} and {@link #all()}
-     * carry, and as the compile-time value a test can bound itself by.
+     * Unlike every other bound here, this is a <strong>default, not the value in force</strong>: a deployment may set its own via
+     * {@code NOTE_MAX_LENGTH} ({@link net.zodac.diurnal.note.NotesConfig#maxLength()}), and {@code note.NoteField} resolves the actual validated
+     * field from that. This constant survives as the default {@link #DEFAULT_NOTE} and {@link #all()} carry, and as the compile-time value a test
+     * can bound itself by.
      *
      * <p>
-     * <strong>It is not pinned to a column, and cannot be.</strong> There is no plaintext {@code notes.content} column; a note is stored sealed in
-     * an unbounded {@code bytea}, whose length depends on the value rather than on this bound. That is what makes the bound
-     * configurable at all - there is no width for a migration to keep in step. {@code TextFieldsSchemaIT} asserts the absence of that column instead.
+     * <strong>It is not pinned to a column, and cannot be.</strong> There is no plaintext {@code notes.content} column - a note is stored sealed
+     * in an unbounded {@code bytea}, whose length depends on the value rather than this bound. That is what makes the bound configurable at all:
+     * no width for a migration to keep in step. {@code TextFieldsSchemaIT} asserts the absence of that column instead.
      */
     public static final int NOTE_MAX_LENGTH = 10_000;
 
     /**
-     * The smallest value {@code NOTE_MAX_LENGTH} may be configured to. Zero or negative would make every non-empty note unsaveable while leaving the
-     * note box on screen, turning the feature into a delete-only control with no explanation.
+     * The smallest value {@code NOTE_MAX_LENGTH} may be configured to. Zero or negative would make every non-empty note unsaveable while the note
+     * box stays on screen - a delete-only control with no explanation.
      */
     public static final int NOTE_MAX_LENGTH_FLOOR = 1;
 
@@ -91,16 +91,16 @@ public final class TextFields {
      * The largest value {@code NOTE_MAX_LENGTH} may be configured to.
      *
      * <p>
-     * <strong>Set by what a note is carried in, not by what one can be stored in.</strong> The storage would take far more (a sealed {@code bytea} is
-     * bounded only by PostgreSQL's 1 GB varlena limit), but three paths read note CONTENT in bulk and each scales linearly with this value: the
-     * dashboard warms a three-month window in one response (92 notes), {@code NotesApiResource} returns 31 per page, and a search opens the whole
-     * journal. At this ceiling those are ~9.2M and ~3.1M code points respectively - large, but a response and a heap allocation the server can still
-     * make. An order of magnitude higher would not be: a single note could then exceed
-     * {@link net.zodac.diurnal.transfer.TransferArchive#MAX_MEMBER_BYTES} on its own, so an account could produce an export it could never import.
+     * <strong>Set by what a note is carried in, not by what one can be stored in.</strong> Storage would take far more (a sealed {@code bytea} is
+     * bounded only by PostgreSQL's 1 GB varlena limit), but three paths read note CONTENT in bulk and scale linearly with this value: the dashboard
+     * warms a three-month window in one response (92 notes), {@code NotesApiResource} returns 31 per page, and a search opens the whole journal. At
+     * this ceiling those are ~9.2M and ~3.1M code points - large, but still a response and heap allocation the server can make. An order of
+     * magnitude higher would not be: a single note could then exceed {@link net.zodac.diurnal.transfer.TransferArchive#MAX_MEMBER_BYTES} on its
+     * own, making an export an account could never import.
      *
      * <p>
-     * This is a footgun guard rather than a security boundary - the value is set by the operator, not by a request - so it is drawn where the feature
-     * still works, not merely where it stops crashing.
+     * A footgun guard rather than a security boundary - set by the operator, not a request - so it is drawn where the feature still works, not
+     * merely where it stops crashing.
      */
     public static final int NOTE_MAX_LENGTH_CEILING = 100_000;
 
@@ -110,9 +110,9 @@ public final class TextFields {
      * The longest name a note attachment may carry, in code points.
      *
      * <p>
-     * A hundred is what a file name actually needs — every desktop platform's own limit is 255 bytes, which is comfortably longer than anything a
-     * person types — and it is the same bound as an action name, so the two read the same way in the interface. It bounds no column: the name is
-     * stored sealed (see {@code note.AttachmentContent}), exactly as a note's content is.
+     * A hundred is what a file name actually needs - every desktop platform's own limit is 255 bytes, comfortably longer than anything a person
+     * types - and matches the action-name bound, so the two read the same way in the UI. It bounds no column: the name is stored sealed (see
+     * {@code note.AttachmentContent}), like a note's content.
      */
     public static final int ATTACHMENT_NAME_MAX_LENGTH = 100;
 
@@ -127,9 +127,9 @@ public final class TextFields {
      * The longest accepted raw password.
      *
      * <p>
-     * A deliberate hygiene bound rather than an algorithm limit - Argon2id imposes none, and the password only feeds the fixed-size initial digest,
-     * so length barely affects hashing cost. The cap simply rejects abusive multi-kilobyte inputs up front while staying generous enough (128
-     * characters) never to constrain a real passphrase.
+     * A deliberate hygiene bound, not an algorithm limit - Argon2id imposes none, and the password only feeds a fixed-size initial digest, so
+     * length barely affects hashing cost. The cap simply rejects abusive multi-kilobyte inputs while staying generous enough (128 characters)
+     * never to constrain a real passphrase.
      */
     public static final int PASSWORD_MAX_LENGTH = 128;
 
@@ -174,8 +174,8 @@ public final class TextFields {
      *
      * <p>
      * <strong>Production does not validate against this instance</strong> - it validates against the one {@code note.NoteField} builds from the
-     * configured {@code NOTE_MAX_LENGTH}. This is the default the catalogue publishes, so {@link #all()} and the tests that assert a property across
-     * every field have a note to work with.
+     * configured {@code NOTE_MAX_LENGTH}. This is the default the catalogue publishes, so {@link #all()} and the cross-field tests have a note to
+     * work with.
      *
      * <p>
      * The one {@link Normalisation#MULTILINE} field: it is a block of prose, so its line breaks are part of what the user wrote and must survive

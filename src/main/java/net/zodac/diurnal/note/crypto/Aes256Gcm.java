@@ -39,13 +39,12 @@ import org.apache.logging.log4j.Logger;
  * <p>
  * GCM is an AEAD mode, so every {@link #seal(byte[], byte[], byte[])} produces a ciphertext that cannot be modified without detection, and
  * {@link #open(byte[], byte[], byte[])} reports tampering rather than returning corrupted plaintext. The <strong>associated data</strong> parameter
- * is authenticated but not encrypted, which is what lets a caller bind a ciphertext to its context — a note is sealed against its
- * {@code user_id || note_date}, so a stored ciphertext moved to another day, or to another user's row, fails to open instead of silently decrypting
- * in the wrong place.
+ * is authenticated but not encrypted, letting a caller bind a ciphertext to its context - a note is sealed against its {@code user_id || note_date},
+ * so a ciphertext moved to another day, or another user's row, fails to open instead of silently decrypting in the wrong place.
  *
  * <p>
  * A fresh 12-byte initialisation vector is generated for every seal and carried as the first 12 bytes of the returned value, so the caller stores a
- * single opaque blob rather than two columns. Reusing an IV under one key destroys GCM's guarantees entirely, which is why no method here accepts a
+ * single opaque blob rather than two columns. Reusing an IV under one key destroys GCM's guarantees entirely, so no method here accepts a
  * caller-supplied one.
  *
  * <p>

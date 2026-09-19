@@ -59,10 +59,10 @@ sealed interface ActionResult permits ActionResult.Success, ActionResult.BlankNa
 
     /**
      * The submitted name broke one of the field's blank/length/content rules (a {@code TextOutcome.TooShort} - unreachable in practice for
-     * {@code TextFields#ACTION_NAME}'s bounds, but the type still permits it - or a {@code RuleFailed}: an invisible or text-direction character, or
-     * too many stacked combining marks). Carried as the raw {@link TextOutcome.Failure} rather than a ready-worded message, so a rule added to the
-     * field later needs no change here - the API resource words it in English via {@code TextOutcomeExtensions#message}, the web resource resolves
-     * a translated sentence via {@code partials/text-failure-message.html}.
+     * {@code TextFields#ACTION_NAME}'s bounds, but still permitted by the type - or a {@code RuleFailed}: an invisible or text-direction character,
+     * or too many stacked combining marks). Carried as the raw {@link TextOutcome.Failure} rather than a ready-worded message, so a rule added
+     * later needs no change here - the API resource words it in English via {@code TextOutcomeExtensions#message}, the web resource resolves a
+     * translated sentence via {@code partials/text-failure-message.html}.
      *
      * @param failure the rejection
      */

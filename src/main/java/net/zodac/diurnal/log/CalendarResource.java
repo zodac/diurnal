@@ -51,10 +51,10 @@ import net.zodac.diurnal.user.Role;
  *
  * <p>
  * The feed is {@link Compressed} — with the month back-fill it forms the dashboard's hot loading path ({@code cal.refresh()} re-pulls the visible
- * month's feed after every log mutation), and a month of events is repetitive JSON that gzips heavily. This is a targeted exception to the
- * deliberately narrow global {@code quarkus.http.compress-media-types} (see the BREACH note in {@code application.properties}), safe for the same
- * reason as {@code LogWebResource.monthPanels}: the body carries no secret (no CSRF token — protection is origin-based — and the session token never
- * appears in a body), and the only request-controlled inputs, {@code start}/{@code end}, must parse as ISO-8601 dates before anything is returned.
+ * month's feed after every log mutation), and a month of events is repetitive JSON that gzips heavily. A targeted exception to the deliberately
+ * narrow global {@code quarkus.http.compress-media-types} (see the BREACH note in {@code application.properties}), safe for the same reason as
+ * {@code LogWebResource.monthPanels}: the body carries no secret (no CSRF token — protection is origin-based — and the session token never appears
+ * in a body), and the only request-controlled inputs, {@code start}/{@code end}, must parse as ISO-8601 dates before anything is returned.
  */
 @Path("/internal/logs")
 @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)

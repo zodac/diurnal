@@ -22,10 +22,10 @@ package net.zodac.diurnal.user;
  * the DEFAULT rather than something each new setting has to remember.
  *
  * <p>
- * An export calls itself a backup, so a preference missing from the archive is one a restore silently loses. That made the old arrangement the wrong
- * way round: the guard test held a hand-written list of the preferences it did not expect to find, so a new setting was carried only if someone
- * thought to wire it, and the way to silence the failure was to add a name to that list - in a test, with no reason recorded. Declaring it here
- * instead means the archive is opted OUT of, at the field, in production code, by someone who has to say which kind of exclusion they mean.
+ * An export calls itself a backup, so a preference missing from the archive is one a restore silently loses. The old arrangement had this
+ * backwards: the guard test held a hand-written list of preferences it did not expect to find, so a new setting was carried only if someone thought
+ * to wire it, and silencing the failure meant adding a name to that list - in a test, with no reason recorded. Declaring it here instead means the
+ * archive is opted OUT of, at the field, in production code, by someone who has to say which kind of exclusion they mean.
  *
  * @see Preference#archive()
  */
@@ -50,9 +50,9 @@ public enum ArchiveCarriage {
      * restore loses, so it needs a reason that outweighs that, recorded at the field. It exists so that reason has somewhere to be written other
      * than a test's exclusion list.
      */
-    // Unused BY DESIGN, and kept rather than deleted: it is the "explicitly disabled" half of a default-on rule, and a rule with no expressible
-    // exception is one that gets broken by editing the guard test instead - which is the exact failure this whole arrangement replaced. Deleting it
-    // would leave the next preference that genuinely cannot be exported with nowhere to say so.
+    // Unused BY DESIGN, kept rather than deleted: it is the "explicitly disabled" half of a default-on rule, and a rule with no expressible
+    // exception gets broken by editing the guard test instead - the exact failure this arrangement replaced. Deleting it would leave the next
+    // preference that genuinely cannot be exported with nowhere to say so.
     @SuppressWarnings("unused")
     EXCLUDED
 }

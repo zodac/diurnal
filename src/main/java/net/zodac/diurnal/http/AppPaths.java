@@ -31,17 +31,17 @@ import net.zodac.diurnal.config.AppConfig;
  * The single place any URL this application emits is built - every page link, form action, HTMX endpoint, redirect {@code Location} and cookie path.
  *
  * <p>
- * Two things live here, and they are the reason it is one class rather than a literal at each call site. The first is the route vocabulary itself:
- * the path of every surface the app exposes to a browser is written down exactly once, so a route that moves is renamed in one file rather than
- * hunted across 60-odd templates, scripts and resources. The second is the deployment's base path ({@code app.base-path}, {@code BASE_PATH}), which
- * every one of those URLs must carry when the app is mounted somewhere other than the origin root.
+ * Two things live here, which is why it is one class rather than a literal at each call site: the route vocabulary itself - every surface's path,
+ * written down exactly once, so a moved route is renamed in one file rather than hunted across 60-odd templates, scripts and resources - and the
+ * deployment's base path ({@code app.base-path}, {@code BASE_PATH}), which every one of those URLs must carry when the app is mounted somewhere
+ * other than the origin root.
  *
  * <p>
  * <strong>The app always ROUTES at the root.</strong> A {@code @Path} annotation, an auth permission path and a header-filter regex are all written
  * without the prefix and stay that way; a sub-path deployment puts a reverse proxy in front that strips the prefix before forwarding (Traefik's
- * {@code StripPrefix}, nginx's {@code proxy_pass http://app/}). What the app has to get right is the other direction - the URLs it hands BACK to the
- * browser, which are resolved against the public origin and so must carry the prefix. That asymmetry is the whole job of this class, and it is why
- * {@code BASE_PATH} can be a runtime setting at all: {@code quarkus.http.root-path} is fixed at build time and could never be one.
+ * {@code StripPrefix}, nginx's {@code proxy_pass http://app/}). What the app must get right is the other direction - the URLs it hands BACK to the
+ * browser, resolved against the public origin and so must carry the prefix. That asymmetry is this class's whole job, and why {@code BASE_PATH} can
+ * be a runtime setting where {@code quarkus.http.root-path} (fixed at build time) never could be.
  *
  * <p>
  * The one URL the app does not build is the OIDC {@code redirect_uri}, which Quarkus assembles itself from the request's absolute URI plus
