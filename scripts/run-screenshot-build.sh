@@ -213,10 +213,15 @@ cd "${GEN_DIR}"
 
 # Hard cap on the whole capture run. A stalled shot - a wedged page, or an app waiting on something it
 # can never get - produces NO output at all: the generator's own per-action timeouts do not cover every
-# wait, so without this the stage sits silent until the CI job's 45-minute limit kills it, with the log
-# ending mid-capture and nothing saying why. 900s is roughly 6x the observed `all` runtime on a CI
-# runner, so it only ever fires on a genuine hang. The app log is dumped either way, since a stall is
-# usually visible there (an OIDC discovery retry loop, a connection that never completes).
+# wait, so without this the stage sits silent until the CI job's time limit kills it, with the log
+# ending mid-capture and nothing saying why (the calling job's budget varies - the dedicated "Verify the
+# preview image build" job is the tightest at 30 minutes, the per-arch release builds get 45). 1500s is
+# roughly 10x the observed `all` runtime on a CI runner, leaving a few minutes of headroom under even the
+# tightest caller once Postgres init + app boot + this timeout's own kill-after grace are added on top, so
+# it only ever fires on a genuine hang or a badly-contended runner - see generate-screenshots.cjs's own
+# per-request timeout/retry for the more common case of one transient stalled call. The app log is dumped
+# either way, since a stall is usually visible there (an OIDC discovery retry loop, a connection that
+# never completes).
 #
 # --no-sandbox: Chromium refuses to run as root without it, and this stage is root.
 # --disable-gpu: a Chromium GPU process that crash-loops inside a container takes `newPage()` down with
@@ -228,11 +233,11 @@ cd "${GEN_DIR}"
 # wall-clock value and so differ between any two runs.
 gen_status=0
 TEST_DB_HOST=127.0.0.1 PW_CHROMIUM_ARGS="--no-sandbox --disable-gpu" BASE_URL="http://127.0.0.1:8080" \
-  timeout --kill-after=30s 900 node scripts/generate-screenshots.cjs "${gen_mode}" || gen_status=$?
+  timeout --kill-after=30s 1500 node scripts/generate-screenshots.cjs "${gen_mode}" || gen_status=$?
 
 if [[ "${gen_status}" -ne 0 ]]; then
   if [[ "${gen_status}" -eq 124 || "${gen_status}" -eq 137 ]]; then
-    echo "✗ screenshot generation TIMED OUT after 900s in ${gen_mode} mode." >&2
+    echo "✗ screenshot generation TIMED OUT after 1500s in ${gen_mode} mode." >&2
   else
     echo "✗ screenshot generation failed (exit ${gen_status}) in ${gen_mode} mode." >&2
   fi

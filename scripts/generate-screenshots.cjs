@@ -338,15 +338,46 @@ async function existingEmails(emails) {
 }
 
 // ── Seeding (over HTTP, via the logged-in browser-context cookies) ───────────────────────────────
+//
+// Every ctx.request.* call below carries an EXPLICIT timeout (Playwright's own default is the same
+// 30s, but naming it ties every call site to one constant and one retry policy) and gets one retry
+// on THAT specific failure via withRetry. Release 1.1.1's preview-build CI run saw one of these calls
+// hang for the full 900s script-level cap with no diagnostic beyond "browser has been closed" once the
+// outer `timeout` in run-screenshot-build.sh finally killed the process — a fresh attempt after a
+// transient CI-runner stall is often enough to get past it, and when it is not, the second failure
+// still surfaces in well under a minute rather than at the cap.
+const REQUEST_TIMEOUT_MS = 30000
+
+async function withRetry(label, fn) {
+  try {
+    return await fn()
+  } catch (e) {
+    const timedOut = e instanceof Error && /Timeout \d+ms exceeded/.test(e.message)
+    if (!timedOut) {throw e}
+    console.warn(`  ⚠ ${label} timed out after ${REQUEST_TIMEOUT_MS}ms, retrying once…`)
+    return await fn()
+  }
+}
+
+// Elapsed-time breadcrumb for each seeding stage. A stalled call used to leave the log silent for the
+// entire 900s cap with no indication which of the seeding steps was still in flight; this turns that
+// silence into "which step, how long" so a recurrence is diagnosable from the log alone.
+async function timed(label, fn) {
+  const start = Date.now()
+  const result = await fn()
+  console.log(`  … ${label} (${Date.now() - start}ms)`)
+  return result
+}
 
 async function registerDemoUser(ctx) {
   // The initial account MUST be created through the web setup flow (POST /register) — the API refuses
   // to register the first user until an account exists, so it can never claim the admin account. Once
   // this demo user exists the rest of the accounts can register via the API (see registerAdminDemoUsers).
   // Idempotent: on re-runs the account already exists, so the failure is expected and ignored.
-  await ctx.request.post(`${BASE}/register`, {
-    form: { email: USER.email, displayName: USER.displayName, password: USER.password, confirmPassword: USER.password }
-  }).catch(() => {})
+  await withRetry('POST /register', () => ctx.request.post(`${BASE}/register`, {
+    timeout: REQUEST_TIMEOUT_MS,
+    form: { email: USER.email, displayName: USER.displayName, password: USER.password, confirmPassword: USER.password },
+  })).catch(() => {})
 }
 
 // Register the extra Admin-table demo accounts, skipping any that already exist (see existingEmails).
@@ -354,7 +385,10 @@ async function registerAdminDemoUsers(ctx) {
   const have = await existingEmails(ADMIN_DEMO_USERS.map(u => u.email))
   for (const user of ADMIN_DEMO_USERS) {
     if (have.has(user.email.toLowerCase())) {continue}
-    await ctx.request.post(`${BASE}/api/v1/auth/register`, { data: user }).catch(() => {})
+    await withRetry(`POST /api/v1/auth/register (${user.email})`, () => ctx.request.post(`${BASE}/api/v1/auth/register`, {
+      timeout: REQUEST_TIMEOUT_MS,
+      data: user,
+    })).catch(() => {})
   }
 }
 
@@ -388,7 +422,9 @@ async function login(ctx) {
 async function existingActions(ctx) {
   const map = {}
   for (let page = 1; ; page++) {
-    const res = await ctx.request.get(`${BASE}/api/v1/actions?page=${page}`)
+    const res = await withRetry(`GET /api/v1/actions?page=${page}`, () => ctx.request.get(`${BASE}/api/v1/actions?page=${page}`, {
+      timeout: REQUEST_TIMEOUT_MS,
+    }))
     if (!res.ok()) {throw new Error(`Could not list actions (HTTP ${res.status()})`)}
     const body = await res.json()
     for (const action of body.items) {map[action.name] = action.id}
@@ -398,7 +434,10 @@ async function existingActions(ctx) {
 
 async function ensureAction(ctx, existing, { name, colour }) {
   if (existing[name]) {return existing[name]}
-  const res = await ctx.request.post(`${BASE}/api/v1/actions`, { data: { name, colour } })
+  const res = await withRetry(`POST /api/v1/actions (${name})`, () => ctx.request.post(`${BASE}/api/v1/actions`, {
+    timeout: REQUEST_TIMEOUT_MS,
+    data: { name, colour },
+  }))
   // The status is part of the message on purpose: a 409 means the action exists but the listing above did
   // not see it, which is a different fault from a 400/401 and should not be guessed at.
   if (!res.ok()) {throw new Error(`Could not create action "${name}" (HTTP ${res.status()})`)}
@@ -406,37 +445,43 @@ async function ensureAction(ctx, existing, { name, colour }) {
 }
 
 async function seed(ctx) {
-  await registerDemoUser(ctx)
+  await timed('registerDemoUser', () => registerDemoUser(ctx))
   if (wantDocs) {
     // The Admin-page screenshot needs a populated user table and an admin session; app mode skips both
     // (and so needs no DB access at all).
-    await registerAdminDemoUsers(ctx)
-    await promoteDemoUserToAdmin()
-    await seedIpLockouts()
+    await timed('registerAdminDemoUsers', () => registerAdminDemoUsers(ctx))
+    await timed('promoteDemoUserToAdmin', () => promoteDemoUserToAdmin())
+    await timed('seedIpLockouts', () => seedIpLockouts())
   }
-  await login(ctx)
+  await timed('login', () => login(ctx))
 
-  const existing = await existingActions(ctx)
-  for (const action of ACTIONS) {
-    const id = await ensureAction(ctx, existing, action)
-    for (let offset = SEED_DAYS - 1; offset >= 0; offset--) {
-      const date = dateMinusDays(SEED_END, offset)
-      // The weekday of the day being written, so the pattern tiles across the month. Parsed back as UTC
-      // (not `new Date(date)` on a local clock) to stay on the same UTC footing as everything else here.
-      const day = new Date(`${date}T00:00:00Z`)
-      const base = action.perWeekday[day.getUTCDay()]
-      const count = base === 0 ? 0 : Math.max(0, base + WEEK_NUDGE[Math.floor((day.getUTCDate() - 1) / 7) % WEEK_NUDGE.length])
-      // PUT SETS the count rather than incrementing towards it: one call per day instead of `count` of
-      // them, and no "what is already logged?" pre-read at all.
-      //
-      // A zero is WRITTEN, not skipped (0 deletes the day's entry). Skipping it would leave whatever a
-      // previous run had put there, so re-seeding a database after changing the pattern would silently
-      // blend the old shape into the new one — the totals drift and the screenshots stop being
-      // reproducible. Writing every day of the month makes the seed genuinely idempotent.
-      await ctx.request.fetch(`${BASE}/api/v1/logs/${date}/${id}`, { method: 'PUT', data: { count } })
+  const existing = await timed('existingActions', () => existingActions(ctx))
+  await timed('seed action logs', async () => {
+    for (const action of ACTIONS) {
+      const id = await ensureAction(ctx, existing, action)
+      for (let offset = SEED_DAYS - 1; offset >= 0; offset--) {
+        const date = dateMinusDays(SEED_END, offset)
+        // The weekday of the day being written, so the pattern tiles across the month. Parsed back as UTC
+        // (not `new Date(date)` on a local clock) to stay on the same UTC footing as everything else here.
+        const day = new Date(`${date}T00:00:00Z`)
+        const base = action.perWeekday[day.getUTCDay()]
+        const count = base === 0 ? 0 : Math.max(0, base + WEEK_NUDGE[Math.floor((day.getUTCDate() - 1) / 7) % WEEK_NUDGE.length])
+        // PUT SETS the count rather than incrementing towards it: one call per day instead of `count` of
+        // them, and no "what is already logged?" pre-read at all.
+        //
+        // A zero is WRITTEN, not skipped (0 deletes the day's entry). Skipping it would leave whatever a
+        // previous run had put there, so re-seeding a database after changing the pattern would silently
+        // blend the old shape into the new one — the totals drift and the screenshots stop being
+        // reproducible. Writing every day of the month makes the seed genuinely idempotent.
+        await withRetry(`PUT /api/v1/logs/${date}/${id}`, () => ctx.request.fetch(`${BASE}/api/v1/logs/${date}/${id}`, {
+          method: 'PUT',
+          timeout: REQUEST_TIMEOUT_MS,
+          data: { count },
+        }))
+      }
     }
-  }
-  await seedNotes(ctx)
+  })
+  await timed('seedNotes', () => seedNotes(ctx))
   console.log(`seeded demo data across ${SEED_MONTH} (${SEED_START_ISO} to ${SEED_END_ISO})`)
 }
 
@@ -456,7 +501,11 @@ async function seedNotes(ctx) {
     // thinned out earlier in the month so the run near the end reads as a streak rather than a solid block.
     const patterned = (text === '' || (offset > 6 && day.getUTCDate() % 3 === 0)) ? '' : text
     const content = offset === 0 ? NOTE_FEATURED : patterned
-    await ctx.request.fetch(`${BASE}/api/v1/notes/${date}`, { method: 'PUT', data: { content } })
+    await withRetry(`PUT /api/v1/notes/${date}`, () => ctx.request.fetch(`${BASE}/api/v1/notes/${date}`, {
+      method: 'PUT',
+      timeout: REQUEST_TIMEOUT_MS,
+      data: { content },
+    }))
   }
 }
 
@@ -468,10 +517,11 @@ async function setPrefs(ctx, theme, calendarView, font = 'nova', language = 'en-
   // treats absent fields as "keep". `language` defaults to 'en-GB' so every call site resets it back —
   // only the Arabic RTL shot passes a different one, and every shot after it must not silently inherit
   // that switch.
-  const res = await ctx.request.fetch(`${BASE}/internal/settings`, {
+  const res = await withRetry('PATCH /internal/settings', () => ctx.request.fetch(`${BASE}/internal/settings`, {
     method: 'PATCH',
+    timeout: REQUEST_TIMEOUT_MS,
     form: { theme, font, calendarView, language, pageSize: '10', timezone: 'UTC' },
-  })
+  }))
   if (!res.ok()) {throw new Error(`setPrefs failed: ${res.status()}`)}
 }
 
