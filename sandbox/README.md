@@ -68,7 +68,7 @@ A launch rebuilds first, so this is rarely needed on its own.
 ```
 
 **A launch replaces any sandbox that is already running.** Two of them cannot coexist — they share the
-container name, the published port and the named volumes, in particular `/home/dev/.claude`, whose
+container name, the published port, the named volumes and the `/home/dev/.claude` bind mount, whose
 login/session state Claude rewrites in place — so starting a second one used to take *both* down. A
 launch therefore stops and removes the running container before starting its own, and waits for the
 name to actually be free (`--rm` removal is asynchronous, so `docker run --name` can otherwise lose the
@@ -172,7 +172,8 @@ setup, everything works normally: `mvn clean install -Dall`, `scripts/dev-up.sh`
 ## Reusing this sandbox in another project
 
 Copy the `sandbox/` folder in, and launch. Nothing needs renaming: the container, image, hostname and
-all four volumes are derived from the project directory's name (see *Persistence*), and the image is
+the three named volumes are derived from the project directory's name, and Claude's own state
+(`.claude-history/`) is scoped by the project directory itself (see *Persistence*), and the image is
 built from **this folder alone** — the `Dockerfile` `COPY`s only `entrypoint.sh`, `launch.sh` and
 `setup.sh`, never any project file — so the build context carries no assumption about the project.
 
@@ -194,22 +195,31 @@ image than it needs, so trim the `COPY --from=jdk` / `--from=maven` stages if th
 
 Named volumes survive across runs (so you don't re-pull/re-download each time):
 
-| Volume                   | Holds                                                                      |
-|--------------------------|----------------------------------------------------------------------------|
-| `diurnal-sandbox-claude` | Claude auth, history **and** onboarding/terminal-setup state (`~/.claude`) |
-| `diurnal-sandbox-docker` | nested Docker images/layers (`/var/lib/docker`)                            |
-| `diurnal-sandbox-m2`     | the Maven repository (`~/.m2`)                                             |
-| `diurnal-sandbox-pw`     | Playwright browsers                                                        |
+| Volume                   | Holds                                           |
+|--------------------------|-------------------------------------------------|
+| `diurnal-sandbox-docker` | nested Docker images/layers (`/var/lib/docker`) |
+| `diurnal-sandbox-m2`     | the Maven repository (`~/.m2`)                  |
+| `diurnal-sandbox-pw`     | Playwright browsers                             |
+
+Claude's **own** state — auth, session history, memory, onboarding/terminal-setup (`~/.claude`) — is
+the one exception: not a named volume, but a **bind mount of `.claude-history/` in the project root**
+(created by `sandbox.sh` on first launch; already covered by `.gitignore`/`.dockerignore`). Unlike a
+named volume it is plain files in the project directory, visible to `ls`/your IDE/`git status`, and it
+survives things a named volume does not — a `docker volume prune`, a Docker Desktop reset, or the
+**host** Docker engine itself restarting/crashing and taking the (`--rm`, disposable) sandbox container
+down with it. Resuming a session after any of those means relaunching the sandbox (`./sandbox/sandbox.sh`)
+and resuming **inside** it — `claude --resume <id>` run on the bare host has its own, separate
+`~/.claude` and has never heard of the sandbox's sessions.
 
 ### Disk usage — the `-docker` volume is the one that matters
 
 Measured on a two-month-old sandbox:
 
-| Volume                   | Size      | Bounded?                                                               |
+| Location                 | Size      | Bounded?                                                               |
 |--------------------------|-----------|------------------------------------------------------------------------|
 | `diurnal-sandbox-docker` | **77 GB** | **no** - 61 GB of it BuildKit cache, 21 GB images, from every gate run |
 | `diurnal-sandbox-m2`     | 598 MB    | grows slowly with dependency churn                                     |
-| `diurnal-sandbox-claude` | 279 MB    | yes - Claude prunes transcripts (and their side-car dirs) at 30 days   |
+| `.claude-history/`       | 279 MB    | yes - Claude prunes transcripts (and their side-car dirs) at 30 days   |
 | `diurnal-sandbox-pw`     | small     | yes - one browser build                                                |
 
 The image now ships `/etc/docker/daemon.json` with a BuildKit GC policy (`maxUsedSpace: 20GB`,
@@ -224,26 +234,31 @@ reclaim them (and force a cache sweep now) with:
 It prefers `docker exec` into a running sandbox, so it will not interrupt a live Claude session.
 The trade-off is the obvious one: a pruned build cache makes the next `docker` gate run cold.
 
-Transcript retention on the `-claude` volume is Claude's own `cleanupPeriodDays` (default 30) — set it
+Transcript retention in `.claude-history/` is Claude's own `cleanupPeriodDays` (default 30) — set it
 in `~/.claude/settings.json` inside the sandbox if a month of `/resume` history is more than you want.
 
 > **Those names are derived, not hardcoded.** `sandbox.sh` builds every docker name - container, image,
-> hostname and all four volumes - from the *project directory's* name: `<project>-sandbox[-claude|-docker|-m2|-pw]`.
-> This matters when you **copy this launcher into another repo**, which is the expected way to reuse it. A hardcoded
-> name travels with the copy, and the copy would then mount its own project at `/work` while attaching *these*
-> volumes - so both repos would share one `~/.claude`: one prompt history (the up-arrow shows the other project's
-> prompts), one memory directory, one set of transcripts offered by `/resume`. Nothing warns you, because the project
-> key Claude derives from the mount point (`-work`) is identical for every project. A copied launcher scopes itself on
-> its first launch instead. Set `SANDBOX_NAME` to pin a name explicitly - e.g. two checkouts of the *same* repo that
-> must not share state.
+> hostname and the three remaining named volumes - from the *project directory's* name:
+> `<project>-sandbox[-docker|-m2|-pw]`. This matters when you **copy this launcher into another repo**,
+> which is the expected way to reuse it. A hardcoded name travels with the copy, and the copy would then
+> mount its own project at `/work` while attaching *these* volumes - so both repos would share one nested
+> Docker build cache, one Maven repository and one Playwright browser cache. Nothing warns you, because
+> the project key Claude derives from the mount point (`-work`) is identical for every project. A copied
+> launcher scopes itself on its first launch instead. Set `SANDBOX_NAME` to pin a name explicitly - e.g.
+> two checkouts of the *same* repo that must not share state.
+>
+> Claude's **own** state - `~/.claude`, i.e. login, prompt history, memory, `/resume` transcripts -
+> sidesteps this whole class of bug: it is a **bind mount of `.claude-history/` in the project
+> directory**, not a named volume, so a copy attaches to *its own* project's `.claude-history/` by
+> construction. Two repos can never end up sharing it, hardcoded name or not.
 
 > **Why login + terminal setup persist:** Claude Code normally splits its state between the
 > `~/.claude/` directory and a separate `~/.claude.json` file in the home root (onboarding /
 > terminal-setup state + login *account*; the OAuth *tokens* live in `~/.claude/.credentials.json`).
-> Only the directory is volume-mounted, so the loose `.claude.json` would be lost every run. The image
-> sets `CLAUDE_CONFIG_DIR=/home/dev/.claude` (forwarded to the `dev` user by `entrypoint.sh`), which
-> redirects `.claude.json` and credentials **into** the persisted volume — so you configure the
-> terminal and log in once, not every launch.
+> Only the directory is mounted, so the loose `.claude.json` would be lost every run. The image sets
+> `CLAUDE_CONFIG_DIR=/home/dev/.claude` (forwarded to the `dev` user by `entrypoint.sh`), which redirects
+> `.claude.json` and credentials **into** the mounted directory — so you configure the terminal and log
+> in once, not every launch.
 >
 > **Why a login could still be lost (and how it's recovered):** Login depends on **two** files —
 > `.claude.json` (onboarding + account) and `.credentials.json` (the OAuth tokens; this is the one that
@@ -265,8 +280,11 @@ in `~/.claude/settings.json` inside the sandbox if a month of `/resume` history 
 >    survives *any* later kill, even one that skips the teardown grace entirely.
 >
 > `docker stop -t 10` (in `sandbox.sh`) is still belt-and-braces — it gives Claude time to flush on a
-> *clean* stop — but recovery no longer depends on it. (Manual restore if ever needed:
-> `cp ~/.claude/.sandbox-state/credentials.json.bak ~/.claude/.credentials.json` and likewise for `claude.json.bak`.)
+> *clean* stop — but recovery no longer depends on it. (Manual restore if ever needed, from *inside* the
+> sandbox: `cp ~/.claude/.sandbox-state/credentials.json.bak ~/.claude/.credentials.json` and likewise
+> for `claude.json.bak` — or, since `~/.claude` is now `.claude-history/` in the project directory, just
+> as easily from the *host*: `cp .claude-history/.sandbox-state/credentials.json.bak
+> .claude-history/.credentials.json`, no running container required.)
 >
 > **After changing `launch.sh` you must `./sandbox.sh build`** — the script is `COPY`d into the image at
 > build time, so a running image keeps the old copy until rebuilt.
@@ -274,17 +292,20 @@ in `~/.claude/settings.json` inside the sandbox if a month of `/resume` history 
 Full reset (wipe all sandbox state):
 
 ```bash
-docker volume rm diurnal-sandbox-claude diurnal-sandbox-docker diurnal-sandbox-m2 diurnal-sandbox-pw
+docker volume rm diurnal-sandbox-docker diurnal-sandbox-m2 diurnal-sandbox-pw
+rm -rf .claude-history/    # Claude's own state - login, history, memory; see the warning below
 ```
 
-> **This destroys Claude's memory directory, which is not in git.** Everything else on those volumes is
-> regenerable (images re-pull, `node_modules` reinstall, a login is re-entered), but
-> `<claude volume>/projects/-work/memory/` holds the accumulated `MEMORY.md` notes for this project and
+> **`rm -rf .claude-history/` destroys Claude's memory directory, which is not in git.** Everything else
+> is regenerable (images re-pull, `node_modules` reinstall, a login is re-entered), but
+> `.claude-history/projects/-work/memory/` holds the accumulated `MEMORY.md` notes for this project and
 > exists nowhere else. Copy it out first if you mean to keep it:
 >
 > ```bash
-> ./sandbox/sandbox.sh run tar cf - -C /home/dev/.claude/projects/-work memory > claude-memory.tar
+> cp -r .claude-history/projects/-work/memory ./claude-memory-backup
 > ```
+>
+> No running sandbox or `docker exec` needed for that — it's a plain host directory now.
 
 ## Notes
 
@@ -295,8 +316,8 @@ docker volume rm diurnal-sandbox-claude diurnal-sandbox-docker diurnal-sandbox-m
   your host. Two layers, because the flag alone does not cover every entry point:
   the entrypoint starts its no-command `claude` with
   `--dangerously-skip-permissions`, and `launch.sh` asserts
-  `permissions.defaultMode = "bypassPermissions"` in the settings.json on the
-  persisted config volume, so a `shell` session that runs claude by hand gets the
+  `permissions.defaultMode = "bypassPermissions"` in the settings.json under the
+  persisted `.claude-history/` config directory, so a `shell` session that runs claude by hand gets the
   same default. Flip that key to `"default"` (or `"auto"`) if you ever want a
   session to prompt.
 - `gh` (the GitHub CLI) is in the image, but **unauthenticated by design, and stays

@@ -71,13 +71,15 @@ ARG GID=1000
 # PLAYWRIGHT_BROWSERS_PATH — let Playwright manage its own Chromium, cached under
 #   $HOME and persisted via a volume rather than baked into the image.
 # CLAUDE_CONFIG_DIR — keep ALL of Claude Code's config in the persisted ~/.claude
-#   volume. By default Claude splits its state: the ~/.claude/ directory (history,
-#   OAuth credentials) AND a separate ~/.claude.json file in the home root
-#   (onboarding/terminal-setup state + login). Only the directory is volume-mounted,
-#   so without this the .claude.json file is recreated empty on every run — forcing
-#   terminal reconfiguration + re-login each time. This redirects .claude.json (and
-#   credentials) INTO the mounted dir, so it all persists. (entrypoint.sh already
-#   forwards this var to the `dev` user via --preserve-env.)
+#   directory (a bind mount of .claude-history/ in the project directory - see
+#   sandbox.sh/sandbox/README.md#persistence). By default Claude splits its state:
+#   the ~/.claude/ directory (history, OAuth credentials) AND a separate
+#   ~/.claude.json file in the home root (onboarding/terminal-setup state + login).
+#   Only the directory is mounted, so without this the .claude.json file is
+#   recreated empty on every run — forcing terminal reconfiguration + re-login each
+#   time. This redirects .claude.json (and credentials) INTO the mounted dir, so it
+#   all persists. (entrypoint.sh already forwards this var to the `dev` user via
+#   --preserve-env.)
 # PATH — the dev-owned npm prefix goes FIRST so the self-updated `claude` wins over
 #   any other copy on the path.
 ENV DEBIAN_FRONTEND=noninteractive \

@@ -74,6 +74,12 @@ tests/.e2e-app.pid
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 
+# The sandbox's Claude Code state (login, session history, memory) - see sandbox/README.md#persistence.
+# sandbox.sh bind-mounts this INTO the sandbox container at /home/dev/.claude, so it survives a sandbox
+# teardown, a `docker volume prune`, or the host Docker engine itself restarting - none of which a named
+# docker volume would. Holds OAuth tokens (.credentials.json), so it must never be committed.
+/.claude-history/
+
 # JVM diagnostic dumps. A Flight Recorder recording taken from a container carries the
 # jdk.InitialEnvironmentVariable event, which captures env var VALUES verbatim - so a .jfr off a real
 # deployment contains NOTE_ENCRYPTION_KEY and DB_PASSWORD in the clear, and a heap dump additionally

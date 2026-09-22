@@ -27,6 +27,9 @@ echo "[sandbox] nested dockerd is up."
 # ── Hand the persistent named volumes to `dev` ───────────────────────────────
 # Docker mounts named volumes root-owned; chown the mount points (non-recursive,
 # so existing contents are untouched) so the dev user can write into them.
+# /home/dev/.claude is NOT one of these anymore (it is a bind mount of .claude-history/ in the project
+# directory, pre-created dev-owned by sandbox.sh's mkdir), but chown it here too, harmlessly, as a
+# fallback for whatever invoked this image without going through sandbox.sh.
 mkdir -p /home/dev/.cache/ms-playwright
 chown dev:dev /home/dev/.claude /home/dev/.cache /home/dev/.cache/ms-playwright 2>/dev/null || true
 

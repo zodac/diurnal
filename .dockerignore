@@ -13,6 +13,10 @@ src/main/resources/META-INF/resources/img/settings/
 
 # Sandbox env (its own build context under sandbox/; not part of the app image)
 sandbox/
+# The sandbox's bind-mounted Claude Code state (login, session history, memory - see
+# sandbox/README.md#persistence). Nothing copies it, but the whole context is sent to the daemon, and
+# it carries OAuth tokens (.credentials.json) in the clear - neither belongs anywhere near an image build.
+.claude-history/
 
 # Local-only
 .env

@@ -9,8 +9,9 @@
 #   ./sandbox.sh prune          # reclaim disk in the nested docker (build cache, images, volumes)
 #
 # A launch REPLACES any sandbox that is already running (they cannot coexist — same name, same port,
-# same ~/.claude volume), stopping it only once the new image has been built. Every docker name is derived
-# from the project directory (see SLUG below), so a DIFFERENT project's sandbox shares none of that state.
+# same ~/.claude bind mount), stopping it only once the new image has been built. Every docker name is
+# derived from the project directory (see SLUG below), so a DIFFERENT project's sandbox shares none of
+# that state.
 #
 # Only the project directory is mounted from the host. No $HOME, no SSH keys,
 # no other projects, and NOT the host Docker socket. The sandbox runs its own
@@ -21,14 +22,25 @@ set -euo pipefail
 # This script lives in <project>/sandbox/, so the project root is its parent dir.
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${PROJECT_DIR:-$(dirname "${HERE}")}"
+# Claude Code's own state (login, session history, memory - see the /home/dev/.claude bind mount in
+# run() below) lives in a subdirectory of the project. Created here, NOW, while PROJECT_DIR is still
+# bash's own POSIX-style path - `mkdir` (an MSYS/coreutils tool on Git Bash) needs that form, whereas
+# Docker needs the native Windows form the cygpath block below converts PROJECT_DIR to. An absent bind
+# source would otherwise be auto-created ROOT-owned by the docker daemon, which the unprivileged `dev`
+# user inside the container could then never write into. Runs unconditionally (build/stop/prune/shell/
+# run/default alike) - cheap, and every path here ends up needing it.
+mkdir -p "${PROJECT_DIR}/.claude-history"
 # EVERY docker name below is DERIVED from the project directory, never hardcoded - the container, the
-# image, the hostname and all four volumes. This launcher gets copied into other repos, and a hardcoded
-# name travels with the copy: the copy mounts ITS OWN project at /work but attaches THE ORIGINAL
-# project's volumes, so two unrelated repos end up sharing one ~/.claude - one prompt history (visible
-# on the up-arrow), one memory directory, one set of transcripts offered by /resume, one allowedTools.
-# Nothing warns you, because the project KEY Claude derives from the mount point ("-work") is identical
-# for every project by construction. Deriving the names makes a copy self-scoping on its first launch.
-# Set SANDBOX_NAME to pin one explicitly (e.g. two checkouts of the SAME repo that must not share).
+# image, the hostname and the three remaining named volumes (docker/m2/pw). This launcher gets copied
+# into other repos, and a hardcoded name travels with the copy: the copy mounts ITS OWN project at
+# /work but attaches THE ORIGINAL project's volumes, so two unrelated repos end up sharing one nested
+# Docker build cache, one Maven repository and one Playwright browser cache. Nothing warns you, because
+# the project KEY Claude derives from the mount point ("-work") is identical for every project by
+# construction. Deriving the names makes a copy self-scoping on its first launch. Set SANDBOX_NAME to
+# pin one explicitly (e.g. two checkouts of the SAME repo that must not share).
+# Claude's OWN state (the `.claude-history` mkdir just above) sidesteps this whole class of bug: it is
+# scoped by the PROJECT DIRECTORY itself, not a derived name, so it can never end up shared by a copied
+# launcher even by accident.
 SLUG="$(basename "${PROJECT_DIR}")"
 SLUG="${SLUG,,}"                     # docker image names must be lowercase
 SLUG="${SLUG//[^a-z0-9_.-]/-}"       # ... and hold only [a-z0-9_.-]
@@ -106,7 +118,9 @@ build() {
 # `set -e` disabled, which the docker calls in here should not.
 #
 # Two sandboxes CANNOT coexist: they share the container name, the published port and — worst of all —
-# the named volumes, including /home/dev/.claude, whose login/session state Claude rewrites in place.
+# the named volumes, plus the /home/dev/.claude bind mount (backed by .claude-history/ in the project
+# directory, not a docker volume, but shared the same way), whose login/session state Claude rewrites
+# in place.
 # Starting a second one while the first is up therefore takes BOTH down. So a launch does not compete
 # with the running sandbox, it replaces it: the old one is killed here, deliberately AFTER build() has
 # finished, so the outgoing session stays usable for the whole rebuild and the gap between the two is
@@ -223,14 +237,24 @@ run() {
   # to the host's ~/.m2 — keeps the "no $HOME from the host" rule above intact while still persisting
   # across sessions. The image pre-creates /home/dev/.m2 dev-owned so the volume is writable (see the
   # Dockerfile's user-creation block).
+  #
+  # Claude Code's own state (CLAUDE_CONFIG_DIR=/home/dev/.claude, set in the Dockerfile - login, session
+  # history, memory) is the one exception: a BIND mount to `.claude-history/` inside the project
+  # directory (created near the top of this file, before PROJECT_DIR's Windows-path conversion), not a
+  # named docker volume. That is still only "the project directory" - already fully mounted at /work
+  # above - so it does NOT reintroduce the host $HOME the "no $HOME from the host" rule rules out; it is
+  # bytes already inside /work, just also mounted a second time at the path Claude reads. The payoff:
+  # this state now survives a `docker volume prune`, a Docker Desktop reset, or the HOST Docker engine
+  # itself restarting/crashing and taking the (--rm, so disposable) sandbox container down with it - none
+  # of which a named volume would (see sandbox/README.md#persistence).
   docker run "${tty[@]}" --rm \
     --name "${CONTAINER}" \
     --cidfile "${CIDFILE}" \
     --privileged \
     --hostname "${NAME}" \
     -v "${PROJECT_DIR}":/work \
+    -v "${PROJECT_DIR}/.claude-history":/home/dev/.claude \
     -v "${NAME}-docker":/var/lib/docker \
-    -v "${NAME}-claude":/home/dev/.claude \
     -v "${NAME}-m2":/home/dev/.m2 \
     -v "${NAME}-pw":/home/dev/.cache/ms-playwright \
     ${PUBLISH[@]+"${PUBLISH[@]}"} \
