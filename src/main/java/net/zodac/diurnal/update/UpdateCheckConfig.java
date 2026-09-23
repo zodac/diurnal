@@ -33,9 +33,15 @@ public interface UpdateCheckConfig {
     /**
      * Whether the startup update check is enabled. When {@code false} no outbound lookup is ever made and the footer shows no indicator.
      *
+     * <p>
+     * Defaults to {@code false}, so a deployment makes no outbound connection unless its operator asks for one. It was {@code true} in earlier
+     * releases, so the flip is a breaking change and the next release carrying it is a major version. The lookup runs on every boot regardless of
+     * whether an administrator ever loads a page (the footer indicator is admin-gated; the call is not), so leaving it on meant every deployment
+     * announced its IP address and restart cadence to a third party unprompted.
+     *
      * @return {@code true} when the update check is enabled
      */
-    @WithDefault("true")
+    @WithDefault("false")
     boolean enabled();
 
     /**

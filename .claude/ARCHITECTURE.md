@@ -79,8 +79,10 @@ An admin-only "update available" up-arrow in the footer (`partials/footer.html`)
 release; all three signals ride the `{inject:appInfo}` bean (`updateAvailable`/`updateTooltip`/`updateUrl`), so no resource threads footer data.
 The check runs **exactly once, triggered by startup, and is never refreshed** (`UpdateCheckService.onStartup`): one best-effort
 `LatestReleaseClient` GitHub lookup, result stored in an `AtomicReference`, so `status()` is a pure no-I/O read that may go stale over long uptime
-(accepted, to make no repeated outbound calls). Any failure stores nothing → no indicator. Enabled by default; `APP_UPDATE_CHECK_ENABLED=false`
-skips it (set in smoke/perf/`test` so no CI tier calls GitHub).
+(accepted, to make no repeated outbound calls). Any failure stores nothing → no indicator. **Disabled by default** — `APP_UPDATE_CHECK_ENABLED=true`
+opts in, and smoke/perf/`test` set it `false` explicitly so no CI tier can call GitHub even if the default flips back. It was enabled by default in
+earlier releases, so the flip is a BREAKING change still awaiting a major version bump. The rationale for the default, and the full egress inventory
+it belongs to, are in [`PRIVACY.md`](PRIVACY.md).
 
 > **The lookup is triggered BY startup but must never run ON the startup thread.** It is an outbound HTTPS call — DNS, a TLS handshake on a cold JVM
 > and a round trip, bounded only by `app.update-check.timeout` (default 3s) — and running it inline put all of that between the app being built and

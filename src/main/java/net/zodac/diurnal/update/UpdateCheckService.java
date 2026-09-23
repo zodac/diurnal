@@ -103,11 +103,14 @@ public class UpdateCheckService {
      */
     @SuppressWarnings("unused") // CDI startup observer - invoked by Quarkus, not called directly; `event` is the observed type, not a value read here
     void onStartup(@Observes final StartupEvent event) {
-        if (!config.enabled()) {
+        // Written positive-branch-first rather than as a guard clause with an early return: `enabled()` is read nowhere else in the application, so
+        // an inverted-only call is all Qodana's BooleanMethodIsAlwaysInverted can see, and it fails the gate on it. The lookup being the `if` branch
+        // rather than the fall-through is also the more honest shape here - it is the thing this observer exists to do.
+        if (config.enabled()) {
+            Thread.ofVirtual().name(LOOKUP_THREAD_NAME).start(this::checkForUpdate);
+        } else {
             LOGGER.debug("Update check is disabled - skipping startup version check");
-            return;
         }
-        Thread.ofVirtual().name(LOOKUP_THREAD_NAME).start(this::checkForUpdate);
     }
 
     /**

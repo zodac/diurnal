@@ -61,7 +61,12 @@ public class GitHubLatestReleaseClient implements LatestReleaseClient {
         final String repositoryUrl = appConfig.repositoryUrl();
         final Optional<URI> api = UpdateCheck.githubReleasesApi(repositoryUrl);
         if (api.isEmpty()) {
-            LOGGER.debug("Repository URL '{}' is not a GitHub repository - skipping update check", repositoryUrl);
+            // WARN rather than DEBUG, unlike the request failure below: this method is only reached when the operator has ENABLED the update check,
+            // and a non-GitHub repository URL means it can never succeed. That is a permanent, actionable misconfiguration rather than a transient
+            // network problem, so it is worth one line the operator will actually see - otherwise the check is silently inert and the missing
+            // footer indicator has no explanation.
+            LOGGER.warn("Update check is enabled, but repository URL '{}' is not a GitHub repository - no update check will be performed. "
+                + "Set APP_REPOSITORY_URL to a GitHub repository, or APP_UPDATE_CHECK_ENABLED=false to turn the check off", repositoryUrl);
             return Optional.empty();
         }
         return fetchLatestTag(api.get());

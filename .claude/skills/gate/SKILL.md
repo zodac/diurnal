@@ -63,8 +63,14 @@ re-add them to the pom.
 **Trust the exit code.** The wrapper live-tails the `java` lane and kills the `tail` when the lane finishes, so the
 closing `✅ Java gate passed` / `❌ failed` line is frequently lost — you see tier progress arrows and then nothing.
 That looks exactly like the gate died mid-run and invites a needless ~8-minute re-run. To corroborate green without
-re-running, check the artifacts: `.qodana/results/qodana-short.sarif.json` (`executionSuccessful`, `results: []`),
-an empty `tests/test-results/`, and a fresh `tests/playwright-report/index.html`.
+re-running, check the artifacts: `.qodana/results/qodana.sarif.json` (`runs[0].results` empty), an empty
+`tests/test-results/`, and a fresh `tests/playwright-report/index.html`.
+
+> **Read the FULL `qodana.sarif.json`, never `qodana-short.sarif.json`.** The short file is a false green here: on a
+> confirmed-red Qodana tier it was observed reporting `executionSuccessful: true` and `results: []` while the full
+> SARIF beside it held the finding that failed the run (`Detected 1 problem across all severities, fail threshold:
+> 0`). Believing the short file means reporting a red gate as clean. The `python3` one-liner further down reads the
+> full file for the same reason.
 
 **A green exit code is not a clean build — check the WARNING count too.** Several tiers warn without failing, and
 the Javadoc plugin is the one that bites: it reports `missing @serial tag`, `no @param for …` and similar as

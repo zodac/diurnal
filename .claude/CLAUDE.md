@@ -96,6 +96,7 @@ section index, so `grep -n '^#'` the file and read only the range you need.
 | [`TEXT_INPUT.md`](TEXT_INPUT.md)     | The shared free-text validation pipeline                                                                                                              |
 | [`NOTES.md`](NOTES.md)               | The per-date notes feature — **read before touching `net.zodac.diurnal.note`, the dashboard grid, the calendar month cache, or the Stats notes rows** |
 | [`TRANSFER.md`](TRANSFER.md)         | The per-user export/import — **read before touching `net.zodac.diurnal.transfer`, `NoteService.replaceAll`, or the Settings Data card**               |
+| [`PRIVACY.md`](PRIVACY.md)           | Every byte that leaves a deployment — **read before adding ANY outbound call, third-party browser asset, or `app.*` setting naming a host**           |
 
 ## How the agent tooling is wired
 
@@ -345,6 +346,12 @@ document it needs, not so the rule can be applied from this page.
   at runtime: the app always ROUTES at the root (`@Path`, auth permission paths and header-filter regexes never carry the prefix, and the reverse
   proxy strips it), and only the URLs handed back to the browser carry it. `AppPathsAreCentralisedTest` fails a hardcoded path in a template or a
   script. The one exception is the OIDC `redirect_uri`, which Quarkus builds from `X-Forwarded-Prefix`. → [`ARCHITECTURE.md`](ARCHITECTURE.md)
+- **A default deployment makes NO outbound connection, and the browser loads nothing off-origin.** There are
+  exactly TWO outbound call sites in `src/main/java` — the GitHub update check and OIDC — and **both are off by
+  default**. Making the update check opt-in is a BREAKING change still awaiting a major version bump. The browser
+  half is enforced by a `'self'`-only CSP, not by convention. **Any new outbound call is off by default, flagged,
+  and documented in the same change; a third-party browser asset is vendored, never allowed through the CSP.**
+  → [`PRIVACY.md`](PRIVACY.md)
 - **HTMX partials**: a full `@GET` returns a `TemplateInstance`, an HTMX endpoint returns
   `Response.ok(partial.data(...)).build()`, errors use `HX-Retarget`/`HX-Reswap`. Watch the Qute `{`-parsing gotcha
   — a bare `{word` is read as an expression even inside a JS/HTML comment. → [`FRONTEND.md`](FRONTEND.md), `ui` skill

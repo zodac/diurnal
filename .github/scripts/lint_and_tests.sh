@@ -1780,6 +1780,10 @@ run_markdown() {
     # .claude/ is deliberately NOT excluded: the agent reference docs and skills are the largest body of
     # Markdown in the repo and were the only part of it nothing checked, so they drifted (over-long lines,
     # inconsistent list markers) with no signal. They are ordinary documentation and are linted as such.
+    #
+    # .claude-history/ IS excluded, and is a different thing entirely despite the similar name: it is a
+    # gitignored scratch directory holding synced copies of third-party agent skills, none of it ours and
+    # none of it committed. Linting it fails the step on Markdown nobody here can fix.
     echo "Running Markdown lint using [${MARKDOWNLINT_DOCKER_IMAGE}]"
     docker pull "${MARKDOWNLINT_DOCKER_IMAGE}" >/dev/null
     if output=$(docker run --rm \
@@ -1789,7 +1793,7 @@ run_markdown() {
         --config code-quality-config/markdown/.markdownlint.json \
         "**/*.md" "!code-quality-config/**" "!**/node_modules/**" "!**/target/**" \
         "!RELEASE_NOTES.md" "!tests/playwright-report/**" "!tests/test-results/**" \
-        "!.qodana/**" 2>&1); then
+        "!.qodana/**" "!.claude-history/**" 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
         local done_in
         done_in="$(step_time)"

@@ -234,7 +234,8 @@ The Compose files also tune PostgreSQL itself; those knobs live in [Performance 
 
 | Variable                   | Default | Description                                                                                                 |
 |----------------------------|---------|-------------------------------------------------------------------------------------------------------------|
-| `APP_UPDATE_CHECK_ENABLED` | `true`  | Check GitHub once at startup for a newer release                                                            |
+| `APP_REPOSITORY_URL`       |         | Defaults to `github.com/zodac/diurnal`; set for a fork or mirror (only Github supported)                    |
+| `APP_UPDATE_CHECK_ENABLED` | `false` | Opt in to checking GitHub once at startup for a newer release                                               |
 | `APP_UPDATE_CHECK_TIMEOUT` | `PT3S`  | How long that one lookup may take before it is abandoned                                                    |
 | `DB_LOG_LEVEL`             | `WARN`  | Set to `TRACE` to log every SQL statement + bound parameters (verbose; may expose parameter values)         |
 | `EXPORT_CSV_BOM`           | `true`  | Lead each exported CSV with a UTF-8 byte-order mark (Excel-friendly); `false` for plain UTF-8 (LibreOffice) |

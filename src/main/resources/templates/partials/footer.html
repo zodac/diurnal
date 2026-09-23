@@ -41,11 +41,11 @@
              nested expression inside an {#include} string param is not interpolated (would render literal braces). !}
         {#let isAdmin=isAdmin.or(false) updateAvailable=inject:appInfo.updateAvailable}
         <span class="inline-flex items-center gap-1">
-            <a href="{inject:appInfo.repositoryUrl}/releases/tag/{inject:appInfo.version}" target="_blank" rel="noopener"
+            <a href="{inject:appInfo.repositoryUrl}/releases/tag/{inject:appInfo.version}" target="_blank" rel="noopener noreferrer"
                aria-label="{msg:releaseNotesTooltip}"
                class="group relative hover:text-brand transition-colors"><span class="js-digits">v{inject:appInfo.version}</span>{#include partials/tooltip text=msg:releaseNotesTooltip pos="top" /}</a>
             {#if isAdmin && updateAvailable}
-            <a href="{inject:appInfo.updateUrl}" target="_blank" rel="noopener"
+            <a href="{inject:appInfo.updateUrl}" target="_blank" rel="noopener noreferrer"
                aria-label="{inject:appInfo.updateTooltip}"
                class="group relative inline-flex items-center text-brand hover:opacity-80 transition-opacity">{#include partials/icon name='arrow-up-circle' cls='h-3.5 w-3.5 shrink-0' /}{#include partials/tooltip text=inject:appInfo.updateTooltip pos="top" /}</a>
             {/if}
@@ -54,7 +54,7 @@
         <span aria-hidden="true">&middot;</span>
         {! GitHub mark (official octicon). Not part of the app brand — it's the icon of the
              external service being linked to — so it uses currentColor, not a brand token. !}
-        <a href="{inject:appInfo.repositoryUrl}" target="_blank" rel="noopener"
+        <a href="{inject:appInfo.repositoryUrl}" target="_blank" rel="noopener noreferrer"
            aria-label="{msg:viewSourceOnGithub}"
            class="group relative inline-flex items-center gap-1.5 hover:text-brand transition-colors">
             {#include partials/icon name='github' cls='h-3.5 w-3.5' /}
