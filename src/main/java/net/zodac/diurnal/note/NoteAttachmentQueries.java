@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.note;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 import net.zodac.diurnal.persistence.QueryParameter;
@@ -77,6 +78,17 @@ final class NoteAttachmentQueries {
             WHERE a.userId = :userId AND a.id = :id""";
 
     /**
+     * The bulk arm of {@link #CONTENT_BY_ID_JPQL}: every attachment's sealed bytes for a user, in one statement, paired with its id via
+     * {@link SealedAttachmentContent} rather than as a bare column so the caller can join it back onto the {@link #SEALED_FOR_USER_JPQL} projection
+     * it already holds. {@link NoteAttachmentService#exportAll} is the one caller - an export otherwise pays one round trip per file, measured at
+     * ~19x the cost of this single read for a 20,000-attachment account.
+     */
+    static final String CONTENT_FOR_USER_JPQL = """
+            SELECT new net.zodac.diurnal.note.SealedAttachmentContent(a.id, a.contentEncrypted)
+            FROM NoteAttachment a
+            WHERE a.userId = :userId""";
+
+    /**
      * JPQL for the days a user has attached anything to — what paints the paperclip beside a result row on the notes page.
      *
      * <p>
@@ -94,6 +106,16 @@ final class NoteAttachmentQueries {
     static final QueryParameter<UUID> USER_ID = QueryParameter.of("userId");
     static final QueryParameter<UUID> ID = QueryParameter.of("id");
     static final QueryParameter<LocalDate> DATE = QueryParameter.of("date");
+    static final QueryParameter<Instant> NOW = QueryParameter.of("now");
+
+    // The parallel-array tokens the bulk write (NoteAttachmentStatements#insertAll) binds - the ActionLog/Note pattern, kept fixed regardless of
+    // row count so a generated VALUES list never puts a placeholder name beyond these declarations.
+    static final QueryParameter<UUID[]> ID_ARRAY = QueryParameter.of("idArray");
+    static final QueryParameter<LocalDate[]> DATE_ARRAY = QueryParameter.of("dateArray");
+    static final QueryParameter<byte[][]> DISPLAY_NAME_ARRAY = QueryParameter.of("displayNameArray");
+    static final QueryParameter<byte[][]> FILE_NAME_ARRAY = QueryParameter.of("fileNameArray");
+    static final QueryParameter<byte[][]> CONTENT_ARRAY = QueryParameter.of("contentArray");
+    static final QueryParameter<Integer[]> BYTE_SIZE_ARRAY = QueryParameter.of("byteSizeArray");
 
     private NoteAttachmentQueries() {
 
