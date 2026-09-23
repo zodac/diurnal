@@ -2,15 +2,26 @@ name: Build and Publish Docker Image
 
 # Never scheduled — only a push to a gate-relevant file on master, or a manual dispatch.
 #
-# A PUSH RUNS THE GATE AND STOPS THERE; only a manual dispatch releases (see the `publish` job's `if:`).
-# It used to release on every push too, and the two are not the same job: the gate should run on anything
-# that could break the build, while a release spends a version number, pushes an image and a tag, and
-# rewrites VERSION. Coupling them meant the first set decided the second - and because "anything that
-# could break the build" necessarily includes ordinary `src/**` commits, master cut EIGHT releases on
-# 2026-09-13 (1.0.4 through 1.0.7, two of the runs red), none of them intended as a release. No path
-# filter can separate the two: the same file edit is both a reason to run the gate and not a reason to
-# ship. The trigger below is therefore now read as "what needs gating", which is why translations/**
-# still belongs in it even though the comment beside it says it reaches no image.
+# A QUALIFYING PUSH TO MASTER RELEASES, and so does a non-dry-run dispatch. The dispatch is an OPTION -
+# the way to release without a qualifying code change, or (with dry-run) to exercise the pipeline without
+# spending a version number - never the only route. The trigger's path list is read as "what needs
+# gating", which is why translations/** belongs in it even though the comment beside it says it reaches
+# no image; a push matching any of those paths both gates and ships.
+#
+# THE KNOWN COST, accepted deliberately: "anything that could break the build" is a wider set than
+# "anything that should ship", and no path filter can separate them, because the same file edit is both a
+# reason to run the gate and not a reason to release. On 2026-09-13 that cost was paid in full - master
+# cut EIGHT releases (1.0.4 through 1.0.7, two of the runs red), none of them intended as one. Release-on-
+# push was removed the next day in response, bundled into d3dfa50 (a commit about parallelising the gate),
+# and is restored here on purpose: a release per qualifying push is the wanted behaviour, and a spent
+# patch number is cheaper than a release that only happens when someone remembers to press a button.
+# If that judgement is ever revisited, narrowing to "the push changed VERSION" is the smaller fix -
+# the version bump is the deliberate ship signal - not removing push releases again.
+#
+# No release loop, and it is the platform that guarantees it rather than anything here: the `publish` job
+# ends by committing `[CI] Prepare next version: X` (VERSION + pom.xml, both in the path list below, with
+# no `[skip ci]`) and pushing it with `secrets.GITHUB_TOKEN`, and GitHub does not start a workflow run
+# from a push made with that token. Swapping that token for a PAT reintroduces the recursion.
 on:
   push:
     branches: [ master ]
@@ -23,16 +34,18 @@ on:
       - '!src/test/**' # test code never reaches the published image (packaged with -DskipTests)
       - 'translations/**' # Not an image input - only so a source-export-only commit reaches the `translations` job
       - 'VERSION'
-  # A manual trigger is THE release - image pushed, tag created, VERSION bumped - and these two inputs are
-  # what let the pipeline be measured without spending a version number on it. They are dispatch-only: a
-  # push to master reads neither (the `inputs` context is null there), and no longer releases either way.
+  # A manual trigger is a release too - image pushed, tag created, VERSION bumped - and these two inputs
+  # are what let the pipeline be measured without spending a version number on it. They are dispatch-only:
+  # a push to master reads neither (the `inputs` context is null there), which is why the `publish` job's
+  # `if:` has to short-circuit on the event name before it looks at dry-run.
   workflow_dispatch:
     inputs:
       dry-run:
         description: 'Run the gate and the preview build, but publish nothing'
         type: boolean
         default: false
-      # Left at false, a dispatch IS the release - that is now the ONLY way one happens.
+      # Left at false, a dispatch releases exactly as a qualifying push does. Set true to gate and build
+      # the preview image while publishing nothing - the only way to run this pipeline without a release.
       gate-steps:
         description: 'Steps the gate jobs should cover (the perf suite runs as its own job). Split across them by gate_job_steps.sh'
         type: string
@@ -678,17 +691,18 @@ jobs:
   publish:
     name: Publish release
     needs: [ version, translations, gate-build, gate-image, gate-qodana, perf, preview ]
-    # Every irreversible act of the release lives in this job, which is what lets both of these conditions
-    # be expressed as one `if:` rather than being threaded through the steps:
+    # Every irreversible act of the release lives in this job, which is what lets the one condition that
+    # decides whether to release be expressed as a single `if:` rather than threaded through the steps.
+    # Switching this job off is the whole of the dry run.
     #
-    #   event_name  - a PUSH runs the gate and releases nothing (see the header). This is the whole of that
-    #                 change: the gate jobs above are untouched and still run on every qualifying push, so
-    #                 no coverage moves - only the decision to spend a version number, which is now a
-    #                 deliberate button press. Reverting is deleting this one clause.
-    #   dry-run     - switching this job off is the whole of the dry run.
+    # Reads as: a push always releases; a dispatch releases unless dry-run asked it not to. The event-name
+    # test has to come FIRST and short-circuit, because `inputs` is null on a push - and it is spelled
+    # `== 'push'` rather than `!= 'workflow_dispatch'` so that adding a third trigger someday has to make
+    # a deliberate decision here instead of silently inheriting "releases".
     #
-    # `!= true` rather than `== false` because `inputs` is null on a push, where dry-run is neither.
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run != true }}
+    # `!= true` rather than `== false` on dry-run, because on the paths where `inputs` exists but the field
+    # was left alone it is neither.
+    if: ${{ github.event_name == 'push' || inputs.dry-run != true }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
