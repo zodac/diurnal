@@ -85,7 +85,7 @@ commit whatever the service mutated before it hit the rejection. The interceptor
 rollback-only whenever a transactional endpoint answers `>= 400`. It is a safe no-op on reads. Prefer it to
 handwritten `setRollbackOnly()`.
 
-Where a unique constraint could race a concurrent insert, flush and map the `ConstraintViolationException` to the
+Where a unique constraint could race a concurrent insert, flush and map the `ConstraintViolationException | EntityExistsException` to the
 duplicate result rather than letting it surface as a 500 (`ActionService.create`, `RegistrationService.createUser`).
 
 ## Step 7 — Extend `SurfaceParityIT`
