@@ -13,7 +13,7 @@
 #                 - PostgreSQL image (within the current major) as ONE atomic group: the compose files
 #                   (postgres:X-alpine) and the Dockerfile screenshots stage (postgres:X, Debian variant)
 #                 - busybox:X.Y.Z-musl in the Dockerfile (previews-false + shell stages, one atomic pin)
-#                 - A final verify step HARD-FAILS if either group (node / postgres) has drifted apart
+#                 - A final verify step HARD-FAILS if any group (java / node / postgres) has drifted apart
 #                 - npm packages in frontend/package.json + tests/package.json (exact pins, no ^/~ ranges),
 #                   regenerating each package-lock.json so `npm ci` stays in sync
 #                 - Debian packages in the main Dockerfile's screenshots stage (# BEGIN/END DEBIAN
@@ -170,7 +170,7 @@ latest_stable_github_release() {
 }
 
 # ── 1. Java ───────────────────────────────────────────────────────────────────
-# Updates: pom.xml <java-release>, Dockerfile maven stage (major),
+# Updates: pom.xml <java-release>, Dockerfile maven stages (major),
 #          Dockerfile jre stage (full tag), sandbox/Dockerfile jdk stage (full tag)
 #          + maven stage (major), all workflow java-version fields, and lint_and_tests.sh's
 #          MVN_JDK_IMAGE (full tag) + MVN_MAVEN_IMAGE (major) - the JVM gate's own toolchain image.
@@ -232,8 +232,9 @@ update_java() {
     # pom.xml
     sed -i "s|<java-release>[0-9]*</java-release>|<java-release>${latest_major}</java-release>|" "${POM_XML}"
 
-    # Dockerfile: java major in the maven build stage image tag
-    sed -i "s|eclipse-temurin-[0-9]* AS build|eclipse-temurin-${latest_major} AS build|" "${DOCKERFILE}"
+    # Dockerfile: java major in EVERY maven stage's image tag (build AND previewbuild). They compile the
+    # same pom, so one left behind fails with "release version N not supported".
+    sed -i -E "s|^(FROM maven:[^ ]*-eclipse-temurin-)[0-9]+ |\\1${latest_major} |" "${DOCKERFILE}"
 
     # Dockerfile: full tag in the jre stage (ends with "-jdk", then a space or end-of-line before "AS")
     sed -i "s|FROM eclipse-temurin:[^ ]*-jdk |FROM eclipse-temurin:${jdk_tag} |" "${DOCKERFILE}"
@@ -1370,11 +1371,36 @@ update_github_actions() {
 # group together or not at all. This is the belt-and-braces check that they did NOT drift — a split
 # (e.g. the dev compose on a newer Postgres than the Dockerfile, or the CI node ahead of the image node)
 # is a broken, mismatched setup, so a divergence is a HARD failure, not a warning.
+#
+# Java's group is its MAJOR: pom.xml, every eclipse-temurin tag in both Dockerfiles and the lint script, and
+# the workflows' java-version. It needs this check more than the others, because the gate builds with
+# GENERATE_PREVIEWS=false, which prunes the Dockerfile's previewbuild stage: a stage left behind there passes
+# the whole gate and fails only in a default image build ("release version N not supported").
 
 verify_version_sync() {
     echo
-    echo "🔍 Verifying node/postgres version groups are in sync..."
+    echo "🔍 Verifying java/node/postgres version groups are in sync..."
     local failed=0
+
+    # ── Java: the major in pom.xml, every eclipse-temurin tag, and the workflow java-version ──
+    local java_majors java_count
+    java_majors=$(
+        {
+            grep -oP '<java-release>\K[0-9]+' "${POM_XML}" || true
+            grep -hoE 'eclipse-temurin[-:][0-9]+' "${DOCKERFILE}" "${SANDBOX_DOCKERFILE}" "${LINT_SCRIPT}" \
+                | grep -oE '[0-9]+$' || true
+            grep -hoE "java-version: ['\"][0-9]+['\"]" "${WORKFLOWS_DIR}"/*.yml | grep -oE '[0-9]+' || true
+        } | sort -u
+    )
+    java_count=$(printf '%s\n' "${java_majors}" | grep -c . || true)
+    if [[ "${java_count}" -gt 1 ]]; then
+        warn "Java majors DIVERGED: $(printf '%s' "${java_majors}" | paste -sd',' - || true)"
+        failed=1
+    elif [[ "${java_count}" -eq 1 ]]; then
+        ok "Java in sync → ${java_majors}"
+    else
+        warn "No Java version pins found to verify"
+    fi
 
     # ── Node: image tags (both Dockerfiles) + the workflow setup-node version ──
     local node_versions node_count
@@ -1458,7 +1484,7 @@ update_alpine_packages "${DOCKERFILE}"              || warn "Alpine packages upd
 update_submodules      || warn "Submodules update failed, continuing..."
 update_github_actions  || warn "GitHub Actions update failed, continuing..."
 
-# Final guard (NOT best-effort): the node + postgres like-groups must not have drifted apart. A
+# Final guard (NOT best-effort): the java + node + postgres like-groups must not have drifted apart. A
 # divergence here means a broken/mismatched build, so this hard-fails the whole run.
 verify_version_sync
 
