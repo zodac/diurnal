@@ -6,7 +6,7 @@
     <parent>
         <groupId>net.zodac</groupId>
         <artifactId>parent-pom</artifactId>
-        <version>1.1.1</version>
+        <version>1.2.1</version>
     </parent>
 
     <artifactId>diurnal</artifactId>
@@ -26,8 +26,8 @@
         <db.lifecycle.skip>false</db.lifecycle.skip>
 
         <!-- Inherited from parent-pom, but defined here for version update testing -->
-        <java-release>26</java-release>
-        <maven-release>3.9.16</maven-release>
+        <java-release>27</java-release>
+        <maven-release>3.10.0</maven-release>
 
         <!-- This project's linter overrides -->
         <config-overrides-directory>${project.basedir}/code-quality-config-overrides</config-overrides-directory>

@@ -256,8 +256,7 @@ class SubjectStatsCacheIT extends IntegrationTestBase {
     }
 
     private Runnable readStats() {
-        return () -> given().get("/api/v1/stats")
-            .then().statusCode(OK);
+        return () -> given().get("/api/v1/stats").then().statusCode(OK);
     }
 
     @Test

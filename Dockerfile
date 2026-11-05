@@ -14,7 +14,7 @@ ARG GENERATE_PREVIEWS=true
 # only the image ships the minified form, which the smoke tier then exercises). Kept in its own
 # stage so the Node toolchain never reaches the build or runtime images; the build stage copies the
 # outputs in below.
-FROM node:26.8.2-alpine AS css
+FROM node:26.13.0-alpine AS css
 # Mirror the repo layout (frontend/ next to src/ and scripts/) so the npm scripts' relative
 # ../src and ../scripts paths resolve exactly as they do in the working tree.
 WORKDIR /css/frontend
@@ -37,11 +37,11 @@ RUN npm run css && npm run vendor && npm run js:min
 # in its own stage so ImageMagick / librsvg / optipng never reach the build or runtime images. librsvg
 # is ImageMagick's SVG-rendering backend; imagemagick also packs the .ico. PNGs land in
 # src/main/resources/META-INF/resources/img; favicon.ico lands at the web root (one level up).
-FROM node:26.8.2-alpine AS icons
+FROM node:26.13.0-alpine AS icons
 
 # BEGIN ALPINE PACKAGES
 RUN apk add --no-cache  \
-    imagemagick="7.1.2.30-r0" \
+    imagemagick="7.1.2.35-r0" \
     librsvg="2.62.3-r0" \
     optipng="7.9.1-r1"
 # END ALPINE PACKAGES
@@ -58,7 +58,7 @@ RUN node scripts/generate-favicons.cjs
 # them) and is not content-hashed; it just needs to boot and paint a styled calendar, so it carries the
 # compiled CSS + JS from the css stage. Only built when GENERATE_PREVIEWS=true (pulled in by the
 # screenshots stage below); otherwise it is pruned from the graph.
-FROM maven:3.9.16-eclipse-temurin-26 AS previewbuild
+FROM maven:3.10.0-eclipse-temurin-27 AS previewbuild
 WORKDIR /pbuild
 COPY pom.xml .
 RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -q
@@ -75,7 +75,7 @@ COPY --from=css /css/src/main/resources/META-INF/resources/js/ \
 RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -Dcss.build.skip=true -q
 
 # ── Stage 4: build a minimal custom JRE with jlink ───────────────────────────
-FROM eclipse-temurin:26.0.2_10-jdk AS jre
+FROM eclipse-temurin:27_35-jdk AS jre
 
 # BEGIN UBUNTU PACKAGES
 RUN apt-get update && apt-get install -yqq --no-install-recommends \
@@ -156,7 +156,7 @@ RUN jlink --compress=zip-9 \
 # Chromium runs; the alpine/musl node used by the css/icons stages can't host Playwright). It has no
 # Node, so we copy Node in from this pinned image. Same Node version as the css stage; kept in sync by
 # update_dependency_versions.sh (the Dockerfile's -trixie tag alongside the -alpine ones).
-FROM node:26.8.2-trixie AS nodesrc
+FROM node:26.13.0-trixie AS nodesrc
 
 # ── Stage 5b: generate the in-app preview thumbnails ─────────────────────────
 # Boots a throwaway Postgres + the previewbuild fast-jar + headless Chromium and drives the generator
@@ -171,7 +171,7 @@ FROM postgres:18.6 AS screenshots
 ENV DEBIAN_FRONTEND=noninteractive
 # Node (from the pinned trixie image above) to run the generator; glibc, hosts Playwright's Chromium.
 COPY --from=nodesrc /usr/local /usr/local
-# The jlink JRE (Java 26, glibc) to run the previewbuild fast-jar.
+# The jlink JRE (glibc) to run the previewbuild fast-jar.
 COPY --from=jre /opt/jdk /opt/jdk
 ENV JAVA_HOME="/opt/jdk"
 ENV PATH="/opt/jdk/bin:${PATH}"
@@ -258,7 +258,7 @@ RUN mkdir -p /gen/src/main/resources/META-INF/resources/img/settings
 FROM previews-${GENERATE_PREVIEWS} AS previews
 
 # ── Stage 7: build the Quarkus app ───────────────────────────────────────────
-FROM maven:3.9.16-eclipse-temurin-26 AS build
+FROM maven:3.10.0-eclipse-temurin-27 AS build
 WORKDIR /build
 COPY pom.xml .
 RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -q

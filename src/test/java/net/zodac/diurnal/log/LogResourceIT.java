@@ -659,13 +659,11 @@ class LogResourceIT extends IntegrationTestBase {
     }
 
     private Runnable incrementOnce() {
-        return () -> given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment")
-                .then().statusCode(OK);
+        return () -> given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment").then().statusCode(OK);
     }
 
     private Runnable decrementOnce() {
-        return () -> given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
-                .then().statusCode(OK);
+        return () -> given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/decrement").then().statusCode(OK);
     }
 
     // Reset the primary action's TODAY log to exactly `count` (no row when count == 0).

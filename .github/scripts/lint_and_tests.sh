@@ -211,7 +211,7 @@ QODANA_CONFIG_FILE="${OVERRIDES_DIR}/qodana.yaml"
 SONAR_CONFIG_FILE="${OVERRIDES_DIR}/sonar.properties"
 
 ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
-ESLINT_NODE_IMAGE="node:26.8.2-alpine"
+ESLINT_NODE_IMAGE="node:26.13.0-alpine"
 
 # Exact pins for the linting toolchain baked into ESLINT_BUILD_IMAGE. Pinned, rather than the floating
 # majors this used to install, because the versions resolve when the IMAGE is built: a developer's image
@@ -219,10 +219,10 @@ ESLINT_NODE_IMAGE="node:26.8.2-alpine"
 # different rule sets - and a new minor release could turn the gate red with no change to this repo. The
 # two @typescript-eslint packages share one pin because they are released in lockstep. All are bumped by
 # .github/scripts/update_dependency_versions.sh, like every other pin in this file.
-ESLINT_VERSION="10.10.0"
+ESLINT_VERSION="10.14.0"
 ESLINT_JS_VERSION="10.0.1"
-TYPESCRIPT_ESLINT_VERSION="8.70.0"
-ESLINT_GLOBALS_VERSION="17.12.0"
+TYPESCRIPT_ESLINT_VERSION="8.72.1"
+ESLINT_GLOBALS_VERSION="17.14.0"
 TYPESCRIPT_VERSION="7.0.2"
 # The JVM gate's own toolchain image, built locally like ESLINT_BUILD_IMAGE. The `java` step used to run
 # `mvn` against whatever JDK happened to be on the host's PATH, which meant the same commit could be gated
@@ -243,18 +243,18 @@ MVN_BUILD_IMAGE="local/diurnal-mvn:latest"
 # compose teardown ("Resource is still in use") and leaves the next run to fail on a name clash. Observed,
 # not theoretical. Same reasoning as tests/run-smoke.sh's pre-flight sweep of its own stack.
 MVN_CONTAINER_NAME="diurnal-gate-mvn"
-MVN_JDK_IMAGE="eclipse-temurin:26.0.2_10-jdk"
-MVN_MAVEN_IMAGE="maven:3.9.16-eclipse-temurin-26"
+MVN_JDK_IMAGE="eclipse-temurin:27_35-jdk"
+MVN_MAVEN_IMAGE="maven:3.10.0-eclipse-temurin-27"
 MVN_NODE_IMAGE="node:26.8.1-trixie"
 MVN_DOCKER_CLI_IMAGE="docker:28.5.1-cli"
-GRYPE_DOCKER_IMAGE="anchore/grype:v0.118.0"
+GRYPE_DOCKER_IMAGE="anchore/grype:v0.121.1"
 HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.15.1-alpine"
-MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.2"
+MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.24.0"
 SHELLCHECK_DOCKER_IMAGE="koalaman/shellcheck:v0.11.0"
 # The IntelliJ inspection engine, packaged for CI. Tags are IntelliJ release trains (YYYY.N); the
 # `-eap` ones are pre-releases and are never pinned. KEEP IN SYNC with `linter:` in QODANA_CONFIG_FILE —
 # update_dependency_versions.sh bumps both together, so neither is edited by hand.
-QODANA_DOCKER_IMAGE="jetbrains/qodana-jvm-community:2026.2@sha256:8ff36b5cebc0a6d720f77dcf3e0a94a03c39b4c42c3724a99ce5f7e462e42f99"
+QODANA_DOCKER_IMAGE="jetbrains/qodana-jvm-community:2026.2@sha256:464cb2f73a7f4e4b06cb805ff90695cd98c710a765686a689761fab983f554b8"
 
 # The runtime image the docker step's grype tier builds and scans (the same final stage the published
 # image uses).

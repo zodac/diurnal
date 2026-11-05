@@ -83,20 +83,20 @@ class TextFieldsSchemaIT extends IntegrationTestBase {
     }
 
     private static boolean columnExists(final String column) {
-        final Object count = Panache.getEntityManager()
-            .createNativeQuery("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = ?1 AND column_name = ?2")
+        final long count = Panache.getEntityManager()
+            .createNativeQuery("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = ?1 AND column_name = ?2", Long.class)
             .setParameter(1, "notes")
             .setParameter(2, column)
             .getSingleResult();
-        return ((Number) count).intValue() > 0;
+        return count > 0;
     }
 
     private static int columnWidth(final String table, final String column) {
-        final Object width = Panache.getEntityManager()
-            .createNativeQuery("SELECT character_maximum_length FROM information_schema.columns WHERE table_name = ?1 AND column_name = ?2")
+        return Panache.getEntityManager()
+            .createNativeQuery("SELECT character_maximum_length FROM information_schema.columns WHERE table_name = ?1 AND column_name = ?2",
+                Integer.class)
             .setParameter(1, table)
             .setParameter(2, column)
             .getSingleResult();
-        return ((Number) width).intValue();
     }
 }

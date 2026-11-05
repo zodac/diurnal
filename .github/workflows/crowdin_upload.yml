@@ -133,7 +133,7 @@ jobs:
       # selector above the file list means a branch exists. The workflow_dispatch dryrun input prints the
       # file list the CLI actually resolved, which is the run to trust rather than the first green one.
       - name: Upload sources and translations to Crowdin
-        uses: crowdin/github-action@v3.0.2
+        uses: crowdin/github-action@v3.5.1
         with:
           config: 'crowdin.yml'
           crowdin_branch_name: master

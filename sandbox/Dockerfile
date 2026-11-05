@@ -50,16 +50,16 @@
 # ── Toolchain source stages (their payload is copied into the Debian base) ────
 # Each of these is only mined for its self-contained toolchain directory; none of
 # their base OS reaches the final image.
-#   JDK 26  — self-contained under /opt/java/openjdk, portable onto glibc Debian.
+#   JDK     — self-contained under /opt/java/openjdk, portable onto glibc Debian.
 #   Maven   — pure Java + shell under /usr/share/maven; the image's own JDK is unused.
 #   Node 26 — installed under /usr/local; the prebuilt binaries are glibc-portable
 #             (the -trixie tag matches this base's glibc exactly).
-FROM eclipse-temurin:26.0.2_10-jdk AS jdk
-FROM maven:3.9.16-eclipse-temurin-26 AS maven
-FROM node:26.8.2-trixie AS node
+FROM eclipse-temurin:27_35-jdk AS jdk
+FROM maven:3.10.0-eclipse-temurin-27 AS maven
+FROM node:26.13.0-trixie AS node
 
 # ── Runtime base ─────────────────────────────────────────────────────────────
-FROM debian:13.6
+FROM debian:13.7
 
 ARG UID=1000
 ARG GID=1000
@@ -134,8 +134,8 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean \
 # BEGIN DEBIAN PACKAGES
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -yqq --no-install-recommends \
-        ca-certificates="20250419" \
-        curl="8.14.1-2+deb13u5" \
+        ca-certificates="20250419+deb13u1" \
+        curl="8.14.1-2+deb13u7" \
         gnupg="2.4.7-21+deb13u1" \
         libatomic1="14.2.0-19"
 # END DEBIAN PACKAGES
@@ -264,10 +264,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
         fontconfig="2.15.0-2.3" \
         gh="2.46.0-3" \
         git="1:2.47.3-0+deb13u1" \
-        imagemagick="8:7.1.1.43+dfsg1-1+deb13u12" \
+        imagemagick="8:7.1.1.43+dfsg1-1+deb13u14" \
         iproute2="6.15.0-1" \
-        jq="1.7.1-6+deb13u3" \
-        librsvg2-bin="2.60.0+dfsg-1" \
+        jq="1.7.1-6+deb13u4" \
+        librsvg2-bin="2.60.0+dfsg-1+deb13u1" \
         lsof="4.99.4+dfsg-2" \
         optipng="0.7.8+ds-1+b1" \
         python3="3.13.5-1" \
@@ -275,7 +275,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
         python3-pip="25.1.1+dfsg-1" \
         python3-venv="3.13.5-1" \
         sudo="1.9.16p2-3+deb13u2" \
-        tzdata="2026c-0+deb13u1" \
+        tzdata="2026f-0+deb13u1" \
         unzip="6.0-29+deb13u1"
 # END DEBIAN PACKAGES
 

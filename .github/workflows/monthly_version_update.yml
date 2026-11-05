@@ -21,7 +21,7 @@ jobs:
       # This token carries `workflows: write`, which the default GITHUB_TOKEN lacks
       - name: Generate GitHub App token
         id: app-token
-        uses: actions/create-github-app-token@v3.2.0
+        uses: actions/create-github-app-token@v3.3.0
         with:
           client-id: ${{ secrets.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -55,17 +55,17 @@ jobs:
             ${{ runner.os }}-maven-
 
       - name: Setup Maven Action
-        uses: s4u/setup-maven-action@v1.21.0
+        uses: s4u/setup-maven-action@v1.22.0
         with:
           checkout-fetch-depth: 0
           java-distribution: "temurin"
-          java-version: "26"
-          maven-version: "3.9.16"
+          java-version: "27"
+          maven-version: "3.10.0"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7.0.0
+        uses: actions/setup-node@v7.1.0
         with:
-          node-version: '26.8.2'
+          node-version: '26.13.0'
 
       - name: Update all dependency versions
         env:
