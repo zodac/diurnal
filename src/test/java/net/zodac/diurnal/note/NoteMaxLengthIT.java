@@ -132,7 +132,7 @@ class NoteMaxLengthIT extends IntegrationTestBase {
             .queryParam("end", DAY.toString())
             .get("/internal/notes")
             .then().statusCode(OK)
-            .body("'" + DAY + "'", Matchers.equalTo(legacy));
+            .body("notes.'" + DAY + "'", Matchers.equalTo(legacy));
     }
 
     @Test

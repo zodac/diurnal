@@ -26,6 +26,7 @@ window.Diurnal = window.Diurnal || {};
             load: function () {},
             disable: function () {},
             hasNote: function () { return false },
+            hasAttachment: function () { return false },
             mergeMonths: function () {},
             dropMonth: function () {}
         }
@@ -110,10 +111,19 @@ window.Diurnal = window.Diurnal || {};
         attaching: notePanel.dataset.i18nAttaching || '',
         couldNotAttach: notePanel.dataset.i18nCouldNotAttach || '',
         tooLarge: notePanel.dataset.i18nAttachmentTooLarge || '',
-        size: notePanel.dataset.i18nAttachmentSize || ''
+        size: notePanel.dataset.i18nAttachmentSize || '',
+        attachFile: notePanel.dataset.i18nAttachFile || '',
+        attachAnother: notePanel.dataset.i18nAttachAnother || ''
     }
     // Keep-in-sync pair with AppMessages#attachmentSizeKb's own '%SIZE%' argument (UI_PATTERNS.md section 6).
     const SIZE_TOKEN = '%SIZE%'
+    // The same pair for AppMessages#attachAnotherFile's '%COUNT%' argument.
+    const COUNT_TOKEN = '%COUNT%'
+    // The most the Attach button's badge spells out; beyond it the badge reads "99+" and the button's name still
+    // carries the exact figure. Three digits would widen the badge past the 1.75rem button it sits on.
+    const MAX_BADGE_COUNT = 99
+    const attachCount = document.getElementById('note-attach-count')
+    const attachTip   = noteAttachBtn ? noteAttachBtn.querySelector('.app-tooltip') : null
     // How full the progress rail starts. Small enough to read as "just begun", large enough to be a visible bar.
     const START_PROGRESS = 0.08
     // How long the pointer must rest on a pill before the transient card appears. A pointer crossing the box passes over
@@ -122,6 +132,10 @@ window.Diurnal = window.Diurnal || {};
     const HOVER_DELAY_MS = 500
 
     const noteAttachments = {}   // dateStr -> [{id, name, byteSize, image, url, token}]
+    // dateStr -> whether the day holds any file, for the calendar's paperclip. Filled a month at a time from the
+    // notes feed (mergeNoteMonths), then kept current by attachmentsChanged whenever a day's own list is read or
+    // changed - so the calendar never needs a day's full list just to know whether it is empty.
+    const attachmentDays  = {}
     const attachRequests  = {}   // dateStr -> in-flight load, so a day is never fetched twice at once
     let cardAttachment = null    // the attachment the hover card is currently describing
     let cardDate = null          // and the day it belongs to, so a late response cannot act on another day
@@ -207,7 +221,15 @@ window.Diurnal = window.Diurnal || {};
     //
     // Called by the calendar's month cache (fetchNoteSpan), which owns the fetching, the LRU and eviction;
     // this side owns what a note IS. `force` is the authoritative-refresh path, which must overwrite.
-    function mergeNoteMonths(byDate, monthKeys, force) {
+    //
+    // The feed's attachment days are merged on the same terms, into attachmentDays: every day of the month is
+    // recorded, and a day already known wins unless forced - an upload that finished while the month was in
+    // flight has already marked its day, and the list the server held BEFORE it must not unmark it.
+    function mergeNoteMonths(feed, monthKeys, force) {
+        const byDate = feed.notes || {}
+        const withFiles = {}
+        const fileDays = feed.attachmentDays || []
+        fileDays.forEach(function (d) { withFiles[d] = true })
         monthKeys.forEach(function (ym) {
             const year  = parseInt(ym.substring(0, 4), 10)
             const month = parseInt(ym.substring(5, 7), 10) - 1
@@ -218,6 +240,7 @@ window.Diurnal = window.Diurnal || {};
                 // user has started typing, and overwriting then would eat their keystrokes. (A DRAFT is held
                 // separately in noteDrafts and is never touched here at all.)
                 if (force || noteSaved[key] === undefined) { noteSaved[key] = byDate[key] || '' }
+                if (force || attachmentDays[key] === undefined) { attachmentDays[key] = Boolean(withFiles[key]) }
             }
         })
     }
@@ -231,12 +254,19 @@ window.Diurnal = window.Diurnal || {};
         // The month's attachment lists go with its notes, for the same reason and on the same schedule: they are
         // a per-day cache of the same journal, and leaving them behind would make eviction bound only half of it.
         Object.keys(noteAttachments).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete noteAttachments[d] } })
+        Object.keys(attachmentDays).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete attachmentDays[d] } })
     }
 
     // Whether a day has a note, for the calendar's green day number. An unloaded month reads as `false`, so a
     // day number simply gains its colour when that month's notes land.
     function hasNote(dateStr) {
         return Boolean(noteSaved[dateStr])
+    }
+
+    // Whether a day holds a file, for the calendar's paperclip - read the same way, so an unloaded month simply
+    // gains its paperclips when its feed lands.
+    function hasAttachment(dateStr) {
+        return Boolean(attachmentDays[dateStr])
     }
 
     // Paint the box for a day: its draft if it has one, otherwise what the server holds.
@@ -260,6 +290,7 @@ window.Diurnal = window.Diurnal || {};
         noteDate = dateStr
         setNoteEnabled(true)
         showNote(dateStr)
+        renderAttachCount()
         // The day's files, warmed the same way its note is. Until they land the mirror draws no pills, so a
         // [[name]] token simply reads as text for the moment before its file is known - never as a broken one.
         ensureAttachments(dateStr).then(function () {}).catch(function () {})
@@ -412,11 +443,14 @@ window.Diurnal = window.Diurnal || {};
             persistDraft()
             if (noteDate === dateStr) {
                 noteInput.value = stored.content // the STORED (normalised) form, not what was typed
-                // A save is also what collects the files the note no longer names (NoteService), so the day's
-                // attachment cache is no longer authoritative - it is dropped and re-read.
-                delete noteAttachments[dateStr]
-                ensureAttachments(dateStr).then(function () {}).catch(function () {})
             }
+            // A save is also what collects the files the note no longer names (NoteService), so the day's
+            // attachment cache is no longer authoritative - it is dropped and re-read. Even for a day no longer on
+            // screen: its calendar paperclip reads the same answer, and would otherwise outlive the files.
+            // A read already in flight began before this save, so it is disowned rather than waited on (ensureAttachments).
+            delete noteAttachments[dateStr]
+            delete attachRequests[dateStr]
+            ensureAttachments(dateStr).then(function () {}).catch(function () {})
             refreshNoteState()
             renderHighlights()
             if (noteDate === dateStr) { flashNoteStatus(window.Diurnal.i18n.saved, 'success') }
@@ -523,23 +557,68 @@ window.Diurnal = window.Diurnal || {};
         return attachmentsForDay(noteDate).filter(function (a) { return a.name === name })[0] || null
     }
 
+    // ── The Attach button's count ────────────────────────────────────────────
+    // A long note pushes its [[tokens]] below the fold, so the button - the one attachment control always on
+    // screen - says whether the day holds files and how many. It counts the day's FILES, not the tokens in the
+    // text: a file uploaded but not yet saved into the note is still stored, until a save collects it.
+    //
+    // A day whose list has not landed yet shows the resting button rather than a "0": the count is unknown, not
+    // empty, and the answer arrives within one request (ensureAttachments).
+    function renderAttachCount() {
+        if (!noteAttachBtn || !attachCount) {return}
+        const list = noteDate === null ? undefined : noteAttachments[noteDate]
+        const count = list === undefined ? 0 : list.length
+        const label = count === 0
+            ? ATTACH_TEXT.attachFile
+            : ATTACH_TEXT.attachAnother.split(COUNT_TOKEN).join(window.Diurnal.localizeDigits(String(count)))
+        noteAttachBtn.classList.toggle('note-btn-icon-active', count > 0)
+        attachCount.hidden = count === 0
+        attachCount.textContent = count > MAX_BADGE_COUNT
+            ? `${window.Diurnal.localizeDigits(String(MAX_BADGE_COUNT))}+`
+            : window.Diurnal.localizeDigits(String(count))
+        noteAttachBtn.setAttribute('aria-label', label)
+        if (attachTip) { attachTip.textContent = label }
+    }
+
+    // Every write to a day's file list ends here, so the two things that read it cannot drift: the calendar's
+    // paperclip and the Attach button's count. The grid is repainted only when the paperclip actually flips: this runs
+    // after the first read of every day selected, and a rebuild landing between a press and its release on a cell
+    // would swallow that click.
+    function attachmentsChanged(dateStr) {
+        const holdsFiles = attachmentsForDay(dateStr).length > 0
+        const flipped = holdsFiles !== hasAttachment(dateStr)
+        attachmentDays[dateStr] = holdsFiles
+        if (noteDate === dateStr) { renderAttachCount() }
+        if (flipped) { cal.noteChanged() }
+    }
+
     // Fill the day's attachment cache, once per day. A day with no files is still RECORDED as loaded (an empty
     // array), so flicking back and forth across a month costs one request per day at most - the same rule the
     // note cache itself follows with its recorded absences.
+    //
+    // A read that failed still records the empty list, so the box does not retry on every flick, but it says nothing
+    // about the day's files: the paperclip the feed painted stays. A read a save has disowned (attachRequests no
+    // longer names it) describes the day from BEFORE that save, so whatever it answers is dropped.
     function ensureAttachments(dateStr) {
         if (noteAttachments[dateStr] !== undefined) { return Promise.resolve() }
         if (attachRequests[dateStr] !== undefined) { return attachRequests[dateStr] }
         const request = fetch(window.Diurnal.url(`/internal/note-attachments/${  dateStr}`), { headers: { 'Accept': 'application/json' } })
             .then(requireSession)
-            .then(function (resp) { return resp.ok ? resp.json() : { attachments: [] } })
+            .then(function (resp) { return resp.ok ? resp.json() : {} })
             .then(function (body) {
+                if (attachRequests[dateStr] !== request) {return}
                 // An already-known value wins, the same rule the note cache's own merge follows: an upload that finished while this was in flight
                 // has already put the new file in, and overwriting with the list the server held BEFORE it would take the pill straight back off.
                 if (noteAttachments[dateStr] === undefined) { noteAttachments[dateStr] = body.attachments || [] }
                 if (noteDate === dateStr) { renderHighlights() }
+                if (body.attachments) { attachmentsChanged(dateStr) }
             })
-            .catch(function () { noteAttachments[dateStr] = [] })
-            .then(function () { delete attachRequests[dateStr] })
+            .catch(function () {
+                if (attachRequests[dateStr] === request) { noteAttachments[dateStr] = [] }
+            })
+            .then(function () {
+                if (attachRequests[dateStr] === request) { delete attachRequests[dateStr] }
+            })
         attachRequests[dateStr] = request
         return request
     }
@@ -643,6 +722,7 @@ window.Diurnal = window.Diurnal || {};
         }
 
         noteAttachments[dateStr] = attachmentsForDay(dateStr).concat([body.attachment])
+        attachmentsChanged(dateStr)
         // The token goes in at the caret only while the day it belongs to is still the one on screen; the file
         // is stored either way, and the next save of that day is what settles whether the note still names it.
         if (noteDate === dateStr) {
@@ -1072,6 +1152,9 @@ window.Diurnal = window.Diurnal || {};
                 onSuccess(answer)
                 if (noteDate === dateStr) { showNote(dateStr) }
                 renderHighlights()
+                // The server rewrote the note's token, which can empty the note and take its coloured day number with
+                // it, so this repaints whether or not the paperclip flipped.
+                attachmentsChanged(dateStr)
                 cal.noteChanged()
             })
             .catch(function (err) {
@@ -1194,8 +1277,9 @@ window.Diurnal = window.Diurnal || {};
     window.Diurnal.noteBox = {
         bindCalendar: function (adapter) { cal = adapter },
         load: loadNote,
-        disable: function () { noteDate = null; setNoteEnabled(false) },
+        disable: function () { noteDate = null; setNoteEnabled(false); renderAttachCount() },
         hasNote: hasNote,
+        hasAttachment: hasAttachment,
         mergeMonths: mergeNoteMonths,
         dropMonth: dropNoteMonth
     }

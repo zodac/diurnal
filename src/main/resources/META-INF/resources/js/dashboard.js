@@ -421,6 +421,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function buildGridCalendar() {
         const grid      = document.getElementById('d-min-grid')
+        const attachmentMarker = document.getElementById('d-attachment-marker') // the cell paperclip, cloned per day
         let viewYear  = parseInt(today.substring(0, 4), 10)
         let viewMonth = parseInt(today.substring(5, 7), 10) - 1 // 0-indexed
         const dayData   = {} // date string -> array of { colour, label } (one per logged action that day);
@@ -653,11 +654,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const p = fetch(window.Diurnal.url(`/internal/notes?start=${  start  }&end=${  end}`))
                 .then(feedJson)
-                .then(function (byDate) {
-                    noteBox.mergeMonths(byDate, pendingKeys, force)
+                .then(function (feed) {
+                    // `feed` is { notes: {date: content}, attachmentDays: [date] } - both halves sparse, both owned by the note box.
+                    noteBox.mergeMonths(feed, pendingKeys, force)
                     pendingKeys.forEach(function (key) { monthNotesLoaded[key] = true })
                     evictIfNeeded()
-                    return byDate
+                    return feed
                 })
                 .catch(function (err) {                            // drop each so a later view retries
                     pendingKeys.forEach(function (key) {
@@ -950,6 +952,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         })
                         cell.appendChild(dotRow)
                     }
+                }
+
+                // A paperclip in the cell's corner when the day holds a file, for every style alike. Decorative like the
+                // dots beside it (the template's span is aria-hidden); the note box's Attach button
+                // carries the count in words once the day is opened.
+                if (attachmentMarker && noteBox.hasAttachment(dateStr)) {
+                    cell.appendChild(attachmentMarker.content.firstElementChild.cloneNode(true))
                 }
 
                 cell.addEventListener('click', (function (ds) {

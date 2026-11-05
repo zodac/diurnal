@@ -1,6 +1,6 @@
 # Notes (free text per date)
 
-> **This file is ~121 KB. Read only the section you need** - `grep -n '^#' .claude/NOTES.md` for its
+> **This file is ~125 KB. Read only the section you need** - `grep -n '^#' .claude/NOTES.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Requirements (as agreed)**
@@ -172,11 +172,11 @@ with the `id` acronym written as `ID` in every description:
 
 **Internal** (`/internal/notes`):
 
-| Endpoint                             | Purpose                                                                                                                                |
-|--------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| `GET /internal/notes?start=&end=`    | The range feed that fills the client cache. `@Compressed`, weak ETag. Returns `{date: content}` for **only** the days that have a note |
-| `POST /internal/notes/{date}`        | Save (**JSON body**, not a form — see below)                                                                                           |
-| `POST /internal/notes/{date}/delete` | Clear                                                                                                                                  |
+| Endpoint                             | Purpose                                                                                                                                                                        |
+|--------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `GET /internal/notes?start=&end=`    | The range feed that fills the client cache. `@Compressed`, weak ETag. Returns `{notes: {date: content}, attachmentDays: [date]}`, each holding **only** the days that have one |
+| `POST /internal/notes/{date}`        | Save (**JSON body**, not a form — see below)                                                                                                                                   |
+| `POST /internal/notes/{date}/delete` | Clear                                                                                                                                                                          |
 
 > **The internal save takes JSON, unlike every other `/internal/*` mutation.** Quarkus caps a form attribute at
 > `quarkus.http.limits.max-form-attribute-size` (**2 KB** by default, and nothing in this app raises it) and answers
@@ -412,6 +412,9 @@ the flags split — but the subtle machinery stays shared, which is where the du
 | `PINNED_MONTHS` (prev/current/next)               | `PREFETCH_RADIUS` 2 / `NOTE_PREFETCH_RADIUS` 1   |
 | `evictIfNeeded`                                   | the merge function (events vs `{date: content}`) |
 | `dropMonth` — clears `dayData` **and** `noteData` |                                                  |
+
+The notes feed also carries the range's attachment days, which ride these same flags — see
+[Seeing that a day holds a file](#seeing-that-a-day-holds-a-file).
 
 "Cache the most recent 12" therefore falls out for free: eviction is shared, `dropMonth` clears both, and a month whose
 notes were never fetched simply has no `noteData` entries. No second cap, no second LRU.
@@ -1181,6 +1184,32 @@ display name (linking to the bytes, in a new tab), the name it was uploaded unde
 > it. It worked and was cheap — the qualifying days were an index read — but it asked the reader to learn a syntax to reach a list the page can
 > simply show, and its results were still DAYS when what was being looked for was a FILE. `NoteFilters`/`NoteQuery` and
 > `Note.sealedForUserAndDates` went with it. If a narrowing like `extension:png` is ever wanted, it belongs as an ordinary control on this table.
+
+#### Seeing that a day holds a file
+
+Added for issue #11: in a long note the `[[tokens]]` sit below the fold, so nothing on screen said the day held a file. Two signals now do.
+
+- **The Attach button carries a count.** Once the selected day holds a file the paperclip takes `.note-btn-icon-active` (the pill tint) and
+  `#note-attach-count` shows how many, capped at `99+`. It counts the day's FILES (`noteAttachments[date]`, already fetched to draw the pills), not
+  the tokens in the text — an uploaded-but-unsaved file is stored, and counts until a save collects it. A day whose list has not landed shows the
+  resting button, never a `0`. The badge is `aria-hidden`; the button's name and tooltip carry the figure in words.
+- **The calendar cell carries a paperclip** (`.d-attachment-marker`): off the end-side shoulder of the date circle in `minimal` and `stacked`, in the
+  start corner in `full`, whose number takes the end corner. Brand rather than the note colour, because a day can hold a file with no note at all.
+  The days come from the calendar's notes feed, which now answers `{notes: {date: content}, attachmentDays: [date]}` — riding that feed means the same
+  window, cache and eviction for free (`attachmentDays` in `note.js` is merged and dropped beside `noteSaved`). The days are one index read
+  (`NoteAttachment.datesForUserInRange`) and are folded into the feed's ETag WHOLE: an upload onto a day with no note moves no notes row, so a
+  validator built from the notes alone would answer `304` and the paperclip would never appear.
+- **Every write to a day's file list ends in `attachmentsChanged(date)`**, which updates `attachmentDays` and the badge together — the list load, an
+  upload, a rename/remove, and the re-read after a save (now done for whichever day was saved, not only the one on screen, since its paperclip reads
+  the same answer). It repaints the grid only when the paperclip flips: it runs after the first read of every day selected, and a rebuild between a
+  press and its release on a cell would swallow the click.
+- **Two reads must not move the paperclip.** A list read that FAILED records an empty list so the box does not retry, but leaves the paperclip the
+  feed painted. A read in flight when a save lands is disowned (`attachRequests` stops naming it) and its answer dropped, because it may still list
+  the file that save just collected.
+
+> **The wording is `Attach another file (attachments on this day: N)`, a label and a figure, on purpose.** The day changes in the browser, so the
+> string ships once with a `%COUNT%` slot — and a slot cannot pick a plural form the way `{#if count == 1}` does at render time. A label-and-figure
+> phrasing needs no agreement with the number in any offered language, so one message serves every count without a client-side plural rule.
 
 #### Decisions taken for attachments
 

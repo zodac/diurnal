@@ -221,6 +221,9 @@ evidence:
   travels through a `data-*` attribute, which can only carry text, so the live `m:ss` clock's position
   in the sentence is marked by a literal `%CLOCK%` the JS swaps for the countdown element. Both spell
   that token out; they must agree, or the banner renders with no clock.
+- `dashboard.html`'s `data-i18n-attachment-size` and `data-i18n-attach-another` ↔ `note.js`'s `SIZE_TOKEN` and
+  `COUNT_TOKEN`: the same shape as the clock above, with `%SIZE%` and `%COUNT%` marking where the script puts the
+  number. A slot cannot choose a plural form, so a message carrying `%COUNT%` must be worded to need none.
 - `layout.html`'s inline FOUC `<script>` ↔ `auth.security.CspPolicy#FOUC_SCRIPT_HASH`: the strict CSP pins
   that block's SHA-256, so **editing the script means updating the constant in the same change** — an
   unmatched hash makes the browser refuse to run it and every page loads unthemed. `SecurityHeadersFilterIT`

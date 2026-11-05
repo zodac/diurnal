@@ -101,11 +101,24 @@ final class NoteAttachmentQueries {
             FROM NoteAttachment a
             WHERE a.userId = :userId""";
 
+    /**
+     * The same days as {@link #DATES_JPQL}, narrowed to the inclusive {@code [:from, :to]} window and in date order — what paints the paperclip on
+     * a dashboard calendar cell. It rides the calendar's notes feed, so it is bounded by the same window and costs the same index read over
+     * {@code idx_note_attachments_user_id_note_date}, which leads on exactly these two columns.
+     */
+    static final String DATES_IN_RANGE_JPQL = """
+            SELECT DISTINCT a.noteDate
+            FROM NoteAttachment a
+            WHERE a.userId = :userId AND a.noteDate >= :from AND a.noteDate <= :to
+            ORDER BY a.noteDate""";
+
     // The named parameters the queries above declare, as typed tokens: every binding goes through one of these rather than a bare string, so a
     // misspelled name - or a value of the wrong type for it - is a compile error instead of a failure on first execution.
     static final QueryParameter<UUID> USER_ID = QueryParameter.of("userId");
     static final QueryParameter<UUID> ID = QueryParameter.of("id");
     static final QueryParameter<LocalDate> DATE = QueryParameter.of("date");
+    static final QueryParameter<LocalDate> FROM = QueryParameter.of("from");
+    static final QueryParameter<LocalDate> TO = QueryParameter.of("to");
     static final QueryParameter<Instant> NOW = QueryParameter.of("now");
 
     // The parallel-array tokens the bulk write (NoteAttachmentStatements#insertAll) binds - the ActionLog/Note pattern, kept fixed regardless of

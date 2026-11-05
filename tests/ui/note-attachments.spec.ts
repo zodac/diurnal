@@ -186,6 +186,114 @@ test.describe("Note attachments", () => {
         expect(remaining).toBe(0)
     })
 
+    // Issue #11: a long note pushes its tokens out of view, so the Attach button - always on screen - carries the count.
+    test("the Attach button shows how many files the day holds", async ({ authenticatedPage: page }) => {
+        const attachBtn = page.locator("#note-attach")
+        const badge = page.locator("#note-attach-count")
+        await expect(badge).toBeHidden()
+        await expect(attachBtn).toHaveAttribute("aria-label", "Attach a file")
+
+        const first = freshName()
+        await attach(page, first)
+        await expect(page.locator("#note-input")).toHaveValue(`[[${first}]]`)
+        const second = `second-${first}`
+        await attach(page, second)
+        await expect(page.locator("#note-input")).toHaveValue(new RegExp(`\\[\\[${second.replace(/\./g, "\\.")}\\]\\]`))
+
+        // Counted as soon as each upload lands, before any Save: the file is stored from that moment.
+        await expect(badge).toBeVisible()
+        await expect(badge).toHaveText("2")
+        await expect(attachBtn).toHaveClass(/note-btn-icon-active/)
+        // The badge is aria-hidden, so the button's own name is what carries the count for a screen reader.
+        await expect(attachBtn).toHaveAttribute("aria-label", "Attach another file (attachments on this day: 2)")
+
+        await page.locator("#note-save").click()
+        await expect(page.locator("#note-status")).toHaveText("Saved")
+        await openCardFor(page, first)
+        await page.locator("#note-attachment-delete").click()
+        await page.locator("#note-attachment-delete-confirm").click()
+        await expect(badge).toHaveText("1")
+
+        // Removing the last one returns the button to its resting state rather than showing a "0".
+        await openCardFor(page, second)
+        await page.locator("#note-attachment-delete").click()
+        await page.locator("#note-attachment-delete-confirm").click()
+        await expect(badge).toBeHidden()
+        await expect(attachBtn).not.toHaveClass(/note-btn-icon-active/)
+        await expect(attachBtn).toHaveAttribute("aria-label", "Attach a file")
+    })
+
+    test("a calendar day holding a file carries a paperclip, whether or not its note is saved", async ({ authenticatedPage: page }) => {
+        const marker = page.locator(`.d-min-cell[data-date="${todayStr()}"] .d-attachment-marker`)
+        await expect(page.locator(`.d-min-cell[data-date="${todayStr()}"]`)).toBeVisible()
+        await expect(marker).toHaveCount(0)
+
+        // The file is stored on upload, so the day holds it even before the note naming it is saved.
+        await attach(page, freshName())
+        await expect(marker).toHaveCount(1)
+
+        // After a reload the answer comes from the calendar's notes feed rather than from the box's own upload -
+        // and the day has NO saved note, which is the case only the attachment rows can answer.
+        await page.reload()
+        await expect(marker).toHaveCount(1)
+        await expect(page.locator(`.d-min-cell[data-date="${todayStr()}"]`)).not.toHaveClass(/d-note-day/)
+
+        // Saving a note that names no file collects it, and the paperclip goes with it.
+        await page.locator("#note-input").fill("Nothing embedded.")
+        await page.locator("#note-save").click()
+        await expect(page.locator("#note-status")).toHaveText("Saved")
+        await expect(marker).toHaveCount(0)
+    })
+
+    test("a failed read of the day's files leaves its paperclip in place", async ({ authenticatedPage: page }) => {
+        const marker = page.locator(`.d-min-cell[data-date="${todayStr()}"] .d-attachment-marker`)
+        await attach(page, freshName())
+        await expect(marker).toHaveCount(1)
+
+        // The feed still says the day holds a file, and a 500 from the day's own list is no evidence otherwise.
+        const failedRead = page.waitForResponse(r => new URL(r.url()).pathname === `/internal/note-attachments/${todayStr()}`)
+        await page.route(`**/internal/note-attachments/${todayStr()}`, route => route.fulfill({ status: 500, body: "{}" }))
+        await page.reload()
+        await failedRead
+        await expect(page.locator("#note-input")).toBeEnabled()
+        await expect(marker).toHaveCount(1)
+    })
+
+    test("a read begun before a save cannot bring back the paperclip that save collected", async ({ authenticatedPage: page }) => {
+        const marker = page.locator(`.d-min-cell[data-date="${todayStr()}"] .d-attachment-marker`)
+        await attach(page, freshName())
+        await expect(marker).toHaveCount(1)
+
+        // Hold the page's first read of the day until after the save, still listing the file the save is about to collect.
+        let releaseStaleRead = (): void => {}
+        const staleReadHeld = new Promise<void>(resolve => { releaseStaleRead = resolve })
+        let reads = 0
+        await page.route(`**/internal/note-attachments/${todayStr()}`, async route => {
+            reads++
+            if (reads > 1) {
+                await route.continue()
+                return
+            }
+            const response = await route.fetch()
+            await staleReadHeld
+            await route.fulfill({ response })
+        })
+        await page.reload()
+
+        await page.locator("#note-input").fill("Nothing embedded.")
+        await page.locator("#note-save").click()
+        await expect(page.locator("#note-status")).toHaveText("Saved")
+        await expect(marker).toHaveCount(0)
+
+        const staleRead = page.waitForResponse(r => new URL(r.url()).pathname === `/internal/note-attachments/${todayStr()}`)
+        releaseStaleRead()
+        await staleRead
+        // Give the late answer its chance to repaint before asserting that it did not.
+        await page.waitForTimeout(250)
+        await expect(marker).toHaveCount(0)
+        await expect(page.locator("#note-attach-count")).toBeHidden()
+    })
+
     test("the Settings export offers to leave attachments out, and only once there are some", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
         // The account starts each run with the day cleared, so whether the box is there depends on the other days -

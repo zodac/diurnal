@@ -146,6 +146,19 @@ public class NoteAttachmentService {
     }
 
     /**
+     * Returns the days within the inclusive {@code [start, end]} window that the user has attached a file to — what decides which of the dashboard
+     * calendar's cells carry a paperclip. The same index read as {@link #datesWithAttachments(User)}, bounded by the calendar feed's own window.
+     *
+     * @param user  the owning user
+     * @param start the inclusive start of the date window
+     * @param end   the inclusive end of the date window
+     * @return the days in the window holding at least one attachment, earliest first
+     */
+    public List<LocalDate> datesWithAttachments(final User user, final LocalDate start, final LocalDate end) {
+        return NoteAttachment.datesForUserInRange(user.id, start, end);
+    }
+
+    /**
      * Reads one page of the attachments an account holds, newest day first, optionally narrowed to those whose NAME contains a search term — what
      * the notes page's attachments table and its HTMX list fragment render.
      *

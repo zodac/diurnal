@@ -39,6 +39,7 @@ import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import net.zodac.diurnal.http.AppPaths;
@@ -66,10 +67,11 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * The feed answers a map of {@code date -> content} covering only the days that HAVE a note, which the dashboard merges into the same per-month cache
  * that holds the calendar's logged-action data. That is what paints the green day numbers and what lets the note box repaint instantly when the
- * selected day changes, so the note panel needs no per-day request of its own. It is {@link Compressed} and carries a weak ETag for the same reasons
- * as the calendar's other feeds: it is on the dashboard's hot loading path, a range of prose gzips heavily, and an unchanged range should cost a
- * {@code 304} rather than a re-send. The {@code Cache-Control} here is supplied by the {@code html-fragments} filter ({@code no-cache}); only the
- * ETag is added.
+ * selected day changes, so the note panel needs no per-day request of its own. Beside it rides the list of days holding an attachment, which paints
+ * the calendar's paperclip - on this feed rather than one of its own because it shares the window, the cache and the eviction exactly. It is
+ * {@link Compressed} and carries a weak ETag for the same reasons as the calendar's other feeds: it is on the dashboard's hot loading path, a range
+ * of prose gzips heavily, and an unchanged range should cost a {@code 304} rather than a re-send. The {@code Cache-Control} here is supplied by the
+ * {@code html-fragments} filter ({@code no-cache}); only the ETag is added.
  *
  * <p>
  * The writes answer JSON rather than an HTML fragment, because the note card is rendered once with the page and never swapped — the browser only
@@ -115,12 +117,13 @@ public class NotesInternalResource {
     }
 
     /**
-     * Returns the user's notes in a date range as a JSON object of {@code yyyy-MM-dd -> content}, holding only the days that have a note.
+     * Returns the user's notes in a date range as {@link NotesFeed}: a JSON object of {@code yyyy-MM-dd -> content} holding only the days that have a
+     * note, beside the days in the range that hold an attachment.
      *
      * @param start   inclusive start of the range (ISO-8601 date)
      * @param end     inclusive end of the range (ISO-8601 date)
      * @param request the JAX-RS request, used to evaluate the {@code If-None-Match} conditional against the range's ETag
-     * @return the range's notes by date, or an empty {@code 304} response
+     * @return the range's notes by date and its attachment days, or an empty {@code 304} response
      */
     @Compressed
     @GET
@@ -133,7 +136,12 @@ public class NotesInternalResource {
         final LocalDate startDate = DateRanges.requireDate("start", start);
         final LocalDate endDate = DateRanges.requireDate("end", end);
 
-        final EntityTag tag = EntityTags.weak(user.id, startDate, endDate, Note.rangeVersion(user.id, startDate, endDate));
+        // The attachment days are read BEFORE the validator and folded into it whole, rather than given a change-signature of their own: they are
+        // one index read, and a set of days is its own exact version - an upload onto a day with no note moves no notes row at all.
+        final List<String> attachmentDays = noteAttachmentService.datesWithAttachments(user, startDate, endDate).stream()
+            .map(LocalDate::toString)
+            .toList();
+        final EntityTag tag = EntityTags.weak(user.id, startDate, endDate, Note.rangeVersion(user.id, startDate, endDate), attachmentDays);
         final Response notModified = EntityTags.notModified(request, tag);
         if (notModified != null) {
             return notModified;
@@ -152,7 +160,7 @@ public class NotesInternalResource {
         } else {
             LOGGER.debug("Notes feed served {} note(s) in [{}, {}] for user {}", size, startDate, endDate, user.email);
         }
-        return EntityTags.withValidator(Response.ok(byDate), tag).build();
+        return EntityTags.withValidator(Response.ok(new NotesFeed(byDate, attachmentDays)), tag).build();
     }
 
     /**
@@ -253,6 +261,16 @@ public class NotesInternalResource {
      * @param content the stored content, empty when the day's note was removed
      */
     record SavedNote(String date, String content) {
+
+    }
+
+    /**
+     * The dashboard calendar's notes feed for one date range. Both halves are sparse, and the browser reads an absent day as "none" in each.
+     *
+     * @param notes          the range's notes, {@code yyyy-MM-dd -> content}, holding only the days that have one
+     * @param attachmentDays the range's days holding at least one attachment, as ISO-8601 dates, earliest first - whether or not the day has a note
+     */
+    record NotesFeed(Map<String, String> notes, List<String> attachmentDays) {
 
     }
 }

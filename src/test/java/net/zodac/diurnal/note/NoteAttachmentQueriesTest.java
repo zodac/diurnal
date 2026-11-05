@@ -23,9 +23,11 @@ import static net.zodac.diurnal.note.NoteAttachmentQueries.DATE;
 import static net.zodac.diurnal.note.NoteAttachmentQueries.DATE_ARRAY;
 import static net.zodac.diurnal.note.NoteAttachmentQueries.DISPLAY_NAME_ARRAY;
 import static net.zodac.diurnal.note.NoteAttachmentQueries.FILE_NAME_ARRAY;
+import static net.zodac.diurnal.note.NoteAttachmentQueries.FROM;
 import static net.zodac.diurnal.note.NoteAttachmentQueries.ID;
 import static net.zodac.diurnal.note.NoteAttachmentQueries.ID_ARRAY;
 import static net.zodac.diurnal.note.NoteAttachmentQueries.NOW;
+import static net.zodac.diurnal.note.NoteAttachmentQueries.TO;
 import static net.zodac.diurnal.note.NoteAttachmentQueries.USER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -78,6 +80,11 @@ class NoteAttachmentQueriesTest {
     }
 
     @Test
+    void datesInRangeJpql_bindsExpectedParameters() {
+        assertParameters(NoteAttachmentQueries.DATES_IN_RANGE_JPQL, List.of(USER_ID, FROM, TO));
+    }
+
+    @Test
     void insertAllSql_bindsExpectedParameters() {
         assertParameters(POSTGRES.insertAll(),
             List.of(USER_ID, ID_ARRAY, DATE_ARRAY, DISPLAY_NAME_ARRAY, FILE_NAME_ARRAY, CONTENT_ARRAY, BYTE_SIZE_ARRAY, NOW));
@@ -87,7 +94,7 @@ class NoteAttachmentQueriesTest {
     void everyQuery_filtersOnTheOwner() {
         final List<String> queries = List.of(NoteAttachmentQueries.SEALED_FOR_DATE_JPQL, NoteAttachmentQueries.SEALED_FOR_USER_JPQL,
             NoteAttachmentQueries.SEALED_BY_ID_JPQL, NoteAttachmentQueries.CONTENT_BY_ID_JPQL, NoteAttachmentQueries.CONTENT_FOR_USER_JPQL,
-            NoteAttachmentQueries.DATES_JPQL, POSTGRES.insertAll());
+            NoteAttachmentQueries.DATES_JPQL, NoteAttachmentQueries.DATES_IN_RANGE_JPQL, POSTGRES.insertAll());
 
         assertThat(queries)
             .as("an attachment id is unguessable, but unguessable is not authorised - the owner belongs in the query rather than in a check "

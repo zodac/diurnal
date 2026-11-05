@@ -63,6 +63,11 @@
                         {#for day in weekdayLabels}<span>{day}</span>{/for}
                     </div>
                     <div id="d-min-grid" class="d-min-grid d-cal-{calendarView}"></div>
+                    {! The paperclip a cell carries when its day holds a file, cloned by dashboard.js's renderGrid - kept here so the
+                         glyph stays the one partials/icon draws everywhere else rather than a second copy of its path in a script. !}
+                    <template id="d-attachment-marker">
+                        <span class="d-attachment-marker" aria-hidden="true">{#include partials/icon name='paperclip' /}</span>
+                    </template>
                 </div>
             </div>
 
@@ -103,7 +108,13 @@
                  {! The size carries its unit inside the translated message, with a %SIZE% slot where the number
                       belongs in THIS language's word order - a data-* attribute can only hold text, so the number
                       cannot be an element. Same keep-in-sync shape as layout.html's lockout clock token. !}
-                 data-i18n-attachment-size="{msg:attachmentSizeKb('%SIZE%')}">
+                 data-i18n-attachment-size="{msg:attachmentSizeKb('%SIZE%')}"
+                 {! The Attach button's name and tooltip once the day already holds a file, with a %COUNT% slot the script fills
+                      as the day changes - the same keep-in-sync shape as the size above, and why the message is worded so the
+                      number needs no plural agreement (AppMessages#attachAnotherFile). The no-file wording stays the
+                      button's own, server-rendered. !}
+                 data-i18n-attach-file="{msg:attachFile}"
+                 data-i18n-attach-another="{msg:attachAnotherFile('%COUNT%')}">
                 <div class="flex items-center justify-between gap-2 mb-2">
                     <h3 class="text-base font-medium text-ink">{msg:noteHeading}</h3>
                     <span id="note-status" class="help-text" aria-live="polite"></span>
@@ -186,9 +197,14 @@
                              three controls, and the note panel is one grid column wide - a fourth worded button pushes
                              Save off the end of it at the default width. The glyph says "attach" as well as the word
                              does, and the accessible name plus the hover tooltip carry the wording for everyone else. !}
+                        {! Once the selected day holds a file the button takes `.note-btn-icon-active` and the badge shows how
+                             many (note.js, renderAttachCount): a long note pushes its [[tokens]] out of view, and this is the
+                             one control always on screen. The badge is aria-hidden because the button's own name carries the
+                             count in words. !}
                         <button type="button" id="note-attach" class="group relative note-btn-icon"
                                 aria-label="{msg:attachFile}">
                             {#include partials/icon name='paperclip' /}
+                            <span id="note-attach-count" class="note-attach-badge" aria-hidden="true" hidden></span>
                             {#include partials/tooltip text=msg:attachFile pos='top' align='center' /}
                         </button>
                         <button type="button" id="note-clear" class="note-btn-secondary" hidden>{msg:clear}</button>

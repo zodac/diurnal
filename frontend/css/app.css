@@ -1724,6 +1724,24 @@
   .d-min-cell.d-min-other.d-note-day .d-min-date,
   .d-cal-full .d-min-cell.d-min-other.d-note-day .d-full-daynum { opacity: 0.5; }
 
+/* A day holding a FILE carries a small paperclip (#d-attachment-marker, cloned by renderGrid). In `minimal` and
+   `stacked` it hangs off the end-side shoulder of the centred date circle (13px = half the 26px circle): a wide
+   cell's own corner sat so far from the number that the clip read as belonging to the day beside it. `full`
+   puts its number in the END corner, so there the clip takes the START corner instead. Brand rather than the
+   note colour: an attachment is not a note, and a day can hold one without the other. Today's `full` cell is
+   brand-filled, so there it flips to on-brand like the number beside it. The min() is for a phone, whose 42px cell is
+   too narrow to hold the shoulder position plus the clip: it keeps the clip inside its own day. */
+  .d-min-cell { position: relative; }
+  .d-attachment-marker {
+    position: absolute; top: 2px; inset-inline-start: min(50% + 13px, 100% - 0.625rem);
+    display: flex; width: 0.625rem; height: 0.625rem;
+    color: var(--color-brand); pointer-events: none;
+  }
+  .d-attachment-marker svg { width: 100%; height: 100%; stroke-width: 2.5; }
+  .d-cal-full .d-attachment-marker { top: 4px; inset-inline-start: 4px; }
+  .d-cal-full .d-min-cell.d-min-today .d-attachment-marker { color: var(--color-on-brand); }
+  .d-min-cell.d-min-other .d-attachment-marker { opacity: 0.4; }
+
 /* ── Dashboard note box ───────────────────────────────────────────────────── */
 /* Lives here (un-layered, like the calendar and chart blocks) because the note box is a self-contained
    widget with its own namespace, and because the resize handles must beat Tailwind's layered utilities.
@@ -2088,6 +2106,25 @@
 .note-btn-icon svg { width: 0.9375rem; height: 0.9375rem; }
 .note-btn-icon:hover { background-color: var(--color-surface-muted); color: var(--color-text); }
 .note-btn-icon:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+/* The selected day already holds a file (note.js, renderAttachCount): the frame takes the brand, the same tint the
+   note's own attachment pills are drawn in, and the badge in its top-end corner says how many. The badge is ringed
+   in the card's surface so it reads as sitting ON the button rather than being clipped by its border. */
+.note-btn-icon-active,
+.note-btn-icon-active:hover {
+  border-color: var(--color-brand);
+  background-color: var(--color-attachment-chip-bg);
+  color: var(--color-brand);
+}
+.note-attach-badge {
+  position: absolute; top: -0.4375rem; inset-inline-end: -0.4375rem;
+  min-width: 1.0625rem; height: 1.0625rem; padding: 0 0.25rem;
+  border-radius: 9999px;
+  background-color: var(--color-brand); color: var(--color-on-brand);
+  box-shadow: 0 0 0 2px var(--color-surface);
+  font-size: 0.625rem; font-weight: 700; line-height: 1.0625rem; text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
 
 /* ── Stats-page frequency graph (modal + bar chart) ───────────────────────── */
 /* Lives here (un-layered, like the calendar block above) because the chart is a self-contained widget

@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import io.restassured.http.ContentType;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
@@ -47,6 +48,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
 
     private static final LocalDate DAY = FIXED_TODAY;
     private static final String DAY_PATH = "/internal/notes/" + FIXED_TODAY;
+    private static final byte[] FILE = "not really a png".getBytes(StandardCharsets.UTF_8);
 
     private UUID userId;
 
@@ -68,9 +70,9 @@ class NotesInternalResourceIT extends IntegrationTestBase {
             .queryParam("end", DAY.plusDays(2).toString())
             .get("/internal/notes")
             .then().statusCode(OK)
-            .body("size()", org.hamcrest.Matchers.is(2))
-            .body("'" + DAY.minusDays(1) + "'", org.hamcrest.Matchers.equalTo("Yesterday"))
-            .body("'" + DAY + "'", org.hamcrest.Matchers.equalTo("Today"));
+            .body("notes.size()", org.hamcrest.Matchers.is(2))
+            .body("notes.'" + DAY.minusDays(1) + "'", org.hamcrest.Matchers.equalTo("Yesterday"))
+            .body("notes.'" + DAY + "'", org.hamcrest.Matchers.equalTo("Today"));
     }
 
     @Test
@@ -80,7 +82,46 @@ class NotesInternalResourceIT extends IntegrationTestBase {
             .queryParam("end", DAY.plusDays(5).toString())
             .get("/internal/notes")
             .then().statusCode(OK)
-            .body("size()", org.hamcrest.Matchers.is(0));
+            .body("notes.size()", org.hamcrest.Matchers.is(0))
+            .body("attachmentDays.size()", org.hamcrest.Matchers.is(0));
+    }
+
+    @Test
+    void feed_listsTheDaysHoldingAnAttachment_inDateOrder_includingADayWithNoNote() {
+        runInTx(() -> {
+            newNote(userId, DAY, "Today");
+            newAttachment(userId, DAY, "ticket.png", FILE);
+            newAttachment(userId, DAY, "receipt.pdf", FILE);
+            // A file uploaded onto a day that has no note yet - the case only the attachment rows can answer.
+            newAttachment(userId, DAY.minusDays(1), "scan.pdf", FILE);
+            // Outside the window, so it must not be listed.
+            newAttachment(userId, DAY.plusDays(3), "later.pdf", FILE);
+        });
+
+        given().queryParam("start", DAY.minusDays(2).toString())
+            .queryParam("end", DAY.plusDays(2).toString())
+            .get("/internal/notes")
+            .then().statusCode(OK)
+            .body("attachmentDays", org.hamcrest.Matchers.contains(DAY.minusDays(1).toString(), DAY.toString()));
+    }
+
+    @Test
+    void feed_changesItsTagWhenAFileIsAttachedToADayWithNoNote() {
+        final String before = given().queryParam("start", DAY.toString())
+            .queryParam("end", DAY.toString())
+            .get("/internal/notes")
+            .then().statusCode(OK)
+            .extract().header("ETag");
+
+        runInTx(() -> newAttachment(userId, DAY, "scan.pdf", FILE));
+
+        // An upload moves no notes row, so a validator built from the notes alone would answer 304 and the paperclip would never appear.
+        given().header("If-None-Match", before)
+            .queryParam("start", DAY.toString())
+            .queryParam("end", DAY.toString())
+            .get("/internal/notes")
+            .then().statusCode(OK)
+            .body("attachmentDays", org.hamcrest.Matchers.contains(DAY.toString()));
     }
 
     @Test

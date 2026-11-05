@@ -2448,6 +2448,20 @@ public interface AppMessages {
     String attachFile();
 
     /**
+     * The note box's attach-a-file button once the selected day already holds a file, naming how many it holds.
+     *
+     * <p>
+     * <strong>The count sits after a colon, deliberately.</strong> The day changes in the browser, so this is put on the page once with a
+     * {@code %COUNT%} slot the script fills - and a slot cannot pick a plural form, which {@code {#if count == 1}} could only do at render time.
+     * A label-and-figure phrasing needs no agreement with the number in any of the offered languages, so one string serves every count.
+     *
+     * @param count the number of files, filled in by the browser and never translated
+     * @return the default (English) text
+     */
+    @Message("Attach another file (attachments on this day: {count})")
+    String attachAnotherFile(String count);
+
+    /**
      * The overlay shown across the note box while a file is being dragged over it.
      *
      * @return the default (English) text

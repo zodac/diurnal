@@ -182,6 +182,23 @@ public class NoteAttachment extends AuditedEntity {
             .resultList();
     }
 
+    /**
+     * Returns every day within the inclusive {@code [start, end]} window that the user has attached a file to, in date order — what paints the
+     * paperclip on the dashboard calendar's cells.
+     *
+     * @param userId the owning user
+     * @param start  the inclusive start of the date window
+     * @param end    the inclusive end of the date window
+     * @return the days in the window holding at least one attachment, earliest first
+     */
+    public static List<LocalDate> datesForUserInRange(final UUID userId, final LocalDate start, final LocalDate end) {
+        return JpqlQuery.of(NoteAttachmentQueries.DATES_IN_RANGE_JPQL, LocalDate.class)
+            .bind(NoteAttachmentQueries.USER_ID, userId)
+            .bind(NoteAttachmentQueries.FROM, start)
+            .bind(NoteAttachmentQueries.TO, end)
+            .resultList();
+    }
+
     // ── Mutations ─────────────────────────────────────────────────────────
 
     /**
