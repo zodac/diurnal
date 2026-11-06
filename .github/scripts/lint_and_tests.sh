@@ -100,7 +100,7 @@
 #                    `docker` and `java` have them, being the steps made of separable tiers. Naming one
 #                    runs THAT TIER ALONE, which is what you want when iterating on the thing it
 #                    checks rather than re-paying for the whole gate:
-#                    - docker:hadolint  lint Dockerfile + sandbox/Dockerfile with hadolint. Seconds, and
+#                    - docker:hadolint  lint Dockerfile + ai-sandbox-configuration/Dockerfile with hadolint. Seconds, and
 #                                       the only tier a docker-compose or hadolint-config change needs
 #                    - docker:grype     build the production runtime image and scan it for CVEs. Minutes,
 #                                       and the reason a whole `docker` step no longer runs in the lanes
@@ -235,7 +235,7 @@ TYPESCRIPT_VERSION="7.0.2"
 # Node (the POM's css-build exec) and a Docker CLI (the POM starts the IT database with `docker compose` at
 # pre-integration-test - see the exec plugin in pom.xml). Node is the BASE, so its Debian release fixes the
 # glibc every copied binary must match; the JDK/Maven trees are self-contained and portable onto it, which
-# is the same layering sandbox/Dockerfile uses. All four are bumped by update_dependency_versions.sh.
+# is the same layering the sandbox image uses. All four are bumped by update_dependency_versions.sh.
 MVN_BUILD_IMAGE="local/diurnal-mvn:latest"
 # A FIXED name for the Maven container, so a run that was cancelled can be cleaned up by the next one.
 # `--rm` only reaps a container whose CLIENT exited normally: SIGKILL the gate (or the terminal it runs in)
@@ -859,7 +859,7 @@ run_hadolint_tier() {
         -w /app \
         "${HADOLINT_DOCKER_IMAGE}" \
         hadolint --config code-quality-config/docker/.hadolint.yaml \
-        Dockerfile sandbox/Dockerfile 2>&1); then
+        Dockerfile ai-sandbox-configuration/Dockerfile 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
         return 0
     fi
@@ -931,7 +931,7 @@ run_grype_tier() {
 
 # The Docker gate, in two tiers - each of them also a SUBSTEP, so either can be selected on its own
 # (`docker:hadolint`, `docker:grype`):
-#   1. hadolint over Dockerfile + sandbox/Dockerfile. Seconds, and the tier a docker-compose or
+#   1. hadolint over Dockerfile + ai-sandbox-configuration/Dockerfile. Seconds, and the tier a docker-compose or
 #      hadolint-config change needs on its own.
 #   2. build the production runtime image and scan it for CVEs with grype. Minutes, and on a cold
 #      vulnerability DB several more.
@@ -983,7 +983,7 @@ run_docker() {
         : > "${hadolint_log}"
         hadolint_end_file="$(mktemp)"
         hadolint_start_ns="$(date +%s%N)"
-        substep "hadolint  (Dockerfile, sandbox/Dockerfile via ${HADOLINT_DOCKER_IMAGE})"
+        substep "hadolint  (Dockerfile, ai-sandbox-configuration/Dockerfile via ${HADOLINT_DOCKER_IMAGE})"
         # The pull is inside the background tier so the scan is never held behind a download that has
         # nothing to do with it, and its result is ignored exactly as it always was: an image already
         # present locally lints fine with no registry at all.
@@ -1783,7 +1783,8 @@ run_markdown() {
     #
     # .claude-history/ IS excluded, and is a different thing entirely despite the similar name: it is a
     # gitignored scratch directory holding synced copies of third-party agent skills, none of it ours and
-    # none of it committed. Linting it fails the step on Markdown nobody here can fix.
+    # none of it committed. Linting it fails the step on Markdown nobody here can fix. The ai-sandbox
+    # submodule is excluded for the same reason as code-quality-config: its files belong to that repo.
     echo "Running Markdown lint using [${MARKDOWNLINT_DOCKER_IMAGE}]"
     docker pull "${MARKDOWNLINT_DOCKER_IMAGE}" >/dev/null
     if output=$(docker run --rm \
@@ -1791,9 +1792,9 @@ run_markdown() {
         -w /app \
         "${MARKDOWNLINT_DOCKER_IMAGE}" \
         --config code-quality-config/markdown/.markdownlint.json \
-        "**/*.md" "!code-quality-config/**" "!**/node_modules/**" "!**/target/**" \
+        "**/*.md" "!code-quality-config/**" "!ai-sandbox/**" "!**/node_modules/**" "!**/target/**" \
         "!RELEASE_NOTES.md" "!tests/playwright-report/**" "!tests/test-results/**" \
-        "!.qodana/**" "!.claude-history/**" 2>&1); then
+        "!.qodana/**" "!**/.claude-history/**" 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
         local done_in
         done_in="$(step_time)"
@@ -2288,7 +2289,7 @@ run_shellcheck_lint() {
 # brings it in (a *.sh change) is the same one shellcheck already uses.
 #
 # It tests the guards' LOGIC by invoking them directly, so it cannot see whether .claude/settings.json
-# actually registers them - that wiring is verified at session start by sandbox/setup.sh instead. What it
+# actually registers them - that wiring is verified at session start by ai-sandbox/image/final/setup.sh instead. What it
 # is here for is the commit-time job: a guard whose regex silently stops matching does not error, it just
 # stops guarding, and nothing else in the repo would notice.
 run_shellcheck_hooks() {
@@ -2606,11 +2607,11 @@ detect_changed_steps() {
 
     while IFS= read -r file; do
         [[ -z "${file}" ]] && continue
-        [[ "${file}" == "Dockerfile" || "${file}" =~ ^sandbox/Dockerfile || "${file}" == ".dockerignore" || "${file}" =~ ^(tests/)?docker-compose || "${file}" =~ ^code-quality-config/docker/ ]] && run_hadolint=true
+        [[ "${file}" == "Dockerfile" || "${file}" =~ ^ai-sandbox-configuration/Dockerfile || "${file}" == ".dockerignore" || "${file}" =~ ^(tests/)?docker-compose || "${file}" =~ ^code-quality-config/docker/ ]] && run_hadolint=true
         # Grype re-scans when the contents of the runtime image change: the runtime Dockerfile (base
         # images, package pins, copy layout), the build context filter, or the ignore list itself. The
         # pom.xml path (bundled Java deps) is handled below with the same version-bump suppression as
-        # java; sandbox/Dockerfile and docker-compose don't affect the published runtime image.
+        # java; ai-sandbox-configuration/Dockerfile and docker-compose don't affect the published runtime image.
         [[ "${file}" == "Dockerfile" || "${file}" == ".dockerignore" || "${file}" == "${GRYPE_CONFIG_FILE}" ]] && run_grype=true
         # The `java` step is the whole JVM gate (Maven build + ITs + the E2E and deployment-smoke
         # suites), so anything feeding ANY of those three tiers triggers it:

@@ -11,7 +11,7 @@
 #
 # Port 8081 is freed ONLY when it is held by a process that belongs to THIS project — a `quarkus:dev`
 # dev server or an `-Dall` E2E jar launched from this tree. Anything else on 8081 (another app, or a
-# Docker-published port such as the `diurnal-sandbox` container's `-p 8081:8081`) is a legitimate use
+# Docker-published port such as a sandbox container's `-p 8081:8081`) is a legitimate use
 # of the port: it is left untouched and reported as an error for you to resolve. We never kill a
 # stranger's process — or a container — just because it occupies our dev port.
 #

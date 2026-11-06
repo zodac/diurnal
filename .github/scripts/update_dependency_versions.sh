@@ -4,18 +4,19 @@
 #
 # Description:  Updates pinned tool and package versions across the project:
 #                 - parent-pom version in pom.xml
-#                 - Java (major) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows, plus the
+#                 - Java (major) in pom.xml, Dockerfile, ai-sandbox-configuration/Dockerfile, workflows, plus the
 #                   full JDK tag in lint_and_tests.sh's MVN_JDK_IMAGE (the JVM the gate itself runs on)
-#                 - Maven (full) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
+#                 - Maven (full) in pom.xml, Dockerfile, ai-sandbox-configuration/Dockerfile, workflows
 #                 - Node (full/major), as ONE atomic "like" group kept in lockstep: Dockerfile
-#                   (css/icons -alpine + the screenshots stage's -trixie node source), sandbox/Dockerfile,
-#                   AND the workflows' setup-node node-version
+#                   (css/icons -alpine + the screenshots stage's -trixie node source) AND the workflows'
+#                   setup-node node-version
 #                 - PostgreSQL image (within the current major) as ONE atomic group: the compose files
 #                   (postgres:X-alpine) and the Dockerfile screenshots stage (postgres:X, Debian variant)
 #                 - busybox:X.Y.Z-musl in the Dockerfile (previews-false + shell stages, one atomic pin)
 #                 - A final verify step HARD-FAILS if any group (java / node / postgres) has drifted apart
 #                 - npm packages in frontend/package.json + tests/package.json (exact pins, no ^/~ ranges),
 #                   regenerating each package-lock.json so `npm ci` stays in sync
+#                 - The Playwright pin in ai-sandbox-configuration/Dockerfile (follows tests/package.json)
 #                 - Debian packages in the main Dockerfile's screenshots stage (# BEGIN/END DEBIAN
 #                   PACKAGES block — cwebp, on the Postgres/Debian base)
 #                 - Docker image pins AND the pinned eslint toolchain (eslint, @eslint/js,
@@ -29,9 +30,10 @@
 #                 - Ubuntu packages (# BEGIN/END UBUNTU PACKAGES blocks)
 #                 - Debian packages (# BEGIN/END DEBIAN PACKAGES blocks)
 #                 - Alpine packages (# BEGIN/END ALPINE PACKAGES blocks)
-#                 - sandbox/Dockerfile's own Debian runtime base (FROM debian:X.Y, within the
-#                   current major; best-effort)
-#                 - Git submodules (latest tag, best-effort)
+#                 - Git submodules (latest tag, best-effort), including ai-sandbox. Nothing in its shared
+#                   base image is pinned here (Debian, Node, the nested Docker engine, the everyday tools):
+#                   those pins belong to that repo and arrive with its tag, and the project layer's Debian
+#                   packages are resolved against the base's Debian release.
 #                 - GitHub Actions (latest release tag, best-effort)
 #
 #               Every resolved version is filtered through is_prerelease() first: a release
@@ -60,7 +62,9 @@
 set -euo pipefail
 
 DOCKERFILE="./Dockerfile"
-SANDBOX_DOCKERFILE="./sandbox/Dockerfile"
+SANDBOX_DOCKERFILE="./ai-sandbox-configuration/Dockerfile"
+# The shared base image the project layer builds on: its Debian release is the one the sandbox runs.
+AI_SANDBOX_BASE_DOCKERFILE="./ai-sandbox/image/base/Dockerfile"
 POM_XML="./pom.xml"
 WORKFLOWS_DIR=".github/workflows"
 GITMODULES_FILE=".gitmodules"
@@ -171,7 +175,7 @@ latest_stable_github_release() {
 
 # ── 1. Java ───────────────────────────────────────────────────────────────────
 # Updates: pom.xml <java-release>, Dockerfile maven stages (major),
-#          Dockerfile jre stage (full tag), sandbox/Dockerfile jdk stage (full tag)
+#          Dockerfile jre stage (full tag), ai-sandbox-configuration/Dockerfile jdk stage (full tag)
 #          + maven stage (major), all workflow java-version fields, and lint_and_tests.sh's
 #          MVN_JDK_IMAGE (full tag) + MVN_MAVEN_IMAGE (major) - the JVM gate's own toolchain image.
 # Pre-condition: eclipse-temurin jdk tag exists on Docker Hub,
@@ -239,10 +243,10 @@ update_java() {
     # Dockerfile: full tag in the jre stage (ends with "-jdk", then a space or end-of-line before "AS")
     sed -i "s|FROM eclipse-temurin:[^ ]*-jdk |FROM eclipse-temurin:${jdk_tag} |" "${DOCKERFILE}"
 
-    # sandbox/Dockerfile: full tag in the jdk source stage (plain "-jdk", then "AS jdk")
+    # ai-sandbox-configuration/Dockerfile: full tag in the jdk source stage (plain "-jdk", then "AS jdk")
     sed -i "s|FROM eclipse-temurin:[^ ]*-jdk AS jdk|FROM eclipse-temurin:${jdk_tag} AS jdk|" "${SANDBOX_DOCKERFILE}"
 
-    # sandbox/Dockerfile: java major in the maven source stage image tag
+    # ai-sandbox-configuration/Dockerfile: java major in the maven source stage image tag
     sed -i "s|eclipse-temurin-[0-9]* AS maven|eclipse-temurin-${latest_major} AS maven|" "${SANDBOX_DOCKERFILE}"
 
     # All workflow files
@@ -266,7 +270,7 @@ update_java() {
 
 # ── 2. Maven ──────────────────────────────────────────────────────────────────
 # Updates: pom.xml <maven-release>, Dockerfile maven stage,
-#          sandbox/Dockerfile maven source stage, all workflow maven-version fields.
+#          ai-sandbox-configuration/Dockerfile maven source stage, all workflow maven-version fields.
 # Pre-condition: maven:{new_version}-eclipse-temurin-{java_major} exists on Docker Hub.
 
 update_maven() {
@@ -301,7 +305,7 @@ update_maven() {
     # Dockerfile: maven version in the build stage image tag
     sed -i "s|FROM maven:[^-]*-eclipse-temurin|FROM maven:${latest_version}-eclipse-temurin|" "${DOCKERFILE}"
 
-    # sandbox/Dockerfile: maven version in the maven source stage image tag
+    # ai-sandbox-configuration/Dockerfile: maven version in the maven source stage image tag
     sed -i "s|FROM maven:[^-]*-eclipse-temurin|FROM maven:${latest_version}-eclipse-temurin|" "${SANDBOX_DOCKERFILE}"
 
     # All workflow files
@@ -317,11 +321,13 @@ update_maven() {
 # ── 3. Node ───────────────────────────────────────────────────────────────────
 # Updates the WHOLE node "like" group to one version, atomically (all together, or — if the pre-condition
 # below fails — none): the Dockerfile node stages (css/icons -alpine + the screenshots stage's -trixie
-# source, Debian/glibc so Playwright's Chromium runs), the sandbox/Dockerfile node source stage, AND the
+# source, Debian/glibc so Playwright's Chromium runs) AND the
 # workflows' setup-node `node-version` (the CI toolchain node, kept identical to the image node). The
 # post-run verify_version_sync guard hard-fails if any of these ever drift apart.
+# The sandbox's Node is not in this group: it is part of the shared ai-sandbox base image, whose pins
+# belong to that repo.
 # Pre-condition: node:{version}-alpine AND node:{version}-trixie both exist on Docker Hub (the -trixie
-#                tag now backs both the Dockerfile screenshots source and the sandbox source). If either
+#                tag backs the Dockerfile screenshots source). If either
 #                is missing the whole group is left unchanged, so it never half-updates.
 
 update_node() {
@@ -347,8 +353,7 @@ update_node() {
     fi
     echo "  node:${alpine_tag} confirmed on Docker Hub"
 
-    # Check node:{version}-trixie on Docker Hub (the source stage in sandbox/Dockerfile;
-    # -trixie matches the Debian 13 runtime base's glibc)
+    # Check node:{version}-trixie on Docker Hub (the Dockerfile screenshots stage's source)
     if ! hub_tag_exists "library/node" "${trixie_tag}"; then
         warn "node:${trixie_tag} not on Docker Hub, skipping Node update"
         return 0
@@ -365,9 +370,6 @@ update_node() {
 
     # Dockerfile: the screenshots stage's node source uses the trixie (Debian/glibc) tag
     sed -i "s|FROM node:[0-9.]*-trixie|FROM node:${trixie_tag}|g" "${DOCKERFILE}"
-
-    # sandbox/Dockerfile: node source stage uses the trixie tag
-    sed -i "s|FROM node:[0-9.]*-trixie|FROM node:${trixie_tag}|g" "${SANDBOX_DOCKERFILE}"
 
     # All workflow files: the setup-node toolchain version (full), kept identical to the image node so
     # the whole node group moves in lockstep.
@@ -494,56 +496,16 @@ update_busybox() {
     ok "busybox updated → ${latest}"
 }
 
-# ── 2d. sandbox/Dockerfile runtime base image ─────────────────────────────────
-# The sandbox runtime base (`FROM debian:X.Y`) sits outside every `# BEGIN/END ... PACKAGES`
-# block, so none of section 4/5's apt/alpine updaters ever touch it. MUST run before
-# update_apt_packages("${SANDBOX_DOCKERFILE}", "DEBIAN") — that updater resolves each package's
-# latest candidate version by querying the base image named in the file's CURRENT `FROM` line, so
-# bumping the base afterward would leave those candidates resolved against the stale base. Same
-# reasoning as update_java/update_postgres running ahead of section 4 for the main Dockerfile.
-#
-# Stays within the current major (like update_postgres) rather than ever jumping to the next
-# Debian release on its own — a major bump changes the codename (trixie -> forky) and is exactly
-# the kind of thing this file's own "LAYER ORDER" comment says should be reviewed, not silently
-# carried by a monthly cron run.
-update_sandbox_base() {
-    echo
-    echo "🔍 Fetching latest Debian version (within the current major)..."
+# ── 2d. The sandbox's Debian release (follows the ai-sandbox base) ────────────
+# The sandbox runs on the shared ai-sandbox base image, so ITS Debian release (the `FROM debian:X.Y` in
+# ai-sandbox/image/base/Dockerfile, bumped in that repo and arriving with the submodule's tag) is the one
+# that matters. The project layer has no Debian tag of its own to bump; update_apt_packages resolves its
+# pins against this release, since a pin resolved against a newer point release than the base runs could
+# fail to install there.
 
-    local current major
-    current=$(grep -oP '^FROM debian:\K[0-9]+\.[0-9]+' "${SANDBOX_DOCKERFILE}" 2>/dev/null | head -1)
-    if [[ -z "${current}" ]]; then
-        warn "No FROM debian:X.Y pin found in ${SANDBOX_DOCKERFILE}, skipping"
-        return 0
-    fi
-    major="${current%%.*}"
-    echo "  Current: ${current} (major ${major})"
-
-    local latest
-    latest=$(curl_get "https://hub.docker.com/v2/repositories/library/debian/tags?name=${major}.&page_size=100" \
-        | jq -r '.results[].name' \
-        | grep -E "^${major}\.[0-9]+$" \
-        | filter_stable_versions \
-        | sort -V | tail -1)
-    if [[ -z "${latest}" ]]; then
-        warn "Could not resolve latest debian ${major}.x from Docker Hub, skipping"
-        return 0
-    fi
-
-    if ! hub_tag_exists "library/debian" "${latest}"; then
-        warn "debian:${latest} not on Docker Hub, skipping"
-        return 0
-    fi
-
-    if [[ "${current}" == "${latest}" ]]; then
-        echo "  debian=${latest} (already up-to-date)"
-    else
-        echo "  debian: ${current} → ${latest}"
-    fi
-
-    sed -i -E "s|^FROM debian:[0-9]+\.[0-9]+|FROM debian:${latest}|" "${SANDBOX_DOCKERFILE}"
-
-    ok "sandbox Debian base updated → ${latest}"
+# The ai-sandbox base's Debian image (`debian:X.Y`), or nothing if the submodule isn't checked out.
+ai_sandbox_debian() {
+    grep -oP '^FROM\s+\Kdebian:[0-9]+\.[0-9]+' "${AI_SANDBOX_BASE_DOCKERFILE}" 2>/dev/null | tail -1 || true
 }
 
 # ── 3b. lint_and_tests.sh Docker image pins ───────────────────────────────────
@@ -874,6 +836,25 @@ update_npm_packages() {
     done
 }
 
+# ── 3d. The sandbox's Playwright pin (follows tests/package.json) ─────────────
+# The project sandbox layer asks Playwright which OS libraries its Chromium needs, so that pin must name
+# the version the E2E tier really runs. Its build context stops at ai-sandbox-configuration/, so it cannot
+# read the manifest itself. MUST run after update_npm_packages, which may just have bumped the manifest.
+update_sandbox_playwright() {
+    echo
+    echo "🔍 Syncing the sandbox's Playwright pin with tests/package.json..."
+
+    local version
+    version=$(jq -r '.devDependencies["@playwright/test"] // empty' ./tests/package.json)
+    if [[ -z "${version}" ]]; then
+        warn "No @playwright/test pin found in tests/package.json, skipping"
+        return 0
+    fi
+
+    sed -i -E "s|playwright@[0-9][0-9A-Za-z.-]*|playwright@${version}|" "${SANDBOX_DOCKERFILE}"
+    ok "sandbox Playwright pin → ${version}"
+}
+
 # ── 4. Debian/Ubuntu (apt) packages ───────────────────────────────────────────
 # For each # BEGIN/END <LABEL> PACKAGES block (LABEL = UBUNTU or DEBIAN) in the given
 # Dockerfile:
@@ -884,7 +865,8 @@ update_npm_packages() {
 #     blocks are stripped so they install cleanly in the context image.
 #   - Updates each package's pinned version in-place via sed
 # Both labels share this logic (apt on both distros); the label only picks the markers and the
-# base image (the Ubuntu-based eclipse-temurin jre stage vs. the Debian sandbox base).
+# base image (the Ubuntu-based eclipse-temurin jre stage vs. the Debian sandbox base). A stage built
+# `FROM ${BASE_IMAGE}` is resolved against the plain Debian image of the ai-sandbox base's release.
 # Best-effort per section.
 
 _parse_apt_candidates() {
@@ -923,6 +905,13 @@ update_apt_packages() {
         if [[ -z "${base_image}" ]]; then
             warn "Could not determine base image for section ${section}, skipping"
             continue
+        fi
+        if [[ "${base_image}" == "\${BASE_IMAGE}" ]]; then
+            base_image=$(ai_sandbox_debian)
+            if [[ -z "${base_image}" ]]; then
+                warn "Could not read the ai-sandbox base's Debian release for section ${section}, skipping"
+                continue
+            fi
         fi
         echo "    Base image: ${base_image}"
 
@@ -1365,7 +1354,7 @@ update_github_actions() {
 }
 
 # ── 9. Consistency guard: like-version groups must stay in sync ────────────────
-# Node (every node:X.Y.Z-<variant> across the Dockerfile + sandbox/Dockerfile, PLUS the workflows'
+# Node (every node:X.Y.Z-<variant> across the Dockerfile, PLUS the workflows'
 # setup-node node-version) and Postgres (every postgres:X.Y across the compose files + the Dockerfile
 # screenshots stage) are each ONE logical version. update_node / update_postgres already move each whole
 # group together or not at all. This is the belt-and-braces check that they did NOT drift — a split
@@ -1402,11 +1391,11 @@ verify_version_sync() {
         warn "No Java version pins found to verify"
     fi
 
-    # ── Node: image tags (both Dockerfiles) + the workflow setup-node version ──
+    # ── Node: image tags (the Dockerfile) + the workflow setup-node version ──
     local node_versions node_count
     node_versions=$(
         {
-            grep -hoE 'node:[0-9]+\.[0-9]+\.[0-9]+' "${DOCKERFILE}" "${SANDBOX_DOCKERFILE}" | sed 's|node:||'
+            grep -hoE 'node:[0-9]+\.[0-9]+\.[0-9]+' "${DOCKERFILE}" | sed 's|node:||'
             grep -rhoE "node-version: '[0-9]+\.[0-9]+\.[0-9]+'" "${WORKFLOWS_DIR}"/*.yml \
                 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'
         } 2>/dev/null | sort -u
@@ -1464,10 +1453,6 @@ update_maven      || warn "Maven update failed, continuing..."
 update_node       || warn "Node update failed, continuing..."
 update_postgres   || warn "PostgreSQL update failed, continuing..."
 update_busybox    || warn "busybox update failed, continuing..."
-# Before the apt/alpine section below: it resolves package candidates against each Dockerfile's
-# CURRENT base image, so the base itself must already be at its target version by that point.
-update_sandbox_base || warn "sandbox Debian base update failed, continuing..."
-
 # After java/maven/node: propagate the resolved (and confirmed) versions into the lint script.
 update_lint_script || warn "Lint script image update failed, continuing..."
 
@@ -1475,13 +1460,17 @@ update_lint_script || warn "Lint script image update failed, continuing..."
 update_perf_script || warn "k6 image update failed, continuing..."
 
 update_npm_packages || warn "npm package update failed, continuing..."
+update_sandbox_playwright || warn "Sandbox Playwright pin update failed, continuing..."
+
+# Before the apt section below: it resolves the sandbox layer's package candidates against the Debian
+# release of the ai-sandbox base, so the submodule must already be at its target tag by that point.
+update_submodules      || warn "Submodules update failed, continuing..."
 
 update_apt_packages "${DOCKERFILE}"         "UBUNTU" || warn "Ubuntu packages update failed for Dockerfile, continuing..."
 update_apt_packages "${DOCKERFILE}"         "DEBIAN" || warn "Debian packages update failed for Dockerfile, continuing..."
-update_apt_packages "${SANDBOX_DOCKERFILE}" "DEBIAN" || warn "Debian packages update failed for sandbox/Dockerfile, continuing..."
+update_apt_packages "${SANDBOX_DOCKERFILE}" "DEBIAN" || warn "Debian packages update failed for ai-sandbox-configuration/Dockerfile, continuing..."
 update_alpine_packages "${DOCKERFILE}"              || warn "Alpine packages update failed for Dockerfile, continuing..."
 
-update_submodules      || warn "Submodules update failed, continuing..."
 update_github_actions  || warn "GitHub Actions update failed, continuing..."
 
 # Final guard (NOT best-effort): the java + node + postgres like-groups must not have drifted apart. A

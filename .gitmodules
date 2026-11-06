@@ -1,3 +1,6 @@
 [submodule "code-quality-config"]
 	path = code-quality-config
 	url = https://github.com/zodac/code-quality-config.git
+[submodule "ai-sandbox"]
+	path = ai-sandbox
+	url = https://github.com/zodac/ai-sandbox.git

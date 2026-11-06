@@ -1,0 +1,2 @@
+# Never send Claude's state (OAuth tokens, transcripts) to the image build.
+.claude-history

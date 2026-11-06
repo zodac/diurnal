@@ -10,7 +10,7 @@
 #
 # Run directly, or through the gate: .github/scripts/lint_and_tests.sh shellcheck:hooks
 #
-# Also run at session start by sandbox/setup.sh, which covers the half this cannot: whether the guards are
+# Also run at session start by ai-sandbox/image/final/setup.sh, which covers the half this cannot: whether the guards are
 # actually REGISTERED and runnable in the environment, rather than whether their logic is right.
 
 set -euo pipefail

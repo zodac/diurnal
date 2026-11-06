@@ -6,7 +6,7 @@ on:
     paths:
       - '.github/workflows/docker.yml'
       - 'Dockerfile'
-      - 'sandbox/Dockerfile'
+      - 'ai-sandbox-configuration/Dockerfile'
   workflow_dispatch: # allows manual trigger
 
 jobs:

@@ -59,12 +59,13 @@ exclude:
       - .github/
       - .hooks/
       - .qodana/
+      - ai-sandbox/
+      - ai-sandbox-configuration/
       - assets/
       - code-quality-config/
       - code-quality-config-overrides/
       - docs/
       - frontend/node_modules
-      - sandbox/
       - scripts/
       - target/
       - tests/node_modules

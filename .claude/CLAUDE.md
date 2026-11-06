@@ -107,7 +107,7 @@ Everything under `.claude/` is checked in except `scheduled_tasks.lock` (if it e
 | `.claude/settings.json`         | **Project settings — the file that makes the rest work.** Registers every hook below and holds the shared permission allow/deny list. A script in `.claude/hooks/` is NOT auto-discovered; without its entry here it never runs |
 | `.claude/settings.local.json`   | Personal overrides, gitignored. Keep machine-specific paths here; anything the whole project wants belongs in `settings.json`, which survives a fresh clone                                                                     |
 | `.claude/hooks/*.sh`            | The `PreToolUse` guards. Each exits `2` to block with its reason on stderr                                                                                                                                                      |
-| `.claude/hooks/tests/`          | Their behaviour tests — the `shellcheck:hooks` gate tier, and `sandbox/setup.sh` at session start                                                                                                                               |
+| `.claude/hooks/tests/`          | Their behaviour tests — the `shellcheck:hooks` gate tier, and `ai-sandbox/image/final/setup.sh` at session start                                                                                                                |
 | `.claude/skills/`               | The six skills, each with a `references/` folder for the parts only some tasks need                                                                                                                                             |
 | `.claude/agents/gate-runner.md` | Subagent that runs a gate step and returns only the triaged verdict - use it for the ~10-minute `java` step so its output stays out of the conversation                                                                         |
 | `.claude/commands/precommit.md` | `/precommit` - scopes the gate to the diff, checks the docs kept up, proposes a message. It does NOT commit                                                                                                                     |
@@ -122,9 +122,9 @@ Those tests run in **two places, covering different failures**, because a guard 
 
 - **`shellcheck:hooks`** (the gate, and so `.hooks/pre-commit`) invokes the guards directly, which tests their
   LOGIC. It is what stops a broken guard being committed. It cannot see whether they are wired up at all.
-- **`sandbox/setup.sh`** runs them at session start, in the environment that will actually run them, which is the
-  half the gate cannot reach: an unregistered `settings.json`, a missing `jq`, a lost `+x` bit. A guard that is
-  never invoked blocks nothing and says nothing.
+- **`ai-sandbox/image/final/setup.sh`** runs them at session start, in the environment that will actually run
+  them, which is the half the gate cannot reach: an unregistered `settings.json`, a missing `jq`, a lost `+x` bit.
+  A guard that is never invoked blocks nothing and says nothing.
 
 **The guards judge a command SEGMENT, not the whole line.** A bare mention is not enough to block on — `cat
 VERSION`, `grep -n 2.0 RELEASE_NOTES.md` and `sed -i 's|VERSION|x|' Foo.java` all pass, and so does reading or
@@ -157,7 +157,7 @@ Not to be confused with `.claude/hooks/`. Installed by `.hooks/install_hooks.sh`
 
 ```bash
 # One-time after cloning
-git submodule update --init          # lint config (required for -Dlint / -Dall / Qodana)
+git submodule update --init          # lint config (required for -Dlint / -Dall / Qodana) + ai-sandbox
 npm --prefix frontend install        # required for any `mvn` build to produce the CSS
 cd tests && npx playwright install   # required for the java gate's E2E tier
 
@@ -185,6 +185,10 @@ mvn test -Dtests -Dtest=MyTestClass
 # Full Docker deployment
 docker compose up -d --build
 docker compose logs -f app
+
+# The agent sandbox: the ai-sandbox submodule (never edited here) + this project's layer in
+# ai-sandbox-configuration/. Full reference in ai-sandbox/README.md.
+ai-sandbox/sandbox.sh                # shell, continue, resume, attach, stop, prune, ...
 ```
 
 Dev mode expects PostgreSQL on `localhost:5432`, database `diurnal_db`, user `diurnal_user`, password
