@@ -21,7 +21,6 @@ import io.quarkus.hibernate.orm.panache.Panache;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
-import jakarta.persistence.EntityExistsException;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -190,7 +189,7 @@ public class RegistrationService {
         // DuplicateEmail result; the failed flush marks this transaction rollback-only, so nothing is persisted (Quarkus rolls back cleanly).
         try {
             Panache.getEntityManager().flush();
-        } catch (final ConstraintViolationException | EntityExistsException e) {
+        } catch (final ConstraintViolationException e) {
             LOGGER.debug("Concurrent duplicate registration for email: {}", email, e);
             return new RegistrationResult.DuplicateEmail();
         }

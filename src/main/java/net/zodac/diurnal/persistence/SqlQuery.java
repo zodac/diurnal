@@ -18,7 +18,7 @@
 package net.zodac.diurnal.persistence;
 
 import io.quarkus.hibernate.orm.panache.Panache;
-import jakarta.persistence.StatementOrTypedQuery;
+import jakarta.persistence.Query;
 
 /**
  * One native SQL statement being prepared and run, with the named parameters bound through typed {@link QueryParameter} tokens rather than bare
@@ -32,9 +32,9 @@ import jakarta.persistence.StatementOrTypedQuery;
  */
 public final class SqlQuery {
 
-    private final StatementOrTypedQuery query;
+    private final Query query;
 
-    private SqlQuery(final StatementOrTypedQuery query) {
+    private SqlQuery(final Query query) {
         this.query = query;
     }
 
@@ -70,7 +70,7 @@ public final class SqlQuery {
      * one {@code (owner, ...)} row it has already decided on, or is an upsert whose count says nothing a caller could act on.
      */
     public void executeUpdate() {
-        query.asStatement().execute();
+        query.executeUpdate();
     }
 
     /**
@@ -79,6 +79,6 @@ public final class SqlQuery {
      * @return the single result
      */
     public Object singleResult() {
-        return query.ofType(Object.class).getSingleResult();
+        return query.getSingleResult();
     }
 }

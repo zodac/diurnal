@@ -19,7 +19,6 @@ package net.zodac.diurnal.action;
 
 import io.quarkus.hibernate.orm.panache.Panache;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.persistence.EntityExistsException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.SplittableRandom;
@@ -90,7 +89,7 @@ class ActionService {
         // preserved (Quarkus rolls back cleanly rather than committing).
         try {
             Panache.getEntityManager().flush();
-        } catch (final ConstraintViolationException | EntityExistsException e) {
+        } catch (final ConstraintViolationException e) {
             LOGGER.debug("Concurrent duplicate action name '{}' for user {}", normName, user.email, e);
             return new ActionResult.DuplicateName(normName);
         }

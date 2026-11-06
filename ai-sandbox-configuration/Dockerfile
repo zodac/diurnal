@@ -35,7 +35,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN --mount=type=cache,id=playwright-apt-cache,target=/var/cache/apt,sharing=locked --mount=type=cache,id=playwright-npm,target=/root/.npm,sharing=locked \
     apt-get update \
     && apt-mark showmanual | sort > /tmp/before \
-    && npx --yes playwright@1.64.1 install-deps chromium \
+    && npx --yes playwright@1.65.0 install-deps chromium \
     && apt-mark showmanual | sort | comm -13 /tmp/before - > /playwright-packages.txt \
     && test -s /playwright-packages.txt
 

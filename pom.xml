@@ -6,7 +6,7 @@
     <parent>
         <groupId>net.zodac</groupId>
         <artifactId>parent-pom</artifactId>
-        <version>1.2.1</version>
+        <version>1.2.2</version>
     </parent>
 
     <artifactId>diurnal</artifactId>
@@ -50,49 +50,6 @@
              path is a Sonar default. -->
         <sonar.coverage.jacoco.xmlReportPaths>target/site/jacoco/jacoco.xml,target/jacoco-report/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
-
-    <!--
-        TEMPORARY CVE-remediation pins - keep these grouped here, and keep them in this exact order.
-        Each entry pins a transitive dependency ahead of the Quarkus BOM (inherited via parent-pom): a
-        dependencyManagement entry declared here resolves before the parent's imported Quarkus BOM, so
-        these versions win over the ones Quarkus would otherwise pull in. Every bump is a patch within
-        the line the platform already ships, so it stays binary-compatible. Revisit (and ideally drop)
-        each pin once the Quarkus platform catches up to at least the version named here.
-
-        Ordering note: sortpom (sortDependencyManagement=scope,artifactId) sorts these by scope then
-        artifactId - import-scoped BOMs first. This block is already in that order and sits before
-        <dependencies> (canonical POM order), so `mvn sortpom:sort` is a no-op and will not reshuffle
-        it or detach this comment. Keep it that way when adding a pin.
-
-        A pin belongs here ONLY while grype still reports the finding against the version the platform
-        currently resolves - re-verify that before keeping one, because BOTH halves of the condition
-        move. The netty and postgresql pins were dropped on exactly that test: Quarkus 3.39.1 had
-        overtaken them, so each had quietly become a DOWNGRADE (netty 4.1.137 -> 4.1.136, which also
-        dragged netty-tcnative 2.0.81 -> 2.0.78 because netty-bom manages it too, and postgresql
-        42.7.13 -> 42.7.12) while still claiming to be remediation. The jackson pin survived, but for
-        DIFFERENT advisories than the ones it was added for - GHSA-r7wm-3cxj-wff9 (jackson-core) no
-        longer covers 2.22.0, and two jackson-databind advisories published since do.
-
-        Grype findings addressed (both "fixed in" 2.22.1; 2.22.2 is the newest patch on the line):
-          - com.fasterxml.jackson  2.22.0 -> 2.22.2: GHSA-5gvw-p9qm-jgwh, GHSA-5jmj-h7xm-6q6v
-            (jackson-databind). Both are MEDIUM, so they sit below the shared config's
-            `fail-on-severity: high` and do NOT fail the gate - this pin keeps the scanned image's
-            report clean rather than keeping the build green, which is why it is easy to lose track of.
-            Check `grype ... zodac/diurnal:latest` output, not just the gate's exit code.
-        The BOM is imported (not a per-artifact pin) so every module of the library moves together -
-        a version skew between, say, jackson-core and jackson-databind fails at runtime.
-    -->
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>com.fasterxml.jackson</groupId>
-                <artifactId>jackson-bom</artifactId>
-                <version>2.22.2</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
 
     <dependencies>
         <!-- Used directly for the jsonb column mapping on User.statsFields (@JdbcTypeCode +
