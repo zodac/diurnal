@@ -19,7 +19,7 @@
 #
 # The source file is generated - run scripts/generate-source-messages.sh after any @Message wording change.
 
-"project_id_env": "CROWDIN_PROJECT_ID"
+"project_id_env": "926085"  # https://crowdin.com/project/diurnal
 "api_token_env": "CROWDIN_PERSONAL_TOKEN"
 
 "base_path": "."

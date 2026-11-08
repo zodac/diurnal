@@ -58,31 +58,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
 
-      # A secret that never reached the runner is indistinguishable, at the CLI, from a wrong one: both come
-      # back as "Couldn't authorize. Check your 'api_token'". An ORGANISATION secret silently resolves to the
-      # empty string whenever its repository access policy excludes this repo - which "Private repositories"
-      # does, since zodac/diurnal is public - so the failure looks like a bad token and is not one. Report
-      # which of the two it actually is. Lengths only: the values themselves are masked in the log anyway,
-      # and a length is what catches a truncated or newline-padded paste.
-      - name: Verify the Crowdin credentials reached the runner
-        env:
-          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
-          CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
+      # Read the project ID from the authoritative CrowdIn configuration.
+      - name: Confirm Crowdin project
+        id: crowdin_config
         run: |
-          missing=0
-          if [ -z "${CROWDIN_PROJECT_ID}" ]; then
-            echo "::error::CROWDIN_PROJECT_ID is empty - the secret is unset, or an organisation secret whose repository access policy excludes this public repo"
-            missing=1
-          else
-            echo "CROWDIN_PROJECT_ID: ${#CROWDIN_PROJECT_ID} characters"
+          project_id="$(yq -r '.project_id' crowdin.yml)"
+
+          if [ -z "${project_id}" ] || [ "${project_id}" = "null" ]; then
+            echo "::error::project_id is missing from crowdin.yml"
+            exit 1
           fi
-          if [ -z "${CROWDIN_PERSONAL_TOKEN}" ]; then
-            echo "::error::CROWDIN_PERSONAL_TOKEN is empty - the secret is unset, or an organisation secret whose repository access policy excludes this public repo"
-            missing=1
-          else
-            echo "CROWDIN_PERSONAL_TOKEN: ${#CROWDIN_PERSONAL_TOKEN} characters"
-          fi
-          exit "${missing}"
+
+          echo "project_id=${project_id}" >> "${GITHUB_OUTPUT}"
+          echo "CrowdIn project ID: ${project_id}"
 
       # "Couldn't authorize. Check your 'api_token'" is the CLI's answer to several unrelated causes, so ask
       # the API directly and report the status code instead. Two probes, because they fail apart:
@@ -94,7 +82,7 @@ jobs:
       # Only status codes and error bodies are printed; the token travels in a header and is never echoed.
       - name: Diagnose the Crowdin credentials against the API
         env:
-          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
+          CROWDIN_PROJECT_ID: ${{ steps.crowdin_config.outputs.project_id }}
           CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
         run: |
           api='https://api.crowdin.com/api/v2'
@@ -108,7 +96,7 @@ jobs:
           echo "GET /projects/<id> -> ${project_code}"
           [ "${project_code}" = "200" ] || head -c 400 /tmp/crowdin-project.json
 
-      # crowdin.yml at the repo root supplies base_path/source/translation and the languages_mapping.
+      # crowdin.yml at the repo root supplies project_id/base_path/source/translation and languages_mapping.
       #
       # upload_sources and upload_translations are BOTH true, and both being in this one step is the point
       # rather than an accident: the CLI uploads the source file before the translations, so the strings a
@@ -144,5 +132,4 @@ jobs:
           download_translations: false
           dryrun_action: ${{ inputs.dryrun || false }}
         env:
-          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
           CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
