@@ -13,7 +13,9 @@ command. **The Maven build is unit + `*IT` (+ linters) ONLY — do not re-add th
 
 - **No dev server may be running.** The E2E tier needs port 8081, which `quarkus:dev` and `@QuarkusTest` also use.
   Tear down first: `scripts/dev-teardown.sh`.
-- **One-time per clone**: `cd tests && npx playwright install`.
+- **The gate needs no host Playwright**: `run-e2e.sh`/`run-smoke.sh` run the suites in the Playwright image matching
+  `package.json` (`playwright-docker.sh`, enabled by `PLAYWRIGHT_IN_DOCKER=true`). `npx playwright install` is only
+  for hand-runs.
 - Iterating one spec against an already-running app: `cd tests && BASE_URL=http://localhost:8081 npm test`.
   Against `quarkus:dev`, start it with `AUTH_IP_THROTTLE_ENABLED=false` or repeated logins lock out `127.0.0.1`.
 

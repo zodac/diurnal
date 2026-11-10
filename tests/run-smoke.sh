@@ -41,6 +41,19 @@ cd "${BASEDIR}/tests"
 COMPOSE_FILE="docker-compose.smoke.yml"
 PROJECT="diurnal-smoke"
 
+# Whether the smoke suite runs in the Playwright image (tests/playwright-docker.sh) rather than on the
+# host's Node; lint_and_tests.sh sets it so the tier needs nothing on the host but Docker. It shares the
+# smoke APP container's network namespace, where the app is 127.0.0.1:8080 (its in-container port, see
+# docker-compose.smoke.yml) - the host-published ${PORT} is only for the host-side checks below.
+PLAYWRIGHT_IN_DOCKER="${PLAYWRIGHT_IN_DOCKER:-false}"
+PLAYWRIGHT_CONTAINER="diurnal-gate-smoke-playwright"
+PLAYWRIGHT_MODULES_VOLUME="diurnal-gate-smoke-node-modules"
+APP_INTERNAL_PORT=8080
+if [[ "${PLAYWRIGHT_IN_DOCKER}" == true ]]; then
+  # shellcheck source=tests/playwright-docker.sh
+  source "${BASEDIR}/tests/playwright-docker.sh"
+fi
+
 # Best-effort + idempotent. `down` removes the tracked stack (containers, network, volumes); the
 # label-based sweep afterwards catches anything `down` missed — e.g. a container left half-created
 # by an interrupted `up`, which `down` won't always reap. Both are quiet so they never mask the
@@ -52,6 +65,7 @@ sweep_stack() {
 }
 
 cleanup() {
+  if [[ "${PLAYWRIGHT_IN_DOCKER}" == true ]]; then docker rm -f "${PLAYWRIGHT_CONTAINER}" >/dev/null 2>&1 || true; fi
   sweep_stack
 }
 # EXIT alone is not enough: a SIGINT (Ctrl-C) or SIGTERM (Maven/CI killing the child when the build
@@ -67,13 +81,19 @@ trap 'exit 129' HUP
 # (SIGKILL, a crashed shell, a lost session) leaves its stack standing — holding port ${PORT} and, worse,
 # an old image's containers that a later `up` may reuse. Clearing it here, rather than only on the way
 # out, makes each run start from a known-clean host.
+if [[ "${PLAYWRIGHT_IN_DOCKER}" == true ]]; then docker rm -f "${PLAYWRIGHT_CONTAINER}" >/dev/null 2>&1 || true; fi
 sweep_stack
 
 # Ensure the browser build this @playwright/test version pins is cached before the stack goes up, so a
 # cold download does not hold the container stack open (and so a stale cache fails as one missing download
 # rather than as every spec dying with "Executable doesn't exist"). A no-op, no network, when already
-# present. Same reasoning as run-e2e.sh; each runner does it itself to stay independently runnable.
-(cd "${BASEDIR}/tests" && npx playwright install chromium)
+# present. Same reasoning as run-e2e.sh; each runner does it itself to stay independently runnable. In
+# the Playwright image the browsers are baked in; the image and the suite's dependencies are prepared instead.
+if [[ "${PLAYWRIGHT_IN_DOCKER}" == true ]]; then
+  prepare_playwright_docker "${PLAYWRIGHT_MODULES_VOLUME}"
+else
+  (cd "${BASEDIR}/tests" && npx playwright install chromium)
+fi
 
 # Build the real image and bring the stack up, blocking until the image's own HEALTHCHECK reports
 # healthy (--wait). A boot failure (e.g. a missing jlink module) trips here and fails the script
@@ -83,8 +103,15 @@ SMOKE_PORT="${PORT}" docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" \
 
 # Run the smoke suite against the live container; a non-zero result trips `set -e` here (cleanup runs
 # via the EXIT trap regardless), so a failing suite fails the Maven build before the checks below.
-(cd "${BASEDIR}/tests" && BASE_URL="http://127.0.0.1:${PORT}" \
-  npx playwright test --config playwright.smoke.config.ts)
+if [[ "${PLAYWRIGHT_IN_DOCKER}" == true ]]; then
+  APP_CONTAINER_ID="$(docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" ps -q app)"
+  run_in_playwright_docker "${PLAYWRIGHT_CONTAINER}" "container:${APP_CONTAINER_ID}" "${PLAYWRIGHT_MODULES_VOLUME}" \
+    "BASE_URL=http://127.0.0.1:${APP_INTERNAL_PORT}" -- \
+    npx --no-install playwright test --config playwright.smoke.config.ts
+else
+  (cd "${BASEDIR}/tests" && BASE_URL="http://127.0.0.1:${PORT}" \
+    npx playwright test --config playwright.smoke.config.ts)
+fi
 
 # ── Readiness-gating check: the HEALTHCHECK is only valid if it reports UNHEALTHY when the app cannot
 # serve traffic. Stop the database and assert (1) GET /api/v1/status (the exact URL the image's

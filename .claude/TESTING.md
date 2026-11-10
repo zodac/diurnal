@@ -1,6 +1,6 @@
 # Testing Tiers & Conventions
 
-> **This file is ~24 KB. Read only the section you need** - `grep -n '^#' .claude/TESTING.md` for its
+> **This file is ~26 KB. Read only the section you need** - `grep -n '^#' .claude/TESTING.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Testing conventions**
@@ -84,6 +84,19 @@ which
 `mvn clean` wipes before the tier starts), smoke and perf remove any container still labelled with their compose project, and perf drops stale
 `.perf-state.*` scratch dirs. The E2E runner then **refuses to run** if its port is still served by something it did not start (typically a
 `quarkus:dev` instance, which also uses 8081) rather than silently testing an unknown app — override with `E2E_HTTP_PORT`.
+
+**The E2E jar boots in the gate's pinned JDK, not the host's.** The `java` step passes `E2E_JAVA_IMAGE` (its `MVN_JDK_IMAGE`, the JDK the Maven
+tier compiles with), and `run-e2e.sh` runs the JVM in that image as container `diurnal-gate-e2e-app` on the database's compose network, publishing
+`127.0.0.1:8081`. A host JDK is not needed and does not matter. **Playwright runs in Docker too, for both the E2E and smoke tiers**
+(`PLAYWRIGHT_IN_DOCKER=true`, `tests/playwright-docker.sh`): the image tag is derived from `@playwright/test` in `tests/package.json`, so it
+needs no pin of its own; the container shares the APP container's network namespace so the browser still sees `127.0.0.1` (a service-name
+origin would be an insecure context, dropping `Secure` cookies); and the suite's dependencies install into a per-tier volume
+(`diurnal-gate-{e2e,smoke}-node-modules`, reinstalled only when the lockfile changes), never into `tests/node_modules`, which the typescript step
+may be using concurrently. This is not just tidiness: a JVM older
+than the jar's class-file release cannot load it, and the Quarkus launcher swallows the `UnsupportedClassVersionError` and exits 1 with an EMPTY
+`app.log`. A hand-run of `run-e2e.sh` without the variable falls back to the host `java`, behind a pre-flight check that names that version
+mismatch. The container has a fixed name so the next run's pre-flight sweep can `docker rm -f` it, because killing the `docker run` client does not
+stop the container.
 
 ## Deployment-smoke tier (`tests/smoke/`)
 

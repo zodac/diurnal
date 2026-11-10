@@ -159,7 +159,7 @@ Not to be confused with `.claude/hooks/`. Installed by `.hooks/install_hooks.sh`
 # One-time after cloning
 git submodule update --init          # lint config (required for -Dlint / -Dall / Qodana) + ai-sandbox
 npm --prefix frontend install        # required for any `mvn` build to produce the CSS
-cd tests && npx playwright install   # required for the java gate's E2E tier
+cd tests && npx playwright install   # only for hand-run specs; the gate's E2E/smoke run in Docker
 
 # Build CSS (compiled Tailwind at /css/app.css; rebuild after ANY class change in a template or in Java,
 # or it is purged). Any `mvn` build regenerates it via the POM's `css-build` exec.

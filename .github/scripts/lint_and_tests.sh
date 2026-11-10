@@ -134,10 +134,11 @@
 #   - The `java` step runs `mvn clean install -Dall` inside MVN_BUILD_IMAGE, a locally-built image pinning
 #     the JDK, Maven, Node and Docker CLI (see that constant), so the gate's JVM is the same on every
 #     machine rather than whatever is on the host's PATH. It needs Docker (the container drives the host
-#     daemon over the mounted socket for the managed IT test DB) and, on the HOST, Playwright browsers
-#     (cd tests && npx playwright install --with-deps) for the E2E tier only. Then — only if the Maven
-#     tier passed — the E2E suite (tests/run-e2e.sh, reusing the fast-jar the
-#     build just produced) and the deployment-smoke suite (tests/run-smoke.sh, which builds the REAL
+#     daemon over the mounted socket for the managed IT test DB) and nothing else on the host: the E2E and
+#     smoke suites run in the Playwright image matching tests/package.json (tests/playwright-docker.sh,
+#     enabled by PLAYWRIGHT_IN_DOCKER=true), so no host Node or browsers are needed. Then — only if the Maven
+#     tier passed — the E2E suite (tests/run-e2e.sh, booting the fast-jar the build just produced in
+#     MVN_JDK_IMAGE, the same pinned JDK that compiled it, so the host needs no JDK at all) and the deployment-smoke suite (tests/run-smoke.sh, which builds the REAL
 #     production image and brings up an isolated app+DB stack). The `mvn` gate itself stays unit + ITs +
 #     linters; the E2E and smoke tiers are deliberately NOT in the Maven build — they are chained into
 #     this step instead, so a single `java` run is the whole JVM-side gate.
@@ -192,7 +193,7 @@ DEV_DB_PROJECT="diurnal-dev"
 # container run on the default bridge instead of --network host (Linux-only, so it would have made the gate
 # unrunnable on Docker Desktop). Compose derives the network name from the project, so these two move
 # together. The published 127.0.0.1:5432 stays exactly as it was, for every host-side caller: a developer's
-# ITs, tests/run-e2e.sh, and the packaged E2E jar.
+# ITs and a hand-run of tests/run-e2e.sh. The gate's E2E jar joins this network too (see run-e2e.sh).
 DEV_DB_NETWORK="${DEV_DB_PROJECT}_default"
 DEV_DB_SERVICE="diurnal-db-dev"
 
@@ -788,7 +789,7 @@ EOF
 #   docker.sock       the POM runs `docker compose up` for the IT database itself; without the socket (and
 #                     --group-add for its group, since we run as the host UID) that exec fails.
 #   same-path mount   the repo is mounted AT ITS HOST PATH so target/ paths match on both sides - the e2e
-#                     and smoke tiers run on the host and consume the fast-jar this tier packages.
+#                     tier (whose JVM gets the same mount) consumes the fast-jar this tier packages.
 #   maven.repo.local  an unmapped UID has no passwd entry, so the JVM cannot resolve user.home and Maven
 #                     silently picks the wrong local repository - every artifact then "has not been
 #                     downloaded" and even the parent POM fails to resolve. Naming the path sidesteps it.
@@ -1344,9 +1345,10 @@ run_java() {
     # of them can be selected on its own (`java:qodana`, `java:mvn,java:e2e`):
     #   1. mvn clean install -Dall — unit tests + *IT + the full inherited lint suite. Drives the CSS
     #      build (Node) and a managed IT test DB (Docker), and packages the fast-jar the E2E run reuses;
-    #      so it runs against the host toolchain (JDK + Maven + Node + Docker), not a Maven Docker image.
+    #      it runs in MVN_BUILD_IMAGE (see build_mvn_docker_cmd), not against the host toolchain.
     #   2. tests/run-e2e.sh — Playwright UI suite against the packaged jar (its own DB, port 8081). No
-    #      rebuild needed: it reuses ${PWD}/target/quarkus-app from the install above.
+    #      rebuild needed: it reuses ${PWD}/target/quarkus-app from the install above, booting it in
+    #      MVN_JDK_IMAGE (E2E_JAVA_IMAGE) - a host JDK older than the jar's release exits silently.
     #   3. tests/run-smoke.sh — deployment-smoke suite against the REAL production image (port 8082),
     #      fully self-contained (builds the image, isolated app+DB stack, readiness-gating check).
     #   4. Qodana — whole-program static analysis (see qodana_prepare). A Java lint like the ones inside
@@ -1459,6 +1461,7 @@ run_java() {
         : > "${SMOKE_LOG}"
         SMOKE_START_NS="$(date +%s%N)"
         substep "tests/run-smoke.sh  (on :${SMOKE_HTTP_PORT})"
+        env PLAYWRIGHT_IN_DOCKER=true \
         "${PWD}/tests/run-smoke.sh" "${SMOKE_HTTP_PORT}" "${PWD}" > "${SMOKE_LOG}" 2>&1 &
         SMOKE_PID=$!
     fi
@@ -1536,6 +1539,7 @@ run_java() {
 
     if [[ "${run_e2e}" == true && -z "${failed_at}" ]]; then
         if ! run_supervised_tier "e2e" "tests/run-e2e.sh  (on :${E2E_HTTP_PORT}, reusing the mvn jar)" \
+                env E2E_JAVA_IMAGE="${MVN_JDK_IMAGE}" PLAYWRIGHT_IN_DOCKER=true \
                 "${PWD}/tests/run-e2e.sh" "${E2E_HTTP_PORT}" "${PWD}/target" "${PWD}"; then
             failed_at="tests/run-e2e.sh"
             failed_tier="e2e"
@@ -2622,7 +2626,7 @@ detect_changed_steps() {
         #     root-level qodana.yaml, so editing the exclusions or a project-level inspection override left
         #     the tier that reads them unselected - the same gap the profile and overrides had;
         #   - the E2E suite's own files — the ui specs, shared helpers/global-setup, its Playwright config,
-        #     the runner, and the tests/ npm/ts deps;
+        #     the runner, the tests/ npm/ts deps, and the Playwright-in-Docker helper both runners source;
         #   - the deployment-smoke inputs — the runtime Dockerfile/.dockerignore, the smoke stack/suite,
         #     its Playwright config and runner.
         if [[ "${file}" =~ ^src/ || "${file}" =~ ^frontend/ || "${file}" == "pom.xml" || "${file}" =~ ^code-quality-config/java/ \
@@ -2632,7 +2636,7 @@ detect_changed_steps() {
            || "${file}" =~ ^tests/package(-lock)?\.json$ || "${file}" == "tests/tsconfig.json" \
            || "${file}" == "Dockerfile" || "${file}" == ".dockerignore" || "${file}" =~ ^tests/smoke/ \
            || "${file}" == "tests/docker-compose.smoke.yml" || "${file}" == "tests/playwright.smoke.config.ts" \
-           || "${file}" == "tests/run-smoke.sh" ]]; then
+           || "${file}" == "tests/run-smoke.sh" || "${file}" == "tests/playwright-docker.sh" ]]; then
             run_java=true
             java_changed_files+=("${file}")
         fi

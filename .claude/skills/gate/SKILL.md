@@ -19,7 +19,9 @@ unless something fails.
   against dev mode — recreate it first: `docker compose -p diurnal-dev -f docker-compose.dev.yml down -v`. The gate
   starts it again itself. See the boot-failure triage below for why.
 - **Prerequisites, once per clone**: `git submodule update --init` (the lint config, and Qodana refuses to start
-  without it) and `cd tests && npx playwright install`.
+  without it). Nothing else: the E2E and smoke tiers boot the jar in the gate's pinned JDK image and run
+  Playwright in the image matching `tests/package.json` (`tests/playwright-docker.sh`), so the host's JDK, Node
+  and browsers do not matter. `cd tests && npx playwright install` is needed only to run specs by hand.
 
 ## 2. Pick the narrowest step
 

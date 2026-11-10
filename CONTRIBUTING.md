@@ -15,12 +15,16 @@ here automatically once strings are translated. Only `translations/msg_en-GB.pro
 
 ## Building Locally
 
-Requires JDK 26, Maven 3.9+, Node 26+ and Docker (with the Compose v2 plugin).
+Requires a JDK at least as new as the release the parent POM compiles for, Maven 3.9+, Node 26+ and Docker (with the
+Compose v2 plugin). That release is the `java-release` property of `net.zodac:parent-pom`, so it moves when the parent
+is bumped; print the current one with `mvn -q help:evaluate -Dexpression=java-release -DforceStdout`. An older JDK
+cannot load the build's classes. The quality gate is unaffected: it builds and runs everything in its own pinned
+containers.
 
 ```bash
 git submodule update --init          # lint config; required for -Dlint / -Dall
 npm --prefix frontend install        # required for any mvn build to produce the CSS
-cd tests && npx playwright install   # required for the E2E tier
+cd tests && npx playwright install   # only to run specs by hand; the gate runs them in Docker
 ```
 
 Run the application in dev mode, with hot reload and Swagger UI on port 8081:

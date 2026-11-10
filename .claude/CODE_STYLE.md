@@ -1,6 +1,6 @@
 # CODE_STYLE.md
 
-> **This file is ~57 KB. Read only the section you need** - `grep -n '^#' .claude/CODE_STYLE.md` for its
+> **This file is ~58 KB. Read only the section you need** - `grep -n '^#' .claude/CODE_STYLE.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Java** — Format with the IDE formatter (Checkstyle-aligned), Javadoc must use the multi-line form, Block comments and Javadoc fill the line
@@ -575,9 +575,9 @@ case final ActionResult.NotFound _ -> Response.status(Response.Status.NOT_FOUND)
 > A binding the branch **does** read keeps its real name (`case final ActionResult.DuplicateName duplicate -> … duplicate.name()`); this rule is
 > only about bindings that exist solely to satisfy the pattern syntax.
 
-> Unnamed variables are JEP 456, standard since Java 22 (this project targets 26). Checkstyle's `PatternVariableName` permits `_` via the
-> `|_` alternation in `code-quality-config/java/checkstyle.xml`, matching the allowance `CatchParameterName` and `LambdaParameterName` already
-> make — so the same `_` is available for an unread catch parameter or lambda parameter.
+> Unnamed variables are JEP 456, standard since Java 22 (this project targets the parent POM's `java-release`). Checkstyle's `PatternVariableName`
+> permits `_` via the `|_` alternation in `code-quality-config/java/checkstyle.xml`, matching the allowance `CatchParameterName` and
+> `LambdaParameterName` already make — so the same `_` is available for an unread catch parameter or lambda parameter.
 
 The pattern variable is **`final`**, like every other local (`case final ActionResult.Success success ->`, `instanceof final TextOutcome.Valid
 valid`).
